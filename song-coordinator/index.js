@@ -9,7 +9,7 @@ const server = http.createServer((req, res) => {
   res.setHeader('Content-Type', 'application/json');
   
   if (req.method === 'POST' && req.url === '/next-song') {
-    const songs = fs.readdirSync(SONGS_DIR).filter(f => f.endsWith('.mp3'));
+    const songs = fs.readdirSync(SONGS_DIR).filter(f => f.endsWith('.mp3') || f.endsWith('.wav'));
     const available = songs.filter(s => !Object.values(locked).includes(s));
     if (!available.length) return res.end(JSON.stringify({ error: 'No songs available' }));
     let body = '';
@@ -27,10 +27,12 @@ const server = http.createServer((req, res) => {
       const { channelId } = JSON.parse(body || '{}');
       delete locked[channelId];
       res.end(JSON.stringify({ released: true }));
-    });
-  } else if (req.url === '/status') {
-    res.end(JSON.stringify({ locked }));
-  } else {
+const songs = fs.readdirSync(SONGS_DIR).filter(f => f.endsWith('.mp3') || f.endsWith('.wav'));    });
+  } } else if (req.url === '/status') {
+        // PERBAIKAN: Baca ulang direktori saat status dipanggil
+        const songs = fs.readdirSync(SONGS_DIR).filter(f => f.endsWith('.mp3') || f.endsWith('.wav'));
+        res.end(JSON.stringify({ count: songs.length, songs: songs, locked: locked }));
+    } else {
     res.end(JSON.stringify({ ok: true }));
   }
 });
