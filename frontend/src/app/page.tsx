@@ -70,17 +70,32 @@ export default function DashboardPage() {
 
   // Fetch initial state
   const fetchData = useCallback(async () => {
-    const [streamsRes, songsRes] = await Promise.all([
-      fetch('/api/streams/status'),
-      fetch('/api/songs'),
-    ]);
-    setStreams(await streamsRes.json());
-    const { songs: s } = await songsRes.json();
-    setSongs(s || []);
+    try {
+      // 1. Ambil status stream
+      const streamsRes = await fetch('/api/streams/status');
+      setStreams(await streamsRes.json());
+      
+      // 2. Ambil data lagu dari backend yang jalan di port 8090
+      // Gunakan IP VPS lo di sini
+      const songsRes = await fetch('http://13.140.149.117:8090/status');
+      const data = await songsRes.json();
+      
+      // Update state dengan data terbaru (count: 3 lagu wav)
+      setSongs(data.songs || []); 
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    }
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [logs]);
+useEffect(() => {
+    fetchData();
+    
+    // Polling setiap 10 detik biar data selalu fresh
+    const interval = setInterval(fetchData, 10000);
+    return () => clearInterval(interval);
+  }, [fetchData]);
 
   // Start stream
   const startStream = async (channelId: string, streamKey: string) => {
