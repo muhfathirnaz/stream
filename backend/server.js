@@ -109,9 +109,6 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // ─── START ───────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
-  console.log(`[backend] running on :${PORT}`);
-  console.log(`[ws]      WebSocket ready on ws://localhost:${PORT}/ws`);
-});
+server.listen(PORT, '0.0.0.0', () => console.log('[song-coordinator] running on :' + PORT));
 
 module.exports = { app, db, redis };

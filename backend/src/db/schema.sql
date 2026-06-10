@@ -49,3 +49,7 @@ CREATE TABLE IF NOT EXISTS daily_metrics (
 
 CREATE INDEX IF NOT EXISTS idx_metrics_channel_date
   ON daily_metrics (channel_id, recorded_at DESC);
+
+  -- Tambahan untuk integrasi otomatisasi YouTube API
+ALTER TABLE channels ADD COLUMN google_refresh_token TEXT;
+ALTER TABLE channels ADD COLUMN youtube_channel_id VARCHAR(100);

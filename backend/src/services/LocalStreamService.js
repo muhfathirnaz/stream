@@ -1,4 +1,5 @@
 const { spawn } = require('child_process');
+const YouTubeService = require('./YouTubeService');
 const fs = require('fs');
 const path = require('path');
 
@@ -10,6 +11,7 @@ class LocalStreamService {
     this.wsService = wsService;
     this.coord = coordinatorService;
     this.startTimes = {};
+    this.youtubeService = new YouTubeService();
   }
 
   async fetchNextVideo(channelId) {
@@ -65,38 +67,54 @@ class LocalStreamService {
     }
   }
 
-  async start({ channelId, streamKey, durationSecs = 21600 }) {
+  async start(channelId, dbClient, options = {}) {
+    const { durationSecs = 21600, title, description, thumbnailPath } = options;
+
     if (this.processes[channelId]) {
       throw new Error(`Channel ${channelId} already streaming`);
     }
 
-    // 1. Ambil video dari coordinator (anti-duplicate)
+    console.log(`[LocalStreamService] Mengambil token untuk ${channelId}...`);
+    const { rows } = await dbClient.query(
+      'SELECT google_refresh_token FROM channels WHERE channel_id = $1',
+      [channelId]
+    );
+
+    const refreshToken = rows[0]?.google_refresh_token;
+    if (!refreshToken) {
+      throw new Error(`google_refresh_token tidak ditemukan di DB untuk channel ${channelId}`);
+    }
+
+    console.log(`[LocalStreamService] Mempersiapkan YouTube Broadcast...`);
+    // ✅ Sekarang ambil broadcastId dan streamId juga
+    const { rtmpUrl, broadcastId, streamId } = await this.youtubeService.createBroadcast({
+      refreshToken,
+      title,
+      description,
+      thumbnailPath
+    });
+
     const video = await this.fetchNextVideo(channelId);
     if (!video || video.error) {
       throw new Error(`Tidak bisa mulai stream: ${video?.error || 'No video available'}`);
     }
 
-    // 2. Ambil audio dari coordinator (anti-duplicate)
     const song = await this.fetchNextSong(channelId);
     if (!song || song.error) {
-      await this.releaseVideo(channelId); // rollback video lock
+      await this.releaseVideo(channelId);
       throw new Error(`Tidak bisa mulai stream: ${song?.error || 'No song available'}`);
     }
 
     console.log(`[LocalStreamService] Channel ${channelId} → video: ${video.filename}, audio: ${song.filename}`);
+    console.log(`[FFmpeg] YouTube Ready! Nembak ke URL: ${rtmpUrl}`);
 
-    // 3. Spawn FFmpeg: video loop + audio loop → RTMP
     const ffmpegArgs = [
       '-y',
-      // Video input — loop terus
       '-stream_loop', '-1',
       '-i', video.path,
-      // Audio input — loop terus
       '-stream_loop', '-1',
       '-i', song.path,
-      // Durasi total
       '-t', String(durationSecs),
-      // Video encoding
       '-c:v', 'libx264',
       '-preset', 'veryfast',
       '-b:v', '2500k',
@@ -105,18 +123,15 @@ class LocalStreamService {
       '-vf', 'scale=1920:1080,format=yuv420p',
       '-r', '30',
       '-g', '60',
-      // Audio encoding
       '-c:a', 'aac',
       '-b:a', '128k',
       '-ar', '44100',
       '-ac', '2',
-      // Map: video dari input 0, audio dari input 1
       '-map', '0:v:0',
       '-map', '1:a:0',
-      // Fix timestamp
       '-max_interleave_delta', '0',
       '-f', 'flv',
-      `rtmp://a.rtmp.youtube.com/live2/${streamKey}`,
+      rtmpUrl,
     ];
 
     console.log(`[LocalStreamService] FFmpeg args: ffmpeg ${ffmpegArgs.join(' ')}`);
@@ -125,9 +140,19 @@ class LocalStreamService {
     this.processes[channelId] = ffmpeg;
     this.startTimes[channelId] = new Date();
 
+    // ✅ Panggil goLive non-blocking setelah FFmpeg spawn
+   setTimeout(() => {
+    this.youtubeService.goLive({ refreshToken, broadcastId, streamId })
+      .then(() => {
+        this.wsService.broadcast('stream:live', { channelId, ts: new Date().toISOString() });
+      })
+      .catch((err) => {
+        console.error(`[LocalStreamService] goLive gagal untuk ${channelId}:`, err.message);
+      });
+}, 10000); 
+
     ffmpeg.stderr.on('data', (data) => {
       const log = data.toString();
-      // Hanya log progress, bukan full ffmpeg header
       if (log.includes('frame=') || log.includes('Error') || log.includes('error')) {
         console.log(`[FFmpeg/${channelId}] ${log.substring(0, 300)}`);
       }
