@@ -8,8 +8,9 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const PORT = process.env.PORT || 8090;
 const SONGS_DIR = process.env.SONGS_DIR || '/opt/songs';
+const VIDEOS_DIR = process.env.VIDEOS_DIR || '/opt/videos'; // Tambahan path video
+const PORT = process.env.PORT || 8090;
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
 // { channelId: { songId, filename, lockedAt } }
