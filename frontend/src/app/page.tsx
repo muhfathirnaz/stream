@@ -1,8 +1,7 @@
 /**
  * Frontend — Next.js Dashboard Page
  * Path: frontend/src/app/page.tsx  (App Router)
- * 
- * Stack: Next.js 14 + Tailwind CSS
+ * * Stack: Next.js 14 + Tailwind CSS
  * WebSocket: connect ke wss://domainlo.com/ws untuk realtime log
  */
 
@@ -46,9 +45,13 @@ function useWebSocket(url: string) {
     ws.onclose = () => setIsConnected(false);
 
     ws.onmessage = (e) => {
-      const msg = JSON.parse(e.data);
-      if (msg.type === 'stream:log') {
-        setLogs((prev) => [...prev.slice(-100), msg]);
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'stream:log') {
+          setLogs((prev) => [...prev.slice(-100), msg]);
+        }
+      } catch (err) {
+        console.error("Failed to parse WS message:", err);
       }
     };
 
@@ -61,63 +64,83 @@ function useWebSocket(url: string) {
 // ─── MAIN PAGE ───────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const { isConnected, logs } = useWebSocket(
-    process.env.NEXT_PUBLIC_WS_URL || 'wss://domainlo.com/ws'
+    process.env.NEXT_PUBLIC_WS_URL || 'wss://aksarastream.ddns.net/ws' // Pastikan ini bener!
   );
 
   const [streams, setStreams] = useState<StreamStatus[]>([]);
   const [songs, setSongs] = useState<Song[]>([]);
   const logEndRef = useRef<HTMLDivElement>(null);
 
-  // Fetch initial state
+  // Fetch initial state (Aman dari 502 Bad Gateway domino effect)
   const fetchData = useCallback(async () => {
+    // 1. Ambil status stream
     try {
-      // 1. Ambil status stream
       const streamsRes = await fetch('/api/streams/status');
-      setStreams(await streamsRes.json());
-      
-      // 2. Ambil data lagu dari backend yang jalan di port 8090
-      // Gunakan IP VPS lo di sini
-      const songsRes = await fetch('http://13.140.149.117:8090/status');
-      const data = await songsRes.json();
-      
-      // Update state dengan data terbaru (count: 3 lagu wav)
-      setSongs(data.songs || []); 
+      if (streamsRes.ok) {
+        setStreams(await streamsRes.json());
+      } else {
+        console.error("Streams API error:", streamsRes.status, streamsRes.statusText);
+      }
     } catch (error) {
-      console.error("Error fetching data:", error);
+      console.error("Error fetching streams:", error);
+    }
+
+    // 2. Ambil data lagu via proxy Nginx (/coordinator/)
+    try {
+      const songsRes = await fetch('/coordinator/status');
+      if (songsRes.ok) {
+        const data = await songsRes.json();
+        setSongs(data.songs || []); 
+      } else {
+        console.error("Songs API error:", songsRes.status, songsRes.statusText);
+      }
+    } catch (error) {
+      console.error("Error fetching songs:", error);
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
-  useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [logs]);
-useEffect(() => {
-    fetchData();
+  // Polling data & Auto-scroll log
+  useEffect(() => {
+    fetchData(); // Fetch pertama kali
     
-    // Polling setiap 10 detik biar data selalu fresh
+    // Polling setiap 10 detik
     const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
   }, [fetchData]);
 
+  useEffect(() => { 
+    logEndRef.current?.scrollIntoView({ behavior: 'smooth' }); 
+  }, [logs]);
+
   // Start stream
   const startStream = async (channelId: string, streamKey: string) => {
-    await fetch('/api/streams/start', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Internal-Key': process.env.NEXT_PUBLIC_INTERNAL_KEY || '',
-      },
-      body: JSON.stringify({ channelId, streamKey }),
-    });
-    fetchData();
+    try {
+      await fetch('/api/streams/start', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Internal-Key': process.env.NEXT_PUBLIC_INTERNAL_KEY || '',
+        },
+        body: JSON.stringify({ channelId, streamKey }),
+      });
+      fetchData();
+    } catch (error) {
+      console.error("Error starting stream:", error);
+    }
   };
 
   // Stop stream
   const stopStream = async (channelId: string) => {
-    await fetch('/api/streams/stop', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ channelId }),
-    });
-    fetchData();
+    try {
+      await fetch('/api/streams/stop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelId }),
+      });
+      fetchData();
+    } catch (error) {
+      console.error("Error stopping stream:", error);
+    }
   };
 
   return (

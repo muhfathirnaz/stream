@@ -1,4 +1,4 @@
-ini server js gue cek /**
+/**
  * Command Center — Backend
  * Stack: Node.js + Express + WebSocket (ws) + PostgreSQL (pg) + Redis (ioredis)
  * Port: 3001
