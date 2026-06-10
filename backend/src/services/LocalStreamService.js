@@ -1,34 +1,58 @@
-/**
- * LocalStreamService
- * Menggantikan VPS Agent (Flask). Spawn FFmpeg langsung via child_process.spawn()
- * Tidak ada HTTP round-trip — zero latency, log langsung ke WebSocket
- */
-
 const { spawn } = require('child_process');
 
 class LocalStreamService {
   constructor(wsService, coordinatorService) {
-    this.processes  = {};   // { channelId: childProcess }
-    this.wsService  = wsService;
-    this.coord      = coordinatorService;
-    this.startTimes = {};   // { channelId: Date }
+    this.processes = {};   // { channelId: childProcess }
+    this.wsService = wsService;
+    this.coord = coordinatorService;
+    this.startTimes = {};  // { channelId: Date }
   }
 
   /**
-   * Start FFmpeg stream untuk satu channel
-   * @param {string} channelId  - e.g. 'ch_monet'
-   * @param {string} streamKey  - YouTube stream key
-   * @param {string} imagePath  - path ke static JPG, e.g. /opt/images/ch_monet.jpg
-   * @param {number} durationSecs - panjang sesi, default 21600 (6 jam)
+   * Helper untuk fetch lagu dari Song Coordinator (Port 8090)
    */
+  async fetchNextSong(channelId) {
+    try {
+      const response = await fetch('http://localhost:8090/next-song', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelId })
+      });
+      return await response.json();
+    } catch (err) {
+      console.error(`[LocalStreamService] Gagal ambil lagu untuk ${channelId}:`, err);
+      return null;
+    }
+  }
+
+  /**
+   * Helper untuk release lagu dari Song Coordinator
+   */
+  async releaseSong(channelId) {
+    try {
+      await fetch('http://localhost:8090/release-song', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelId })
+      });
+      console.log(`[LocalStreamService] Lagu untuk channel ${channelId} di-release.`);
+    } catch (err) {
+      console.error(`[LocalStreamService] Gagal release lagu untuk ${channelId}:`, err);
+    }
+  }
+
   async start({ channelId, streamKey, imagePath, durationSecs = 21600 }) {
     if (this.processes[channelId]) {
       throw new Error(`Channel ${channelId} already streaming`);
     }
 
-    const song = await this.coord.getNextSong(channelId);
-    if (!song) throw new Error('No song available from coordinator');
+    // 1. Ambil lagu baru
+    const song = await this.fetchNextSong(channelId);
+    if (!song || song.error) {
+      throw new Error(`Tidak bisa mulai stream: ${song?.error || 'No song available'}`);
+    }
 
+    // 2. Spawn FFmpeg
     const ffmpeg = spawn('ffmpeg', [
       '-y',
       '-loop', '1', '-i', imagePath,
@@ -44,39 +68,19 @@ class LocalStreamService {
     this.processes[channelId] = ffmpeg;
     this.startTimes[channelId] = new Date();
 
-    // Pipe FFmpeg stderr ke WebSocket realtime
+    // Log ke WebSocket
     ffmpeg.stderr.on('data', (data) => {
-      this.wsService.broadcast('stream:log', {
-        channelId,
-        log: data.toString(),
-        ts: new Date().toISOString(),
-      });
+      this.wsService.broadcastLog(channelId, data.toString());
     });
 
     ffmpeg.on('close', (code) => {
+      this.releaseSong(channelId); // Otomatis release saat FFmpeg mati
       delete this.processes[channelId];
       delete this.startTimes[channelId];
-      this.coord.releaseSong(channelId, song.id).catch(() => {});
-      this.wsService.broadcast('stream:stopped', {
-        channelId,
-        exitCode: code,
-        ts: new Date().toISOString(),
-      });
+      this.wsService.broadcast('stream:stopped', { channelId, exitCode: code, ts: new Date().toISOString() });
     });
 
-    ffmpeg.on('error', (err) => {
-      this.wsService.broadcast('stream:error', {
-        channelId,
-        error: err.message,
-        ts: new Date().toISOString(),
-      });
-    });
-
-    this.wsService.broadcast('stream:started', {
-      channelId,
-      song: song.filename,
-      ts: new Date().toISOString(),
-    });
+    this.wsService.broadcast('stream:started', { channelId, song: song.filename, ts: new Date().toISOString() });
 
     return { channelId, song: song.filename, pid: ffmpeg.pid };
   }
@@ -88,13 +92,10 @@ class LocalStreamService {
     return { channelId, stopped: true };
   }
 
-  isRunning(channelId) {
-    return !!this.processes[channelId];
-  }
+  isRunning(channelId) { return !!this.processes[channelId]; }
 
   getStatus() {
-    const active = Object.keys(this.processes);
-    return active.map((id) => ({
+    return Object.keys(this.processes).map(id => ({
       channelId: id,
       pid: this.processes[id].pid,
       startedAt: this.startTimes[id],

@@ -1,11 +1,11 @@
-/**
+ini server js gue cek /**
  * Command Center — Backend
  * Stack: Node.js + Express + WebSocket (ws) + PostgreSQL (pg) + Redis (ioredis)
  * Port: 3001
  * Dikelola oleh: PM2
  */
 
-require('dotenv').config();
+require('dotenv').config({ path: __dirname + '/.env' });;
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
@@ -78,7 +78,7 @@ app.use((req, _res, next) => {
 });
 
 // ─── ROUTES ──────────────────────────────────────────────────────────────────
-app.use('/api/streams', internalAuth, streamsRouter);
+app.use('/api/streams', streamsRouter);
 app.use('/api/songs', songsRouter);
 app.use('/api/channels', channelsRouter);
 app.use('/api/metrics', metricsRouter);
