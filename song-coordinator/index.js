@@ -141,7 +141,9 @@ const server = http.createServer(async (req, res) => {
     const VIDEOS_DIR = process.env.VIDEOS_DIR || '/opt/videos';
     let videos = [];
     try {
-      videos = fs.readdirSync(VIDEOS_DIR).filter(f => f.endsWith('.mp4'));
+      videos = fs.readdirSync(VIDEOS_DIR).filter(f => 
+  f.endsWith('.mp4') || f.endsWith('.mov') || f.endsWith('.mkv')
+);
     } catch { /* folder belum ada */ }
 
     if (videos.length === 0) {

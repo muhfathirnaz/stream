@@ -20,7 +20,6 @@ router.post('/start', async (req, res) => {
     const result = await req.streamService.start({
       channelId,
       streamKey,
-      imagePath: imagePath || `/opt/images/${channelId}.jpg`,
       durationSecs: durationSecs || 21600,
     });
 
