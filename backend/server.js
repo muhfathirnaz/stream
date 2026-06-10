@@ -5,7 +5,7 @@
  * Dikelola oleh: PM2
  */
 
-require('dotenv').config({ path: __dirname + '/.env' });;
+require('dotenv').config({ path: __dirname + '/.env' });
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
@@ -39,10 +39,20 @@ const db = new Pool({
   password: process.env.DB_PASS,
 });
 
+// 🔥 TAMENG 1: Jangan biarkan server mati kalau DB putus sesaat
+db.on('error', (err) => {
+  console.error('🔥 [PostgreSQL] Unexpected error on idle client:', err.message);
+});
+
 // Redis
 const redis = new Redis({
   host: process.env.REDIS_HOST || 'localhost',
   port: process.env.REDIS_PORT || 6379,
+});
+
+// 🔥 TAMENG 2: Jangan biarkan server mati kalau Redis putus
+redis.on('error', (err) => {
+  console.error('🔥 [Redis] Connection error:', err.message);
 });
 
 // WebSocket Server
@@ -86,6 +96,15 @@ app.use('/api/system', systemRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', ts: new Date().toISOString() });
+});
+
+// 🔥 TAMENG 3: GLOBAL ERROR HANDLER (Biar Node.js nggak crash)
+process.on('uncaughtException', (err) => {
+  console.error('💥 [CRASH PREVENTION] Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 [CRASH PREVENTION] Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
 // ─── START ───────────────────────────────────────────────────────────────────
