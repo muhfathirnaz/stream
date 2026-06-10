@@ -52,14 +52,17 @@ module.exports = {
       interpreter: 'none',
       autorestart: true,
       env: {
-        N8N_PORT: 5678,
-N8N_SECURE_COOKIE: 'false',
-        N8N_BASIC_AUTH_ACTIVE: 'true',
-        N8N_BASIC_AUTH_USER: 'admin',
-        N8N_BASIC_AUTH_PASSWORD: 'Ekqbkuhkn122',
-        WEBHOOK_URL: 'http://13.140.149.117/n8n/',
-        N8N_PATH: '/n8n/',
-N8N_EDITOR_BASE_URL: 'http://13.140.149.117/n8n/',
+        
+  
+  N8N_PORT: 5678,
+  N8N_SECURE_COOKIE: 'false',
+  N8N_PATH: '/n8n/',
+  N8N_EDITOR_BASE_URL: 'https://aksarastream.ddns.net/n8n/',  // ← pakai https + domain, bukan IP
+  WEBHOOK_URL: 'https://aksarastream.ddns.net/n8n/',           // ← sama
+  // ... sisanya sama
+
+
+
         DB_TYPE: 'postgresdb',
         DB_POSTGRESDB_HOST: 'localhost',
         DB_POSTGRESDB_PORT: '5432',
