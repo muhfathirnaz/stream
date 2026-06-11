@@ -16,19 +16,24 @@ class YouTubeService {
 
     console.log('🎬 [YouTube] Creating Live Broadcast...');
     const broadcastRes = await this.youtube.liveBroadcasts.insert({
-      part: 'snippet,status',
-      requestBody: {
-        snippet: {
-          title: title || 'Lofi Jazz 24/7',
-          description: description || 'Automated Lofi Jazz Stream',
-          scheduledStartTime: new Date().toISOString(),
-        },
-        status: {
-          privacyStatus: 'public',
-          selfDeclaredMadeForKids: false,
-        },
-      },
-    });
+  part: 'snippet,status,contentDetails',  // ← tambah contentDetails
+  requestBody: {
+    snippet: {
+      title: title || 'Lofi Jazz 24/7',
+      description: description || 'Automated Lofi Jazz Stream',
+      scheduledStartTime: new Date().toISOString(),
+    },
+    status: {
+      privacyStatus: 'public',
+      selfDeclaredMadeForKids: false,
+    },
+    contentDetails: {
+      enableAutoStart: true,   // ← otomatis live saat RTMP aktif
+      enableAutoStop: true,
+      latencyPreference: 'normal',
+    },
+  },
+});
     const broadcastId = broadcastRes.data.id;
 
     console.log('📡 [YouTube] Creating Live Stream (RTMP)...');
@@ -70,40 +75,59 @@ class YouTubeService {
     };
   }
 
-  async goLive({ refreshToken, broadcastId, streamId }) {
-    this.oauth2Client.setCredentials({ refresh_token: refreshToken });
+ async goLive({ refreshToken, broadcastId, streamId }) {
+  this.oauth2Client.setCredentials({ refresh_token: refreshToken });
 
-    // 1. Tunggu stream RTMP siap (yang sudah lo punya)
-    console.log('⏳ [YouTube] Waiting for stream to become active...');
-    await this._waitForStreamActive(streamId);
+  console.log('⏳ [YouTube] Waiting for stream to become active...');
+  await this._waitForStreamActive(streamId);
 
-    // 2. Tambahkan delay kecil untuk propagasi
-    await new Promise(r => setTimeout(r, 5000));
+  await new Promise(r => setTimeout(r, 5000));
 
-    const broadcastCheck = await this.youtube.liveBroadcasts.list({
-      part: 'status',
-      id: broadcastId,
-    });
-    const broadcastStatus = broadcastCheck.data.items?.[0]?.status?.lifeCycleStatus;
-    console.log(`📊 [YouTube] Broadcast status sebelum transisi: ${broadcastStatus}`);
-    
-    console.log('🚀 [YouTube] Transitioning broadcast to Live...');
+  const broadcastCheck = await this.youtube.liveBroadcasts.list({
+    part: 'status',
+    id: broadcastId,
+  });
+  const broadcastStatus = broadcastCheck.data.items?.[0]?.status?.lifeCycleStatus;
+  console.log(`📊 [YouTube] Broadcast status: ${broadcastStatus}`);
 
-    console.log('🚀 [YouTube] Transitioning broadcast to Live...');
+  if (broadcastStatus === 'live') {
+    console.log('✅ [YouTube] Already live!');
+    return;
+  }
+
+  // Step 1: Transisi ke testing dulu
+  if (broadcastStatus === 'ready') {
+    console.log('🧪 [YouTube] Transitioning to testing...');
     try {
-        // Lakukan transisi
-        await this.youtube.liveBroadcasts.transition({
-            part: 'snippet,status',
-            id: broadcastId,
-            broadcastStatus: 'live',
-        });
-        console.log('🎉 [YouTube] Broadcast is now LIVE!');
+      await this.youtube.liveBroadcasts.transition({
+        part: 'snippet,status',
+        id: broadcastId,
+        broadcastStatus: 'testing',
+      });
+      console.log('✅ [YouTube] Now in testing mode, waiting 5s...');
+      await new Promise(r => setTimeout(r, 5000));
     } catch (e) {
-        // Jika gagal karena Invalid Transition, kemungkinan broadcast butuh waktu lebih
-        console.error('❌ [YouTube API Error]:', e.response?.data?.error?.message || e.message);
-        throw new Error('Gagal transisi broadcast ke Live');
+      console.error('❌ Testing transition failed:', e.response?.data?.error?.message || e.message);
     }
   }
+
+  // Step 2: Transisi ke live
+  console.log('🚀 [YouTube] Transitioning to live...');
+  try {
+    await this.youtube.liveBroadcasts.transition({
+      part: 'snippet,status',
+      id: broadcastId,
+      broadcastStatus: 'live',
+    });
+    console.log('🎉 [YouTube] Broadcast is now LIVE!');
+  } catch (e) {
+    const errMsg = e.response?.data?.error?.message || e.message;
+    console.error('❌ [YouTube API Error]:', errMsg);
+    console.log('⚠️ Stream tetap jalan, cek YouTube Studio untuk transisi manual');
+  }
+}  
+
+
 
   async _waitForStreamActive(streamId, timeoutMs = 180000, intervalMs = 5000) {
     const deadline = Date.now() + timeoutMs;
