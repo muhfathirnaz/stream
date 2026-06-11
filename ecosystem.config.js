@@ -44,6 +44,8 @@ module.exports = {
       env: {
         PORT: 8090,
         SONGS_DIR: '/opt/songs',
+        VIDEOS_DIR: '/opt/videos',
+        THUMBNAILS_DIR: '/opt/thumbnails',
       },
     },
     {
@@ -52,17 +54,11 @@ module.exports = {
       interpreter: 'none',
       autorestart: true,
       env: {
-        
-  
-  N8N_PORT: 5678,
-  N8N_SECURE_COOKIE: 'false',
-  N8N_PATH: '/n8n/',
-  N8N_EDITOR_BASE_URL: 'https://aksarastream.ddns.net/n8n/',  // ← pakai https + domain, bukan IP
-  WEBHOOK_URL: 'https://aksarastream.ddns.net/n8n/',           // ← sama
-  // ... sisanya sama
-
-
-
+        N8N_PORT: 5678,
+        N8N_SECURE_COOKIE: 'false',
+        N8N_PATH: '/n8n/',
+        N8N_EDITOR_BASE_URL: 'https://aksarastream.ddns.net/n8n/',  // ← pakai https + domain, bukan IP
+        WEBHOOK_URL: 'https://aksarastream.ddns.net/n8n/',           // ← sama  
         DB_TYPE: 'postgresdb',
         DB_POSTGRESDB_HOST: 'localhost',
         DB_POSTGRESDB_PORT: '5432',
@@ -70,7 +66,7 @@ module.exports = {
         DB_POSTGRESDB_USER: 'postgres',
         DB_POSTGRESDB_PASSWORD: process.env.DB_POSTGRESDB_PASSWORD,
         GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
-GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
+        GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
       },
     },
   ],

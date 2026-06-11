@@ -190,3 +190,76 @@ server.listen(PORT, '127.0.0.1', () => {
 
 process.on('uncaughtException', err => console.error('[song-coordinator] crash:', err));
 process.on('unhandledRejection', err => console.error('[song-coordinator] rejection:', err));
+
+// ── GET /next-thumbnail ────────────────────────────────────────────────────
+if (req.method === 'GET' && url === '/next-thumbnail') {
+  const THUMBNAILS_DIR = process.env.THUMBNAILS_DIR || '/opt/thumbnails';
+  let files = [];
+  try {
+    files = fs.readdirSync(THUMBNAILS_DIR).filter(f =>
+      f.endsWith('.jpg') || f.endsWith('.jpeg') || f.endsWith('.png')
+    );
+  } catch { }
+
+  if (files.length === 0) {
+    return sendJSON(res, 404, { error: 'No thumbnails found in ' + THUMBNAILS_DIR });
+  }
+
+  // Anti-duplikat — exclude yang sedang dipakai
+  const lockedThumbs = Object.values(videoLocks).map(v => v.thumbnail).filter(Boolean);
+  const available = files.filter(f => !lockedThumbs.includes(f));
+  const pool = available.length > 0 ? available : files;
+  const chosen = pool[Math.floor(Math.random() * pool.length)];
+
+  return sendJSON(res, 200, {
+    filename: chosen,
+    path: path.join(THUMBNAILS_DIR, chosen),
+  });
+}
+
+// ── GET /next-broadcast-meta ───────────────────────────────────────────────
+if (req.method === 'GET' && url === '/next-broadcast-meta') {
+  const THUMBNAILS_DIR = process.env.THUMBNAILS_DIR || '/opt/thumbnails';
+
+  // Random thumbnail
+  let thumbFile = null, thumbPath = null;
+  try {
+    const files = fs.readdirSync(THUMBNAILS_DIR).filter(f =>
+      f.endsWith('.jpg') || f.endsWith('.jpeg') || f.endsWith('.png')
+    );
+    const lockedThumbs = Object.values(videoLocks).map(v => v.thumbnail).filter(Boolean);
+    const available = files.filter(f => !lockedThumbs.includes(f));
+    const pool = available.length > 0 ? available : files;
+    if (pool.length > 0) {
+      thumbFile = pool[Math.floor(Math.random() * pool.length)];
+      thumbPath = path.join(THUMBNAILS_DIR, thumbFile);
+    }
+  } catch { }
+
+  // Random title
+  const adjectives = ['Cozy', 'Chill', 'Late Night', 'Rainy Day', 'Midnight', 'Dreamy', 'Mellow', 'Peaceful', 'Serene', 'Warm'];
+  const nouns = ['Vibes', 'Session', 'Beats', 'Flow', 'Journey', 'Escape', 'Mood', 'Space', 'Hour', 'Study'];
+  const suffix = ['☕', '🌙', '🎵', '✨', '🌧️', '🎶', '🍵', '🌿', '🕯️', '🎸'];
+  const randomAdj = adjectives[Math.floor(Math.random() * adjectives.length)];
+  const randomNoun = nouns[Math.floor(Math.random() * nouns.length)];
+  const randomSuffix = suffix[Math.floor(Math.random() * suffix.length)];
+  const uniqueId = Math.random().toString(36).substring(2, 6).toUpperCase();
+  const title = `Lofi Jazz Radio - ${randomAdj} ${randomNoun} ${randomSuffix} [${uniqueId}]`;
+
+  // Random description
+  const descriptions = [
+    `Sit back and let the music carry you. ${randomAdj} lofi jazz beats for studying, working, or just relaxing. No ads, no interruptions. Just pure chill. 🎵`,
+    `Your daily dose of ${randomAdj.toLowerCase()} lofi jazz. Perfect background music for focus, creativity, and relaxation. Subscribe for more! ☕`,
+    `${randomAdj} ${randomNoun.toLowerCase()} playlist — handcrafted lofi jazz for your best moments. Whether you're working late or just unwinding, we've got you covered. 🌙`,
+    `A continuous stream of ${randomAdj.toLowerCase()} lofi jazz. Zero interruptions. Maximum chill. Perfect for study sessions, work, or sleep. 🎶`,
+    `Close your eyes and drift away with our ${randomAdj.toLowerCase()} lofi jazz collection. New tracks added regularly. Hit subscribe to never miss a beat! ✨`,
+  ];
+  const description = descriptions[Math.floor(Math.random() * descriptions.length)];
+
+  return sendJSON(res, 200, {
+    title,
+    description,
+    thumbnailPath: thumbPath,
+    thumbnailFilename: thumbFile,
+  });
+}
