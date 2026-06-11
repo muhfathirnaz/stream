@@ -1,1 +1,1 @@
-{"/_not-found/page":"/_not-found","/page":"/","/api/streams/[action]/route":"/api/streams/[action]"}
+{"/_not-found/page":"/_not-found","/api/channels/route":"/api/channels","/api/streams/[action]/route":"/api/streams/[action]","/api/channels/[id]/route":"/api/channels/[id]","/page":"/","/streams/page":"/streams"}

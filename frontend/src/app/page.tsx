@@ -155,7 +155,7 @@ export default function DashboardPage() {
         <aside className="w-56 min-h-[calc(100vh-56px)] bg-[#111318] border-r border-[#2a2e38] p-4 flex flex-col gap-1">
           {[
             { label: 'Dashboard', icon: '⊞', active: true },
-            { label: 'Live Streams', icon: '◉' },
+            { label: 'Live Streams', icon: '◉', href: '/streams' },
             { label: 'Song Pool', icon: '♪', badge: songPool.total },
             { label: 'n8n Workflows', icon: '⚡' },
             { label: 'Drive Sync', icon: '↑' },

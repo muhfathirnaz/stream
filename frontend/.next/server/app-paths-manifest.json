@@ -1,5 +1,8 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
+  "/api/channels/route": "app/api/channels/route.js",
+  "/api/streams/[action]/route": "app/api/streams/[action]/route.js",
+  "/api/channels/[id]/route": "app/api/channels/[id]/route.js",
   "/page": "app/page.js",
-  "/api/streams/[action]/route": "app/api/streams/[action]/route.js"
+  "/streams/page": "app/streams/page.js"
 }
