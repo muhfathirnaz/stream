@@ -178,19 +178,6 @@ const server = http.createServer(async (req, res) => {
     console.log(`[SongCoord] Channel ${channelId} released video: ${released}`);
     return sendJSON(res, 200, { channelId, released });
   }
-
-  // 404
-  sendJSON(res, 404, { error: 'Not found', url });
-});
-
-server.listen(PORT, '127.0.0.1', () => {
-  console.log(`[song-coordinator] running on 127.0.0.1:${PORT}`);
-  console.log(`[song-coordinator] SONGS_DIR = ${SONGS_DIR}`);
-});
-
-process.on('uncaughtException', err => console.error('[song-coordinator] crash:', err));
-process.on('unhandledRejection', err => console.error('[song-coordinator] rejection:', err));
-
 // ── GET /next-thumbnail ────────────────────────────────────────────────────
 if (req.method === 'GET' && url === '/next-thumbnail') {
   const THUMBNAILS_DIR = process.env.THUMBNAILS_DIR || '/opt/thumbnails';
@@ -263,3 +250,15 @@ if (req.method === 'GET' && url === '/next-broadcast-meta') {
     thumbnailFilename: thumbFile,
   });
 }
+  // 404
+  sendJSON(res, 404, { error: 'Not found', url });
+});
+
+server.listen(PORT, '127.0.0.1', () => {
+  console.log(`[song-coordinator] running on 127.0.0.1:${PORT}`);
+  console.log(`[song-coordinator] SONGS_DIR = ${SONGS_DIR}`);
+});
+
+process.on('uncaughtException', err => console.error('[song-coordinator] crash:', err));
+process.on('unhandledRejection', err => console.error('[song-coordinator] rejection:', err));
+

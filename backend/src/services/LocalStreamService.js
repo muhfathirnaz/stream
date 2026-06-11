@@ -1,7 +1,7 @@
 const { spawn } = require('child_process');
+const { randomUUID } = require('crypto');
 const YouTubeService = require('./YouTubeService');
 const fs = require('fs');
-const path = require('path');
 
 const COORDINATOR_URL = 'http://localhost:8090';
 
@@ -11,6 +11,7 @@ class LocalStreamService {
     this.wsService = wsService;
     this.coord = coordinatorService;
     this.startTimes = {};
+    this.channelMap = {};
     this.youtubeService = new YouTubeService();
   }
 
@@ -70,9 +71,7 @@ class LocalStreamService {
   async start(channelId, dbClient, options = {}) {
     const { durationSecs = 21600, title, description, thumbnailPath } = options;
 
-    if (this.processes[channelId]) {
-      throw new Error(`Channel ${channelId} already streaming`);
-    }
+    const streamId = randomUUID();
 
     console.log(`[LocalStreamService] Mengambil token untuk ${channelId}...`);
     const { rows } = await dbClient.query(
@@ -86,8 +85,7 @@ class LocalStreamService {
     }
 
     console.log(`[LocalStreamService] Mempersiapkan YouTube Broadcast...`);
-    // ✅ Sekarang ambil broadcastId dan streamId juga
-    const { rtmpUrl, broadcastId, streamId } = await this.youtubeService.createBroadcast({
+    const { rtmpUrl, broadcastId, youtubeStreamId } = await this.youtubeService.createBroadcast({
       refreshToken,
       title,
       description,
@@ -134,40 +132,41 @@ class LocalStreamService {
       rtmpUrl,
     ];
 
-    console.log(`[LocalStreamService] FFmpeg args: ffmpeg ${ffmpegArgs.join(' ')}`);
-
     const ffmpeg = spawn('ffmpeg', ffmpegArgs);
-    this.processes[channelId] = ffmpeg;
-    this.startTimes[channelId] = new Date();
+    this.processes[streamId] = ffmpeg;
+    this.startTimes[streamId] = new Date();
+    this.channelMap[streamId] = channelId;
 
-    // ✅ Panggil goLive non-blocking setelah FFmpeg spawn
-   console.log(`[DEBUG] broadcastId: ${broadcastId}, streamId: ${streamId}`);
-setTimeout(() => {
-    this.youtubeService.goLive({ refreshToken, broadcastId, streamId })
-      .then(() => {
-        this.wsService.broadcast('stream:live', { channelId, ts: new Date().toISOString() });
-      })
-      .catch((err) => {
-        console.error(`[LocalStreamService] goLive gagal untuk ${channelId}:`, err.message);
-      });
-}, 10000); 
+    console.log(`[DEBUG] streamId: ${streamId}, broadcastId: ${broadcastId}`);
+
+    setTimeout(() => {
+      this.youtubeService.goLive({ refreshToken, broadcastId, streamId: youtubeStreamId })
+        .then(() => {
+          this.wsService.broadcast('stream:live', { channelId, streamId, ts: new Date().toISOString() });
+        })
+        .catch((err) => {
+          console.error(`[LocalStreamService] goLive gagal untuk ${channelId}:`, err.message);
+        });
+    }, 10000);
 
     ffmpeg.stderr.on('data', (data) => {
       const log = data.toString();
       if (log.includes('frame=') || log.includes('Error') || log.includes('error')) {
-        console.log(`[FFmpeg/${channelId}] ${log.substring(0, 300)}`);
+        console.log(`[FFmpeg/${channelId}/${streamId.slice(0,8)}] ${log.substring(0, 300)}`);
       }
       this.wsService.broadcastLog(channelId, log);
     });
 
     ffmpeg.on('close', (code) => {
-      console.log(`[LocalStreamService] FFmpeg closed for ${channelId} with exit code ${code}`);
+      console.log(`[LocalStreamService] FFmpeg closed for ${channelId}/${streamId} with exit code ${code}`);
       this.releaseVideo(channelId);
       this.releaseSong(channelId);
-      delete this.processes[channelId];
-      delete this.startTimes[channelId];
+      delete this.processes[streamId];
+      delete this.startTimes[streamId];
+      delete this.channelMap[streamId];
       this.wsService.broadcast('stream:stopped', {
         channelId,
+        streamId,
         exitCode: code,
         ts: new Date().toISOString()
       });
@@ -179,26 +178,38 @@ setTimeout(() => {
 
     this.wsService.broadcast('stream:started', {
       channelId,
+      streamId,
       video: video.filename,
       song: song.filename,
       ts: new Date().toISOString()
     });
 
-    return { channelId, video: video.filename, song: song.filename, pid: ffmpeg.pid };
+    return { streamId, channelId, video: video.filename, song: song.filename, pid: ffmpeg.pid };
   }
 
-  stop(channelId) {
-    const proc = this.processes[channelId];
-    if (!proc) throw new Error(`No stream running for ${channelId}`);
+  stop(streamId) {
+    const proc = this.processes[streamId];
+    if (!proc) throw new Error(`No stream found: ${streamId}`);
     proc.kill('SIGTERM');
-    return { channelId, stopped: true };
+    return { streamId, channelId: this.channelMap[streamId], stopped: true };
   }
 
-  isRunning(channelId) { return !!this.processes[channelId]; }
+  stopAllByChannel(channelId) {
+    const streamIds = Object.keys(this.channelMap).filter(id => this.channelMap[id] === channelId);
+    streamIds.forEach(id => {
+      this.processes[id]?.kill('SIGTERM');
+    });
+    return { channelId, stopped: streamIds.length };
+  }
+
+  isRunning(channelId) {
+    return Object.values(this.channelMap).includes(channelId);
+  }
 
   getStatus() {
     return Object.keys(this.processes).map(id => ({
-      channelId: id,
+      streamId: id,
+      channelId: this.channelMap[id],
       pid: this.processes[id].pid,
       startedAt: this.startTimes[id],
       elapsedSeconds: Math.floor((Date.now() - this.startTimes[id]) / 1000),
