@@ -16,8 +16,11 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
+  // body: { name, refresh_token }
   const res = await fetch(`${BACKEND_URL}/api/channels`, {
-    method: 'POST', headers, body: JSON.stringify(body),
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
   });
   const data = await res.json();
   return NextResponse.json(data, { status: res.status });
