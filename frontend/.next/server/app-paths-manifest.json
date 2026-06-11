@@ -1,11 +1,12 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
+  "/api/assets/route": "app/api/assets/route.js",
   "/api/channels/[id]/route": "app/api/channels/[id]/route.js",
+  "/api/channels/route": "app/api/channels/route.js",
   "/api/schedules/[id]/route": "app/api/schedules/[id]/route.js",
   "/api/schedules/route": "app/api/schedules/route.js",
-  "/api/channels/route": "app/api/channels/route.js",
   "/api/streams/[action]/route": "app/api/streams/[action]/route.js",
-  "/oauth-helper/page": "app/oauth-helper/page.js",
   "/page": "app/page.js",
+  "/oauth-helper/page": "app/oauth-helper/page.js",
   "/streams/page": "app/streams/page.js"
 }
