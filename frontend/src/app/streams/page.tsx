@@ -88,8 +88,22 @@ export default function StreamsPage() {
 
   const fetchChannels = useCallback(async () => {
     try {
-      const res = await fetch('/api/channels');
-      if (res.ok) setChannels(await res.json());
+      const [chRes, stRes] = await Promise.all([
+        fetch('/api/channels'),
+        fetch('/api/streams/status'),
+      ]);
+      if (chRes.ok) {
+        const chData = await chRes.json();
+        const activeStreams: { streamId: string; channelId: string; elapsedSeconds: number }[] = stRes.ok ? await stRes.json() : [];
+        const merged = chData.map((ch: Channel) => ({
+          ...ch,
+          stream_status: activeStreams.some(s => s.channelId === ch.channel_id) ? 'live' : 'stopped',
+          activeStreams: activeStreams
+            .filter(s => s.channelId === ch.channel_id)
+            .map(s => ({ streamId: s.streamId, elapsedSeconds: s.elapsedSeconds })),
+        }));
+        setChannels(merged);
+      }
     } catch (err) { console.error(err); }
   }, []);
 

@@ -161,22 +161,29 @@ export default function DashboardPage() {
             { label: 'Drive Sync', icon: '↑' },
             { label: 'Settings', icon: '⚙' },
           ].map((item) => (
-            <div
-              key={item.label}
-              className={`flex items-center gap-3 px-3 py-2 rounded text-sm cursor-pointer
-                ${item.active
-                  ? 'bg-[#191c23] text-[#c8f55a] border-l-2 border-[#c8f55a]'
-                  : 'text-[#6b7280] hover:bg-[#191c23] hover:text-[#e8e6e0]'
-                }`}
-            >
-              <span className="w-4 text-center">{item.icon}</span>
-              {item.label}
-              {item.badge !== undefined && (
-                <span className="ml-auto bg-[#c8f55a] text-[#0a0c0f] text-[10px] font-bold px-1.5 py-0.5 rounded">
-                  {item.badge}
-                </span>
-              )}
-            </div>
+            item.href ? (
+              <a key={item.label} href={item.href} className="flex items-center gap-3 px-3 py-2 rounded text-sm cursor-pointer text-[#6b7280] hover:bg-[#191c23] hover:text-[#e8e6e0]">
+                <span className="w-4 text-center">{item.icon}</span>
+                {item.label}
+              </a>
+            ) : (
+              <div
+                key={item.label}
+                className={`flex items-center gap-3 px-3 py-2 rounded text-sm cursor-pointer
+                  ${item.active
+                    ? 'bg-[#191c23] text-[#c8f55a] border-l-2 border-[#c8f55a]'
+                    : 'text-[#6b7280] hover:bg-[#191c23] hover:text-[#e8e6e0]'
+                  }`}
+              >
+                <span className="w-4 text-center">{item.icon}</span>
+                {item.label}
+                {item.badge !== undefined && (
+                  <span className="ml-auto bg-[#c8f55a] text-[#0a0c0f] text-[10px] font-bold px-1.5 py-0.5 rounded">
+                    {item.badge}
+                  </span>
+                )}
+              </div>
+            )
           ))}
         </aside>
 
