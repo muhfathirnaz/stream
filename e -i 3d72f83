@@ -1,0 +1,20 @@
+[33m11b9f19[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m untrack .env and clean secrets
+[33mc281895[m remove hardcoded OAuth secrets
+[33m485b223[m untrack frontend/.env.local
+[33m46891fb[m permanently remove env from history and add to gitignore
+[33m54a4f38[m fix youtube clear
+[33m3d72f83[m[33m ([m[1;31morigin/main[m[33m)[m permanently remove env from history and add to gitignore
+[33m30d39e0[m n8n bisa with api youtube
+[33m9fd01ae[m update fitur stream dan integrasi youtube
+[33m9ca1875[m youtube api
+[33mdc0cc54[m last update
+[33m4c9443c[m last update
+[33mebc9889[m last update
+[33m31f0ca1[m last update
+[33mf14b199[m last update
+[33mfd87d0c[m last update
+[33mfb7f9bd[m last update
+[33m7a8c04a[m last update
+[33m15584fc[m update fitur baru di frontend
+[33md28e60e[m update fitur baru di frontend
+[33ma8d4386[m Initial commit super bersih tanpa node_modules

@@ -5,7 +5,8 @@ class YouTubeService {
   constructor() {
     this.oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET
+      process.env.GOOGLE_CLIENT_SECRET,
+      'https://aksarastream.ddns.net/auth/google/callback'
     );
     this.youtube = google.youtube({ version: 'v3', auth: this.oauth2Client });
   }
@@ -78,6 +79,15 @@ class YouTubeService {
 
     // 2. Tambahkan delay kecil untuk propagasi
     await new Promise(r => setTimeout(r, 5000));
+
+    const broadcastCheck = await this.youtube.liveBroadcasts.list({
+      part: 'status',
+      id: broadcastId,
+    });
+    const broadcastStatus = broadcastCheck.data.items?.[0]?.status?.lifeCycleStatus;
+    console.log(`📊 [YouTube] Broadcast status sebelum transisi: ${broadcastStatus}`);
+    
+    console.log('🚀 [YouTube] Transitioning broadcast to Live...');
 
     console.log('🚀 [YouTube] Transitioning broadcast to Live...');
     try {

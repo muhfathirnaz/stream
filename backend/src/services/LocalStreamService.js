@@ -141,7 +141,8 @@ class LocalStreamService {
     this.startTimes[channelId] = new Date();
 
     // ✅ Panggil goLive non-blocking setelah FFmpeg spawn
-   setTimeout(() => {
+   console.log(`[DEBUG] broadcastId: ${broadcastId}, streamId: ${streamId}`);
+setTimeout(() => {
     this.youtubeService.goLive({ refreshToken, broadcastId, streamId })
       .then(() => {
         this.wsService.broadcast('stream:live', { channelId, ts: new Date().toISOString() });

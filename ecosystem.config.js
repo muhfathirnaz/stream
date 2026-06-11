@@ -70,7 +70,7 @@ module.exports = {
         DB_POSTGRESDB_USER: 'postgres',
         DB_POSTGRESDB_PASSWORD: process.env.DB_POSTGRESDB_PASSWORD,
         GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
-  GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
+GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
       },
     },
   ],
