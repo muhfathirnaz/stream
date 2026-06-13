@@ -16,7 +16,6 @@ export default function OAuthHelperPage() {
   const [redirectUri, setRedirectUri] = useState('');
 
   useEffect(() => {
-    // Set redirectUri hanya di client-side, bukan SSR
     setRedirectUri(`${window.location.origin}/oauth-helper`);
 
     const params = new URLSearchParams(window.location.search);
@@ -56,6 +55,7 @@ export default function OAuthHelperPage() {
       scope: [
         'https://www.googleapis.com/auth/youtube',
         'https://www.googleapis.com/auth/youtube.force-ssl',
+        'https://www.googleapis.com/auth/drive.file',
       ].join(' '),
       access_type: 'offline',
       prompt: 'consent',
@@ -133,12 +133,20 @@ export default function OAuthHelperPage() {
           OAuth Token Generator
         </h1>
         <span className="text-xs text-[#6b7280] font-mono">
-          Generate YouTube refresh token tanpa VPS
+          Generate YouTube + Drive refresh token
         </span>
       </header>
 
       <div className="flex-1 flex items-start justify-center p-8">
         <div className="w-full max-w-lg">
+
+          {/* Scopes info */}
+          <div className="bg-[#0d0f12] border border-[#1a2a3a] rounded-lg p-3 mb-6 text-[10px] font-mono text-[#6b7280] leading-relaxed">
+            <div className="text-[#5af5c8] mb-1">Token ini include scope:</div>
+            <div>• YouTube (buat live broadcast)</div>
+            <div>• Google Drive file (buat upload thumbnail)</div>
+            <div className="text-[#f5c85a] mt-1">⚠ Kalau lo sudah punya token lama, perlu generate baru karena scope bertambah.</div>
+          </div>
 
           {/* Stepper */}
           <div className="flex items-center gap-2 mb-8">
@@ -182,7 +190,8 @@ export default function OAuthHelperPage() {
                 <div>1. Buka console.cloud.google.com</div>
                 <div>2. APIs &amp; Services → Credentials</div>
                 <div>3. OAuth 2.0 Client IDs → pilih/buat &quot;Web application&quot;</div>
-                <div>4. Tambah Authorized redirect URI:</div>
+                <div>4. Pastikan Google Drive API sudah di-enable</div>
+                <div>5. Tambah Authorized redirect URI:</div>
                 <div className="text-[#c8f55a] ml-4 break-all mt-1">
                   {redirectUri || 'https://aksarastream.ddns.net/oauth-helper'}
                 </div>
@@ -279,8 +288,8 @@ export default function OAuthHelperPage() {
               <div className="bg-[#0d0f12] border border-[#2a2e38] rounded p-3 text-[11px] text-[#6b7280] font-mono mb-4">
                 <div className="text-[#f5c85a] mb-1">Selanjutnya:</div>
                 <div>1. Buka halaman /streams</div>
-                <div>2. Tambah channel baru</div>
-                <div>3. Paste refresh token ini di field yang tersedia</div>
+                <div>2. Update refresh token di channel lo (klik 🔑)</div>
+                <div>3. Token baru ini support YouTube + Drive</div>
               </div>
 
               <div className="flex gap-3">
