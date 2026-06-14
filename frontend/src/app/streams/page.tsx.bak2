@@ -377,7 +377,19 @@ export default function StreamsPage() {
   const recentSchedules = schedules.filter(s => s.status !== 'pending');
 
   return (
-    <>
+    <main className="min-h-screen bg-[#0a0c0f] text-[#e8e6e0] font-sans">
+      <header className="h-14 bg-[#111318] border-b border-[#2a2e38] flex items-center justify-between px-6">
+        <div className="flex items-center gap-4">
+          <a href="/" className="text-xs text-[#6b7280] hover:text-[#e8e6e0] font-mono transition-colors">← Dashboard</a>
+          <h1 className="text-sm font-bold tracking-widest text-[#c8f55a] uppercase">Live Streams</h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <a href="/oauth-helper" className="text-[10px] font-mono text-[#6b7280] border border-[#2a2e38] px-3 py-1.5 rounded hover:border-[#c8f55a] hover:text-[#c8f55a] transition-colors">
+            ⚙ OAuth Token Generator
+          </a>
+          <UTCClock />
+        </div>
+      </header>
 
       <div className="p-6 max-w-4xl mx-auto">
 
@@ -765,6 +777,6 @@ export default function StreamsPage() {
           })}
         </div>
       </div>
-    </>
+    </main>
   );
 }

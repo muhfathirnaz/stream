@@ -339,30 +339,23 @@ export default function MediaPool() {
 
   return (
     <>
-      <style>{`*{box-sizing:border-box}body{margin:0;font-family:Inter,sans-serif;background:#090910}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:#2a2a3e;border-radius:99px}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-      <div style={{ minHeight:"100vh", background:"#090910", color:"#e8e8ea", paddingBottom:playing?80:0 }}>
-        <div style={{ borderBottom:"1px solid #1e1e2e", padding:"0 24px" }}>
-          <div style={{ maxWidth:1100, margin:"0 auto", display:"flex", alignItems:"center", gap:24, height:56 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-              <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#7c6fcd,#a855f7)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-                <svg viewBox="0 0 24 24" fill="white" width="14" height="14"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-              </div>
-              <span style={{ fontWeight:700, fontSize:15 }}>Media Pool</span>
-            </div>
-            {(["music","video"] as const).map(t => (
-              <button key={t} onClick={()=>setActiveTab(t)} style={{ display:"flex", alignItems:"center", gap:6, padding:"0 4px", height:56, background:"none", border:"none", borderBottom:`2px solid ${activeTab===t?"#7c6fcd":"transparent"}`, color:activeTab===t?"#a78bfa":"#666", cursor:"pointer", fontSize:13, fontWeight:600 }}>
-                {t==="music"?<Icon.Music />:<Icon.Video />}{t==="music"?"Musik":"Video"}
-                <span style={{ background:"#1a1a2e", borderRadius:99, padding:"1px 7px", fontSize:11, color:activeTab===t?"#a78bfa":"#444" }}>{files.filter(f=>f.type===t).length}</span>
-              </button>
-            ))}
-            <div style={{ flex:1 }} />
-            <button onClick={()=>setShowModal(true)} style={{ display:"flex", alignItems:"center", gap:6, padding:"8px 16px", borderRadius:8, border:"none", background:"#7c6fcd", color:"#fff", cursor:"pointer", fontSize:13, fontWeight:600 }}>
-              <Icon.Upload /> Upload {activeTab==="music"?"Musik":"Video"}
-            </button>
-          </div>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Media Pool</h1>
+          <p className="page-subtitle">Manage music & video files</p>
         </div>
-
-        <div style={{ maxWidth:1100, margin:"0 auto", padding:"20px 24px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          {(["music","video"] as const).map(t => (
+            <button key={t} onClick={()=>setActiveTab(t)} className={`btn ${activeTab===t?"btn-primary":"btn-secondary"}`}>
+              {t==="music"?<Icon.Music />:<Icon.Video />} {t==="music"?"Musik":"Video"}
+              <span style={{ background:"rgba(255,255,255,0.15)", borderRadius:99, padding:"1px 7px", fontSize:11 }}>{files.filter(f=>f.type===t).length}</span>
+            </button>
+          ))}
+          <button onClick={()=>setShowModal(true)} className="btn btn-primary">
+            <Icon.Upload /> Upload {activeTab==="music"?"Musik":"Video"}
+          </button>
+        </div>
+      </div>
           <div style={{ marginBottom:16, display:"flex", alignItems:"center", gap:10, padding:"8px 14px", background:"#0a0a12", border:"1px solid #1a1a28", borderRadius:8, fontSize:12, color:"#555" }}>
             <Icon.Cloud />
             <span style={{ flex:1 }}>GDrive Sync {lastSync?`· Terakhir: ${lastSync}`:"· Belum pernah sync"}</span>
@@ -410,7 +403,6 @@ export default function MediaPool() {
           </div>
         </div>
       </div>
-
       {showModal && <UploadModal type={activeTab} categories={cats} onClose={()=>setShowModal(false)} onUpload={handleUpload} />}
       <MiniPlayer playing={playing} type={activeTab} apiBase={API_BASE} />
       <Toast toasts={toasts} remove={removeToast} />
