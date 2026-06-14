@@ -25,7 +25,7 @@ const Icon = {
   File: () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="13 2 13 9 20 9" /></svg>),
 };
 
-const fmtSize = (b: number) => !b ? "—" : b < 1048576 ? `${(b/1024).toFixed(1)} KB` : b < 1073741824 ? `${(b/1048576).toFixed(1)} MB` : `${(b/1073741824).toFixed(2)} GB`;
+const fmtSize = (b: number) => !b ? "-" : b < 1048576 ? `${(b/1024).toFixed(1)} KB` : b < 1073741824 ? `${(b/1048576).toFixed(1)} MB` : `${(b/1073741824).toFixed(2)} GB`;
 const fmtDur = (s: number) => !s ? "" : `${Math.floor(s/60)}:${Math.floor(s%60).toString().padStart(2,"0")}`;
 
 function useToast() {
@@ -63,7 +63,7 @@ function DropZone({ onFiles, accept, label }: { onFiles:(f:File[])=>void; accept
       onDrop={e=>{e.preventDefault();setDrag(false);const f=Array.from(e.dataTransfer.files).filter(f=>accept.some(a=>a.includes(f.name.split(".").pop()?.toLowerCase()??"")));if(f.length)onFiles(f)}}
       style={{ border:`2px dashed ${drag?"#7c6fcd":"#2e2e3e"}`, borderRadius:12, padding:"28px 20px", textAlign:"center", cursor:"pointer", background:drag?"rgba(124,111,205,.08)":"transparent" }}>
       <div style={{ color:drag?"#7c6fcd":"#555", marginBottom:8 }}><Icon.Upload /></div>
-      <div style={{ color:"#aaa", fontSize:13 }}><span style={{ color:"#7c6fcd", fontWeight:600 }}>Pilih file</span> atau drag &amp; drop</div>
+      <div style={{ color:"#aaa", fontSize:13 }}><span style={{ color:"#7c6fcd", fontWeight:600 }}>Pilih file</span> atau drag and drop</div>
       <div style={{ color:"#555", fontSize:11, marginTop:4 }}>{label}</div>
       <input ref={ref} type="file" multiple accept={accept.join(",")} style={{ display:"none" }} onChange={e=>{if(e.target.files?.length)onFiles(Array.from(e.target.files));e.target.value="";}} />
     </div>
@@ -295,7 +295,7 @@ export default function MediaPool() {
       const r = await fetch(`${API_BASE}/sync`, { method:"POST" });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       setLastSync(new Date().toLocaleTimeString("id-ID",{hour:"2-digit",minute:"2-digit"}));
-      if (!silent) addToast("Sync ke GDrive berhasil ✓", "success");
+      if (!silent) addToast("Sync ke GDrive berhasil", "success");
     } catch(err) {
       addToast(`Sync gagal: ${err instanceof Error?err.message:"error"}`, "error");
     } finally { setSyncing(false); }
@@ -356,53 +356,53 @@ export default function MediaPool() {
           </button>
         </div>
       </div>
-          <div style={{ marginBottom:16, display:"flex", alignItems:"center", gap:10, padding:"8px 14px", background:"#0a0a12", border:"1px solid #1a1a28", borderRadius:8, fontSize:12, color:"#555" }}>
-            <Icon.Cloud />
-            <span style={{ flex:1 }}>GDrive Sync {lastSync?`· Terakhir: ${lastSync}`:"· Belum pernah sync"}</span>
-            <button onClick={()=>triggerSync(false)} disabled={syncing} style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 12px", borderRadius:6, border:"1px solid #2a2a3e", background:syncing?"#1a1a2e":"transparent", color:syncing?"#7c6fcd":"#aaa", cursor:syncing?"not-allowed":"pointer", fontSize:12, fontWeight:600 }}>
-              <span style={{ display:"inline-flex", animation:syncing?"spin 1s linear infinite":"none" }}><Icon.Sync /></span>
-              {syncing?"Syncing...":"Sync ke Drive"}
-            </button>
-          </div>
 
-          {queue.length>0 && (
-            <div style={{ margin:"12px 0", display:"flex", flexDirection:"column", gap:6 }}>
-              {queue.map(item => (
-                <div key={item.id} style={{ background:"#111118", border:"1px solid #1e1e2e", borderRadius:8, padding:"8px 12px" }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
-                    <span style={{ fontSize:12, color:"#ccc", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"70%" }}>{item.name}</span>
-                    <span style={{ fontSize:11, color:item.status==="done"?"#4ade80":item.status==="error"?"#f87171":"#7c6fcd" }}>
-                      {item.status==="uploading"?`${item.progress}%`:item.status==="done"?"✓ selesai":item.status==="error"?"✗ gagal":"menunggu..."}
-                    </span>
-                  </div>
-                  <div style={{ height:3, background:"#1e1e2e", borderRadius:99, overflow:"hidden" }}>
-                    <div style={{ height:"100%", borderRadius:99, width:`${item.progress}%`, background:item.status==="done"?"#4ade80":item.status==="error"?"#f87171":"#7c6fcd" }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+      <div style={{ marginBottom:16, display:"flex", alignItems:"center", gap:10, padding:"8px 14px", background:"#0a0a12", border:"1px solid #1a1a28", borderRadius:8, fontSize:12, color:"#555" }}>
+        <Icon.Cloud />
+        <span style={{ flex:1 }}>GDrive Sync {lastSync?`- Terakhir: ${lastSync}`:"- Belum pernah sync"}</span>
+        <button onClick={()=>triggerSync(false)} disabled={syncing} style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 12px", borderRadius:6, border:"1px solid #2a2a3e", background:syncing?"#1a1a2e":"transparent", color:syncing?"#7c6fcd":"#aaa", cursor:syncing?"not-allowed":"pointer", fontSize:12, fontWeight:600 }}>
+          <span style={{ display:"inline-flex", animation:syncing?"spin 1s linear infinite":"none" }}><Icon.Sync /></span>
+          {syncing?"Syncing...":"Sync ke Drive"}
+        </button>
+      </div>
 
-          <div style={{ display:"flex", background:"#0e0e16", border:"1px solid #1e1e2e", borderRadius:12, overflow:"hidden", minHeight:420 }}>
-            <div style={{ paddingTop:16, paddingBottom:16, borderRight:"1px solid #1e1e2e" }}>
-              <CategorySidebar type={activeTab} categories={cats} selected={selCat} onSelect={setSelCat} onAdd={n=>addCat(activeTab,n)} onDelete={n=>delCat(activeTab,n)} />
-            </div>
-            <div style={{ flex:1, padding:16, overflowY:"auto", maxHeight:560 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:12, fontSize:12, color:"#555" }}>
-                <span>{activeTab==="music"?"Musik":"Video"}</span>
-                {selCat!=="__all__"&&<><Icon.ChevronRight /><span style={{ color:"#a78bfa" }}>{selCat}</span></>}
-                <span style={{ marginLeft:"auto", color:"#444" }}>{visible.length} file</span>
+      {queue.length>0 && (
+        <div style={{ margin:"12px 0", display:"flex", flexDirection:"column", gap:6 }}>
+          {queue.map(item => (
+            <div key={item.id} style={{ background:"#111118", border:"1px solid #1e1e2e", borderRadius:8, padding:"8px 12px" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                <span style={{ fontSize:12, color:"#ccc", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"70%" }}>{item.name}</span>
+                <span style={{ fontSize:11, color:item.status==="done"?"#4ade80":item.status==="error"?"#f87171":"#7c6fcd" }}>
+                  {item.status==="uploading"?`${item.progress}%`:item.status==="done"?"selesai":item.status==="error"?"gagal":"menunggu..."}
+                </span>
               </div>
-              <FileList files={visible} type={activeTab} onDelete={delFile} onPlay={setPlaying} playing={playing} />
+              <div style={{ height:3, background:"#1e1e2e", borderRadius:99, overflow:"hidden" }}>
+                <div style={{ height:"100%", borderRadius:99, width:`${item.progress}%`, background:item.status==="done"?"#4ade80":item.status==="error"?"#f87171":"#7c6fcd" }} />
+              </div>
             </div>
-          </div>
+          ))}
+        </div>
+      )}
 
-          <div style={{ marginTop:12, padding:"10px 14px", background:"#0a0a12", border:"1px solid #1a1a28", borderRadius:8, fontSize:12, color:"#444", display:"flex", gap:8 }}>
-            <span>ℹ️</span>
-            <span>File disimpan di VPS: <code style={{ color:"#666" }}>/opt/media/{activeTab}/[kategori]/</code> — di-sync ke GDrive via rclone.</span>
+      <div style={{ display:"flex", background:"#0e0e16", border:"1px solid #1e1e2e", borderRadius:12, overflow:"hidden", minHeight:420 }}>
+        <div style={{ paddingTop:16, paddingBottom:16, borderRight:"1px solid #1e1e2e" }}>
+          <CategorySidebar type={activeTab} categories={cats} selected={selCat} onSelect={setSelCat} onAdd={n=>addCat(activeTab,n)} onDelete={n=>delCat(activeTab,n)} />
+        </div>
+        <div style={{ flex:1, padding:16, overflowY:"auto", maxHeight:560 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:12, fontSize:12, color:"#555" }}>
+            <span>{activeTab==="music"?"Musik":"Video"}</span>
+            {selCat!=="__all__"&&<><Icon.ChevronRight /><span style={{ color:"#a78bfa" }}>{selCat}</span></>}
+            <span style={{ marginLeft:"auto", color:"#444" }}>{visible.length} file</span>
           </div>
+          <FileList files={visible} type={activeTab} onDelete={delFile} onPlay={setPlaying} playing={playing} />
         </div>
       </div>
+
+      <div style={{ marginTop:12, padding:"10px 14px", background:"#0a0a12", border:"1px solid #1a1a28", borderRadius:8, fontSize:12, color:"#444", display:"flex", gap:8 }}>
+        <span>Info:</span>
+        <span>File disimpan di VPS: <code style={{ color:"#666" }}>/opt/media/{activeTab}/[kategori]/</code> - di-sync ke GDrive via rclone.</span>
+      </div>
+
       {showModal && <UploadModal type={activeTab} categories={cats} onClose={()=>setShowModal(false)} onUpload={handleUpload} />}
       <MiniPlayer playing={playing} type={activeTab} apiBase={API_BASE} />
       <Toast toasts={toasts} remove={removeToast} />
