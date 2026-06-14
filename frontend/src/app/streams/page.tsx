@@ -88,6 +88,77 @@ const defaultConfig = (): StreamConfig => ({
   folder: 'default', thumbnailId: null, titleId: null, descriptionId: null, auto: true, duration: 4
 });
 
+// Dropdown asset selector with delete
+function AssetDropdown({
+  label, options, value, onChange, onDelete, placeholder, disabled
+}: {
+  label: string;
+  options: Asset[];
+  value: number | null;
+  onChange: (id: number | null) => void;
+  onDelete: (id: number) => void;
+  placeholder?: string;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = options.find(o => o.id === value);
+
+  return (
+    <div className="relative">
+      <div className="text-[10px] text-[#6b7280] font-mono mb-1">{label}</div>
+      <button
+        type="button"
+        onClick={() => !disabled && setOpen(!open)}
+        disabled={disabled}
+        className={`w-full flex items-center justify-between px-3 py-2 rounded border text-xs font-mono transition-colors text-left
+          ${disabled ? 'border-[#1a1d24] text-[#3a3e48] cursor-not-allowed bg-transparent' :
+            open ? 'border-[#c8f55a] text-[#c8f55a] bg-[#0a1500]' :
+            selected ? 'border-[#2a4a1a] text-[#e8e6e0] bg-[#0d0f12]' :
+            'border-[#2a2e38] text-[#6b7280] bg-transparent hover:border-[#3a3e48]'}`}
+      >
+        <span className="truncate">{selected ? selected.label : (placeholder || '— pilih —')}</span>
+        <span className="ml-2 flex-shrink-0 text-[#6b7280]">{open ? '▲' : '▼'}</span>
+      </button>
+
+      {open && (
+        <div className="absolute z-50 w-full mt-1 bg-[#111318] border border-[#2a2e38] rounded shadow-lg max-h-48 overflow-y-auto">
+          <button
+            onClick={() => { onChange(null); setOpen(false); }}
+            className="w-full text-left px-3 py-2 text-xs font-mono text-[#6b7280] hover:bg-[#1a1d24] border-b border-[#1a1d24]"
+          >
+            — tidak dipilih —
+          </button>
+          {options.length === 0 && (
+            <div className="px-3 py-2 text-xs font-mono text-[#3a3e48]">Belum ada data</div>
+          )}
+          {options.map(opt => (
+            <div
+              key={opt.id}
+              className={`flex items-center justify-between px-3 py-2 hover:bg-[#1a1d24] ${opt.id === value ? 'bg-[#0a1500]' : ''}`}
+            >
+              <button
+                className={`flex-1 text-left text-xs font-mono truncate ${opt.id === value ? 'text-[#c8f55a]' : 'text-[#e8e6e0]'}`}
+                onClick={() => { onChange(opt.id); setOpen(false); }}
+              >
+                {opt.in_use && <span className="text-[#5af5c8] mr-1">●</span>}
+                {opt.label || opt.value}
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); onDelete(opt.id); }}
+                className="ml-2 text-[#3a3e48] hover:text-[#f5655a] text-[10px] flex-shrink-0"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {open && <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />}
+    </div>
+  );
+}
+
 export default function StreamsPage() {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
@@ -366,15 +437,20 @@ export default function StreamsPage() {
           </div>
         )}
 
-        {/* Asset Manager */}
+        {/* Asset Manager — compact */}
         <div className="bg-[#111318] border border-[#2a2e38] rounded-lg p-4 mb-5">
           <div className="flex items-center justify-between mb-3">
-            <div className="text-[10px] text-[#6b7280] uppercase tracking-widest font-mono">Asset Manager (Thumbnail / Title / Deskripsi)</div>
+            <div className="text-[10px] text-[#6b7280] uppercase tracking-widest font-mono">
+              Asset Manager
+              <span className="ml-2 text-[#3a3e48]">
+                {thumbnails.length} thumb · {titles.length} title · {descriptions.length} desc
+              </span>
+            </div>
             <button onClick={() => setShowAddAsset(!showAddAsset)} className="text-[10px] font-mono text-[#c8f55a] border border-[#c8f55a33] px-2 py-1 rounded hover:bg-[#0a1a00]">+ Tambah</button>
           </div>
 
           {showAddAsset && (
-            <div className="bg-[#0d0f12] border border-[#2a2e38] rounded p-3 mb-3 flex flex-col gap-2">
+            <div className="bg-[#0d0f12] border border-[#2a2e38] rounded p-3 flex flex-col gap-2">
               <div className="flex gap-2">
                 {['title','description','thumbnail'].map(t => (
                   <button key={t} onClick={() => setNewAsset(p => ({...p, type: t}))}
@@ -383,7 +459,8 @@ export default function StreamsPage() {
                   </button>
                 ))}
               </div>
-              <input type="text" placeholder={newAsset.type === 'thumbnail' ? '/opt/thumbnails/nama-file.jpg' : newAsset.type === 'title' ? 'Lofi Jazz Radio - Chill Beats ☕' : 'Deskripsi stream...'}
+              <input type="text"
+                placeholder={newAsset.type === 'thumbnail' ? '/opt/thumbnails/nama-file.jpg' : newAsset.type === 'title' ? 'Lofi Jazz Radio - Chill Beats ☕' : 'Deskripsi stream...'}
                 value={newAsset.value} onChange={e => setNewAsset(p => ({...p, value: e.target.value}))}
                 className="w-full bg-[#0a0c0f] border border-[#2a2e38] rounded px-3 py-2 text-xs font-mono focus:border-[#c8f55a] outline-none" />
               <input type="text" placeholder="Label (opsional)" value={newAsset.label} onChange={e => setNewAsset(p => ({...p, label: e.target.value}))}
@@ -395,45 +472,35 @@ export default function StreamsPage() {
             </div>
           )}
 
-          <div className="grid grid-cols-3 gap-3">
-            {/* Thumbnails */}
-            <div>
-              <div className="text-[10px] text-[#5af5c8] font-mono mb-2">Thumbnails ({thumbnails.length})</div>
-              <div className="flex flex-col gap-1 max-h-32 overflow-y-auto">
-                {thumbnails.map(t => (
-                  <div key={t.id} className={`flex items-center justify-between px-2 py-1 rounded text-[10px] font-mono ${t.in_use ? 'bg-[#0a1a0a] text-[#5af5c8]' : 'bg-[#0d0f12] text-[#6b7280]'}`}>
-                    <span className="truncate flex-1">{t.label}</span>
-                    {t.in_use && <span className="text-[8px] ml-1">●</span>}
-                    <button onClick={() => deleteAsset(t.id)} className="ml-2 text-[#3a3e48] hover:text-[#f5655a]">✕</button>
-                  </div>
-                ))}
-              </div>
+          {/* Compact 3-column dropdown view */}
+          {!showAddAsset && (
+            <div className="grid grid-cols-3 gap-3">
+              <AssetDropdown
+                label={`Thumbnails (${thumbnails.length})`}
+                options={thumbnails}
+                value={null}
+                onChange={() => {}}
+                onDelete={deleteAsset}
+                placeholder="— lihat & kelola —"
+              />
+              <AssetDropdown
+                label={`Titles (${titles.length})`}
+                options={titles}
+                value={null}
+                onChange={() => {}}
+                onDelete={deleteAsset}
+                placeholder="— lihat & kelola —"
+              />
+              <AssetDropdown
+                label={`Descriptions (${descriptions.length})`}
+                options={descriptions}
+                value={null}
+                onChange={() => {}}
+                onDelete={deleteAsset}
+                placeholder="— lihat & kelola —"
+              />
             </div>
-            {/* Titles */}
-            <div>
-              <div className="text-[10px] text-[#f5c85a] font-mono mb-2">Titles ({titles.length})</div>
-              <div className="flex flex-col gap-1 max-h-32 overflow-y-auto">
-                {titles.map(t => (
-                  <div key={t.id} className="flex items-center justify-between px-2 py-1 rounded bg-[#0d0f12] text-[10px] font-mono text-[#6b7280]">
-                    <span className="truncate flex-1">{t.label}</span>
-                    <button onClick={() => deleteAsset(t.id)} className="ml-2 text-[#3a3e48] hover:text-[#f5655a]">✕</button>
-                  </div>
-                ))}
-              </div>
-            </div>
-            {/* Descriptions */}
-            <div>
-              <div className="text-[10px] text-[#5a8af5] font-mono mb-2">Descriptions ({descriptions.length})</div>
-              <div className="flex flex-col gap-1 max-h-32 overflow-y-auto">
-                {descriptions.map(d => (
-                  <div key={d.id} className="flex items-center justify-between px-2 py-1 rounded bg-[#0d0f12] text-[10px] font-mono text-[#6b7280]">
-                    <span className="truncate flex-1">{d.label}</span>
-                    <button onClick={() => deleteAsset(d.id)} className="ml-2 text-[#3a3e48] hover:text-[#f5655a]">✕</button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Top bar channels */}
@@ -573,7 +640,7 @@ export default function StreamsPage() {
                     <div className="text-[10px] text-[#6b7280] uppercase tracking-widest font-mono mb-3">Konfigurasi Stream</div>
 
                     {/* Auto toggle */}
-                    <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center justify-between mb-4">
                       <div>
                         <div className="text-xs font-mono text-[#e8e6e0]">Mode Auto</div>
                         <div className="text-[10px] font-mono text-[#6b7280]">Backend pilih thumbnail/title/desc otomatis</div>
@@ -585,7 +652,7 @@ export default function StreamsPage() {
                     </div>
 
                     {/* Folder */}
-                    <div className="mb-3">
+                    <div className="mb-4">
                       <div className="text-[10px] text-[#6b7280] font-mono mb-1">Folder Lagu</div>
                       <div className="flex flex-wrap gap-1">
                         {folders.map(f => (
@@ -594,57 +661,42 @@ export default function StreamsPage() {
                             {f.name} ({f.count})
                           </button>
                         ))}
-                        {folders.length === 0 && <span className="text-[10px] text-[#3a3e48] font-mono">Tidak ada folder ditemukan</span>}
+                        {folders.length === 0 && <span className="text-[10px] text-[#3a3e48] font-mono">Tidak ada folder</span>}
                       </div>
                     </div>
 
-                    {/* Manual asset selection */}
+                    {/* Manual asset selection — dropdowns */}
                     {!config.auto && (
-                      <>
-                        {/* Thumbnail */}
-                        <div className="mb-3">
-                          <div className="text-[10px] text-[#6b7280] font-mono mb-1">Thumbnail</div>
-                          <div className="flex flex-wrap gap-1">
-                            {thumbnails.map(t => (
-                              <button key={t.id} onClick={() => updateConfig(ch.channel_id, { thumbnailId: t.id })}
-                                disabled={!!t.in_use && config.thumbnailId !== t.id}
-                                className={`text-[10px] font-mono px-2 py-1 rounded transition-colors ${config.thumbnailId === t.id ? 'bg-[#5af5c8] text-[#0a0c0f] font-bold' : t.in_use ? 'border border-[#1a3a1a] text-[#3a5a3a] cursor-not-allowed' : 'border border-[#2a2e38] text-[#6b7280] hover:border-[#5af5c8] hover:text-[#5af5c8]'}`}>
-                                {t.label} {t.in_use ? '●' : ''}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Title */}
-                        <div className="mb-3">
-                          <div className="text-[10px] text-[#6b7280] font-mono mb-1">Title</div>
-                          <div className="flex flex-col gap-1">
-                            {titles.map(t => (
-                              <button key={t.id} onClick={() => updateConfig(ch.channel_id, { titleId: t.id })}
-                                className={`text-left text-[10px] font-mono px-2 py-1.5 rounded transition-colors truncate ${config.titleId === t.id ? 'bg-[#f5c85a] text-[#0a0c0f] font-bold' : 'border border-[#2a2e38] text-[#6b7280] hover:border-[#f5c85a] hover:text-[#f5c85a]'}`}>
-                                {t.value}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Description */}
-                        <div>
-                          <div className="text-[10px] text-[#6b7280] font-mono mb-1">Description</div>
-                          <div className="flex flex-col gap-1">
-                            {descriptions.map(d => (
-                              <button key={d.id} onClick={() => updateConfig(ch.channel_id, { descriptionId: d.id })}
-                                className={`text-left text-[10px] font-mono px-2 py-1.5 rounded transition-colors ${config.descriptionId === d.id ? 'bg-[#5a8af5] text-white font-bold' : 'border border-[#2a2e38] text-[#6b7280] hover:border-[#5a8af5] hover:text-[#5a8af5]'}`}>
-                                {d.label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      </>
+                      <div className="grid grid-cols-1 gap-3">
+                        <AssetDropdown
+                          label="Thumbnail"
+                          options={thumbnails}
+                          value={config.thumbnailId}
+                          onChange={id => updateConfig(ch.channel_id, { thumbnailId: id })}
+                          onDelete={deleteAsset}
+                          placeholder="— pilih thumbnail —"
+                        />
+                        <AssetDropdown
+                          label="Title"
+                          options={titles}
+                          value={config.titleId}
+                          onChange={id => updateConfig(ch.channel_id, { titleId: id })}
+                          onDelete={deleteAsset}
+                          placeholder="— pilih title —"
+                        />
+                        <AssetDropdown
+                          label="Description"
+                          options={descriptions}
+                          value={config.descriptionId}
+                          onChange={id => updateConfig(ch.channel_id, { descriptionId: id })}
+                          onDelete={deleteAsset}
+                          placeholder="— pilih description —"
+                        />
+                      </div>
                     )}
 
                     {/* Duration */}
-                    <div className="mt-3">
+                    <div className="mt-4">
                       <div className="text-[10px] text-[#6b7280] font-mono mb-1">Durasi Stream</div>
                       <div className="flex flex-wrap gap-1">
                         {[1,2,3,4,6,8,10,12].map(h => (
