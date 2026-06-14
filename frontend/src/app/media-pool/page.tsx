@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 
 const API_BASE = "/media-pool-api";
 
@@ -65,7 +65,7 @@ function DropZone({ onFiles, accept, label }: { onFiles:(f:File[])=>void; accept
       <div style={{ color:drag?"#7c6fcd":"#555", marginBottom:8 }}><Icon.Upload /></div>
       <div style={{ color:"#aaa", fontSize:13 }}><span style={{ color:"#7c6fcd", fontWeight:600 }}>Pilih file</span> atau drag &amp; drop</div>
       <div style={{ color:"#555", fontSize:11, marginTop:4 }}>{label}</div>
-      <input ref={ref} type="file" multiple accept={accept.join(",")} style={{ display:"none" }} onChange={e=>{if(e.target.files?.length)onFiles([...e.target.files]);e.target.value="";}} />
+      <input ref={ref} type="file" multiple accept={accept.join(",")} style={{ display:"none" }} onChange={e=>{if(e.target.files?.length)onFiles(Array.from(e.target.files));e.target.value="";}} />
     </div>
   );
 }
@@ -182,16 +182,22 @@ function MiniPlayer({ playing, type, apiBase }: { playing:FileItem|null; type:"m
   const mediaRef = useRef<HTMLMediaElement>(null);
   const [paused, setPaused] = useState(false);
   const [progress, setProgress] = useState(0);
+  useEffect(() => { setPaused(false); setProgress(0); }, [playing?.id]);
   if (!playing) return null;
   const url = `${apiBase}/media/${type}/${encodeURIComponent(playing.category)}/${encodeURIComponent(playing.name)}`;
   const onTime = () => { const el=mediaRef.current; if(el?.duration) setProgress((el.currentTime/el.duration)*100); };
-  const toggle = () => { const el=mediaRef.current; if(!el)return; paused?el.play():el.pause(); setPaused(!paused); };
+  const toggle = () => { const el=mediaRef.current; if(!el)return; if(el.paused) el.play(); else el.pause(); };
   const seek = (e: React.MouseEvent<HTMLDivElement>) => { const el=mediaRef.current; if(!el?.duration)return; const r=e.currentTarget.getBoundingClientRect(); el.currentTime=((e.clientX-r.left)/r.width)*el.duration; };
   return (
+    <>
+    {type==="video" && (
+      <div style={{ position:"fixed", bottom:74, right:24, width:340, background:"#000", border:"1px solid #1e1e2e", borderRadius:8, overflow:"hidden", boxShadow:"0 8px 24px rgba(0,0,0,.6)", zIndex:501 }}>
+        <video ref={mediaRef as React.RefObject<HTMLVideoElement>} src={url} autoPlay onTimeUpdate={onTime} onPlay={()=>setPaused(false)} onPause={()=>setPaused(true)} onClick={toggle} style={{ width:"100%", display:"block", cursor:"pointer" }} />
+      </div>
+    )}
     <div style={{ position:"fixed", bottom:0, left:0, right:0, background:"rgba(10,10,18,.96)", borderTop:"1px solid #1e1e2e", backdropFilter:"blur(12px)", padding:"10px 24px", display:"flex", alignItems:"center", gap:16, zIndex:500 }}>
-      {type==="music"
-        ? <audio ref={mediaRef as React.RefObject<HTMLAudioElement>} src={url} autoPlay onTimeUpdate={onTime} />
-        : <video ref={mediaRef as React.RefObject<HTMLVideoElement>} src={url} autoPlay style={{ display:"none" }} onTimeUpdate={onTime} />}
+      {type==="music" &&
+        <audio ref={mediaRef as React.RefObject<HTMLAudioElement>} src={url} autoPlay onTimeUpdate={onTime} onPlay={()=>setPaused(false)} onPause={()=>setPaused(true)} />}
       <button onClick={toggle} style={{ width:36, height:36, borderRadius:"50%", background:"#7c6fcd", border:"none", color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
         {paused?<Icon.Play />:<Icon.Pause />}
       </button>
@@ -203,6 +209,7 @@ function MiniPlayer({ playing, type, apiBase }: { playing:FileItem|null; type:"m
       </div>
       <span style={{ fontSize:11, color:"#555", flexShrink:0 }}>{playing.category}</span>
     </div>
+    </>
   );
 }
 
@@ -214,6 +221,33 @@ export default function MediaPool() {
   const [musicCat, setMusicCat] = useState("__all__");
   const [videoCat, setVideoCat] = useState("__all__");
   const [files, setFiles] = useState<FileItem[]>([]);
+
+  const fetchFiles = useCallback(async () => {
+    try {
+      const r = await fetch(`${API_BASE}/files`);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      setFiles(Array.isArray(data.files) ? data.files : []);
+    } catch (err) {
+      console.error("Gagal load files:", err);
+    }
+  }, []);
+
+  useEffect(() => { fetchFiles(); }, [fetchFiles]);
+
+  const fetchCategories = useCallback(async () => {
+    try {
+      const r = await fetch(`${API_BASE}/categories`);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      if (Array.isArray(data.music)) setMusicCats(data.music);
+      if (Array.isArray(data.video)) setVideoCats(data.video);
+    } catch (err) {
+      console.error("Gagal load categories:", err);
+    }
+  }, []);
+
+  useEffect(() => { fetchCategories(); }, [fetchCategories]);
   const [queue, setQueue] = useState<UploadQueueItem[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [playing, setPlaying] = useState<FileItem|null>(null);
@@ -232,9 +266,9 @@ export default function MediaPool() {
       try {
         setQueue(q => q.map(i => i.id===item.id?{...i,status:"uploading"}:i));
         const fd = new FormData();
-        fd.append("file", item.file);
-        fd.append("category", category);
         fd.append("type", activeTab);
+        fd.append("category", category);
+        fd.append("file", item.file);
         await new Promise<void>((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           xhr.upload.onprogress = e => { const p=Math.round((e.loaded/e.total)*100); setQueue(q=>q.map(i=>i.id===item.id?{...i,progress:p}:i)); };
@@ -243,7 +277,7 @@ export default function MediaPool() {
           xhr.open("POST", `${API_BASE}/upload`);
           xhr.send(fd);
         });
-        setFiles(prev => [...prev, { id:item.id, name:item.name, size:item.file.size, type:activeTab, category }]);
+        await fetchFiles();
         setQueue(q => q.map(i => i.id===item.id?{...i,status:"done",progress:100}:i));
         addToast(`${item.name} berhasil diupload`, "success");
       } catch(err) {
@@ -267,14 +301,41 @@ export default function MediaPool() {
     } finally { setSyncing(false); }
   };
 
-  const addCat = (type:"music"|"video", name:string) => { type==="music"?setMusicCats(c=>[...c,name]):setVideoCats(c=>[...c,name]); addToast(`Kategori "${name}" ditambahkan`,"success"); };
-  const delCat = (type:"music"|"video", name:string) => {
-    if (files.some(f=>f.type===type&&f.category===name)) { addToast(`"${name}" masih ada filenya`,"error"); return; }
-    type==="music"?setMusicCats(c=>c.filter(x=>x!==name)):setVideoCats(c=>c.filter(x=>x!==name));
-    if(selCat===name)setSelCat("__all__");
-    addToast(`Kategori "${name}" dihapus`,"info");
+  const addCat = async (type:"music"|"video", name:string) => {
+    try {
+      const res = await fetch(`${API_BASE}/categories`, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ type, name }) });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error || `HTTP ${res.status}`); }
+      await fetchCategories();
+      addToast(`Kategori "${name}" ditambahkan`,"success");
+    } catch(err) {
+      addToast(`Gagal: ${err instanceof Error?err.message:"error"}`, "error");
+    }
   };
-  const delFile = (id:string) => { setFiles(f=>f.filter(x=>x.id!==id)); if(playing?.id===id)setPlaying(null); addToast("File dihapus","info"); };
+  const delCat = async (type:"music"|"video", name:string) => {
+    if (files.some(f=>f.type===type&&f.category===name)) { addToast(`"${name}" masih ada filenya`,"error"); return; }
+    try {
+      const res = await fetch(`${API_BASE}/categories/${type}/${encodeURIComponent(name)}`, { method:"DELETE" });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error || `HTTP ${res.status}`); }
+      await fetchCategories();
+      if(selCat===name)setSelCat("__all__");
+      addToast(`Kategori "${name}" dihapus`,"info");
+    } catch(err) {
+      addToast(`Gagal: ${err instanceof Error?err.message:"error"}`, "error");
+    }
+  };
+  const delFile = async (id:string) => {
+    const f = files.find(x=>x.id===id);
+    if (!f) return;
+    try {
+      const res = await fetch(`${API_BASE}/files/${f.type}/${encodeURIComponent(f.category)}/${encodeURIComponent(f.name)}`, { method:"DELETE" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (playing?.id===id) setPlaying(null);
+      await fetchFiles();
+      addToast("File dihapus","info");
+    } catch(err) {
+      addToast(`Gagal hapus: ${err instanceof Error?err.message:"error"}`, "error");
+    }
+  };
 
   return (
     <>

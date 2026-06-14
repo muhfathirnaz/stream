@@ -53,3 +53,12 @@ CREATE INDEX IF NOT EXISTS idx_metrics_channel_date
   -- Tambahan untuk integrasi otomatisasi YouTube API
 ALTER TABLE channels ADD COLUMN google_refresh_token TEXT;
 ALTER TABLE channels ADD COLUMN youtube_channel_id VARCHAR(100);
+
+-- Broadcast assets (thumbnails, titles, descriptions)
+CREATE TABLE IF NOT EXISTS broadcast_assets (
+  id          SERIAL PRIMARY KEY,
+  type        VARCHAR(20) NOT NULL, -- thumbnail | title | description
+  value       TEXT NOT NULL,
+  label       TEXT,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);

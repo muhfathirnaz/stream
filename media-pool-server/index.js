@@ -107,6 +107,29 @@ app.get('/media/:type/:category/:filename', (req, res) => {
   }
 });
 
+app.post("/categories", (req, res) => {
+  const { type, name } = req.body;
+  if (!["music","video"].includes(type)) return res.status(400).json({ error: "type harus music atau video" });
+  if (!name || !name.trim()) return res.status(400).json({ error: "name wajib diisi" });
+  const safe = name.trim().replace(/[^a-zA-Z0-9_\- ]/g, "");
+  if (!safe) return res.status(400).json({ error: "name tidak valid" });
+  const dir = path.join(MEDIA_BASE_DIR, type, safe);
+  fs.mkdirSync(dir, { recursive: true });
+  res.json({ success: true, type, name: safe });
+});
+
+app.delete("/categories/:type/:name", (req, res) => {
+  const { type, name } = req.params;
+  if (!["music","video"].includes(type) || name.includes("..") || name.includes("/"))
+    return res.status(400).json({ error: "Invalid path" });
+  const dir = path.join(MEDIA_BASE_DIR, type, name);
+  if (!fs.existsSync(dir)) return res.status(404).json({ error: "Kategori tidak ditemukan" });
+  const files = fs.readdirSync(dir);
+  if (files.length > 0) return res.status(409).json({ error: "Kategori masih ada filenya" });
+  fs.rmdirSync(dir);
+  res.json({ success: true });
+});
+
 app.get('/categories', (req, res) => {
   const { type } = req.query;
   const types = type ? [type] : ['music', 'video'];

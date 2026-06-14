@@ -13,6 +13,7 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 3001,
+        SONGS_DIR: '/opt/media/music',
       },
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
       error_file: '/var/log/pm2/backend-error.log',
@@ -43,7 +44,7 @@ module.exports = {
       watch: false,
       env: {
         PORT: 8090,
-        SONGS_DIR: '/opt/songs',
+        SONGS_DIR: '/opt/media/music',
         VIDEOS_DIR: '/opt/videos',
         THUMBNAILS_DIR: '/opt/thumbnails',
       },

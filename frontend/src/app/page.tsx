@@ -156,6 +156,7 @@ export default function DashboardPage() {
           {[
             { label: 'Dashboard', icon: '⊞', active: true },
             { label: 'Live Streams', icon: '◉', href: '/streams' },
+            { label: 'Media Pool', icon: '🎵', href: '/media-pool' },
             { label: 'Song Pool', icon: '♪', badge: songPool.total },
             { label: 'n8n Workflows', icon: '⚡' },
             { label: 'Drive Sync', icon: '↑' },
