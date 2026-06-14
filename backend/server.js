@@ -18,6 +18,7 @@ const channelsRouter = require('./src/routes/channels');
 const metricsRouter = require('./src/routes/metrics');
 const systemRouter = require('./src/routes/system');
 const schedulesRouter = require('./src/routes/schedules');
+const thumbnailsRouter = require('./src/routes/thumbnails');
 
 const app = express();
 const server = http.createServer(app);
@@ -71,6 +72,7 @@ app.use('/api/channels', channelsRouter);
 app.use('/api/metrics', metricsRouter);
 app.use('/api/system', systemRouter);
 app.use('/api/schedules', schedulesRouter);
+app.use('/api/thumbnails', thumbnailsRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', ts: new Date().toISOString() });

@@ -69,5 +69,19 @@ module.exports = {
         GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
       },
     },
+
+    {
+      name: 'media-pool',
+      script: './media-pool-server/index.js',
+      cwd: '/home/ubuntu/lofi-dashboard',
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      env: {
+        MEDIA_POOL_PORT: 3002,
+        MEDIA_BASE_DIR: '/opt/media',
+        RCLONE_ENABLED: 'false',
+      },
+    },
   ],
 };
