@@ -1,17 +1,18 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
   "/api/assets/route": "app/api/assets/route.js",
-  "/api/thumbnails/route": "app/api/thumbnails/route.js",
-  "/api/schedules/[id]/route": "app/api/schedules/[id]/route.js",
   "/api/channels/[id]/route": "app/api/channels/[id]/route.js",
-  "/api/thumbnails/sync/route": "app/api/thumbnails/sync/route.js",
-  "/api/thumbnails/[filename]/route": "app/api/thumbnails/[filename]/route.js",
-  "/page": "app/page.js",
-  "/thumbnails/page": "app/thumbnails/page.js",
-  "/api/streams/[action]/route": "app/api/streams/[action]/route.js",
-  "/streams/page": "app/streams/page.js",
-  "/oauth-helper/page": "app/oauth-helper/page.js",
+  "/api/schedules/[id]/route": "app/api/schedules/[id]/route.js",
   "/api/channels/route": "app/api/channels/route.js",
+  "/api/schedules/route": "app/api/schedules/route.js",
+  "/api/streams/[action]/route": "app/api/streams/[action]/route.js",
+  "/api/thumbnails/[filename]/route": "app/api/thumbnails/[filename]/route.js",
+  "/api/thumbnails/route": "app/api/thumbnails/route.js",
+  "/api/thumbnails/sync/route": "app/api/thumbnails/sync/route.js",
   "/api/thumbnails/upload/route": "app/api/thumbnails/upload/route.js",
-  "/api/schedules/route": "app/api/schedules/route.js"
+  "/media-pool/page": "app/media-pool/page.js",
+  "/oauth-helper/page": "app/oauth-helper/page.js",
+  "/page": "app/page.js",
+  "/streams/page": "app/streams/page.js",
+  "/thumbnails/page": "app/thumbnails/page.js"
 }
