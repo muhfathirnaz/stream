@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from "react";
 
-const API_BASE = "http://localhost:3002";
+const API_BASE = "/media-pool-api";
 
 interface ToastItem { id: number; msg: string; type: "info" | "success" | "error"; }
 interface FileItem { id: string; name: string; size: number; type: "music" | "video"; category: string; status?: string; duration?: number; }
@@ -60,7 +60,7 @@ function DropZone({ onFiles, accept, label }: { onFiles:(f:File[])=>void; accept
   const ref = useRef<HTMLInputElement>(null);
   return (
     <div onClick={() => ref.current?.click()} onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)}
-      onDrop={e=>{e.preventDefault();setDrag(false);const f=[...e.dataTransfer.files].filter(f=>accept.some(a=>a.includes(f.name.split(".").pop()?.toLowerCase()??")));if(f.length)onFiles(f)}}
+      onDrop={e=>{e.preventDefault();setDrag(false);const f=Array.from(e.dataTransfer.files).filter(f=>accept.some(a=>a.includes(f.name.split(".").pop()?.toLowerCase()??"")));if(f.length)onFiles(f)}}
       style={{ border:`2px dashed ${drag?"#7c6fcd":"#2e2e3e"}`, borderRadius:12, padding:"28px 20px", textAlign:"center", cursor:"pointer", background:drag?"rgba(124,111,205,.08)":"transparent" }}>
       <div style={{ color:drag?"#7c6fcd":"#555", marginBottom:8 }}><Icon.Upload /></div>
       <div style={{ color:"#aaa", fontSize:13 }}><span style={{ color:"#7c6fcd", fontWeight:600 }}>Pilih file</span> atau drag &amp; drop</div>
