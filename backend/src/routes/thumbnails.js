@@ -45,23 +45,28 @@ function triggerRcloneSync() {
 // ─── GET /api/thumbnails ─────────────────────────────────────────────────────
 router.get('/', (req, res) => {
   try {
-    if (!fs.existsSync(THUMBNAILS_DIR)) {
-      fs.mkdirSync(THUMBNAILS_DIR, { recursive: true });
-    }
-    const files = fs.readdirSync(THUMBNAILS_DIR)
-      .filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f))
-      .map(filename => {
-        const fullPath = path.join(THUMBNAILS_DIR, filename);
-        const stat = fs.statSync(fullPath);
-        return {
-          filename,
-          path: fullPath,
-          sizeBytes: stat.size,
-          createdAt: stat.birthtime,
-        };
-      })
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
+    if (!fs.existsSync(THUMBNAILS_DIR)) fs.mkdirSync(THUMBNAILS_DIR, { recursive: true });
+    const files = [];
+    // Root files
+    fs.readdirSync(THUMBNAILS_DIR)
+      .filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f) && fs.statSync(path.join(THUMBNAILS_DIR, f)).isFile())
+      .forEach(filename => {
+        const stat = fs.statSync(path.join(THUMBNAILS_DIR, filename));
+        files.push({ filename, sizeBytes: stat.size, createdAt: stat.birthtime, category: '' });
+      });
+    // Subfolder files
+    fs.readdirSync(THUMBNAILS_DIR, { withFileTypes: true })
+      .filter(i => i.isDirectory())
+      .forEach(dir => {
+        fs.readdirSync(path.join(THUMBNAILS_DIR, dir.name))
+          .filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f))
+          .forEach(filename => {
+            const fullPath = path.join(THUMBNAILS_DIR, dir.name, filename);
+            const stat = fs.statSync(fullPath);
+            files.push({ filename, sizeBytes: stat.size, createdAt: stat.birthtime, category: dir.name });
+          });
+      });
+    files.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     res.json({ total: files.length, files });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -77,94 +82,48 @@ router.post('/upload', async (req, res) => {
 
   try {
     const Busboy = require('busboy');
-    const bb = Busboy({
-      headers: req.headers,
-      limits: { fileSize: MAX_SIZE_MB * 1024 * 1024 },
-    });
+    const bb = Busboy({ headers: req.headers, limits: { fileSize: MAX_SIZE_MB * 1024 * 1024 } });
 
-    let fileBuffer = null;
-    let originalName = null;
-    let mimeType = null;
-    let fileTooLarge = false;
-    let invalidType = false;
+    let fileBuffer = null, originalName = null, fileTooLarge = false, invalidType = false;
+    let category = '';
+
+    bb.on('field', (name, val) => { if (name === 'category') category = val; });
 
     bb.on('file', (name, stream, info) => {
-      const { filename, mimeType: mime } = info;
+      const { filename, mimeType } = info;
       originalName = filename;
-      mimeType = mime;
-
-      if (!ALLOWED_TYPES.includes(mime)) {
-        invalidType = true;
-        stream.resume();
-        return;
-      }
-
+      if (!ALLOWED_TYPES.includes(mimeType)) { invalidType = true; stream.resume(); return; }
       const chunks = [];
       stream.on('data', chunk => chunks.push(chunk));
       stream.on('limit', () => { fileTooLarge = true; stream.resume(); });
-      stream.on('end', () => {
-        if (!fileTooLarge) fileBuffer = Buffer.concat(chunks);
-      });
+      stream.on('end', () => { if (!fileTooLarge) fileBuffer = Buffer.concat(chunks); });
     });
 
     bb.on('finish', async () => {
-      if (invalidType) {
-        return res.status(400).json({ error: 'Tipe file tidak didukung. Gunakan JPG, PNG, atau WebP.' });
-      }
-      if (fileTooLarge) {
-        return res.status(400).json({ error: `File terlalu besar. Maksimum ${MAX_SIZE_MB}MB` });
-      }
-      if (!fileBuffer) {
-        return res.status(400).json({ error: 'File tidak ditemukan di request' });
-      }
+      if (invalidType) return res.status(400).json({ error: 'Tipe file tidak didukung.' });
+      if (fileTooLarge) return res.status(400).json({ error: `File terlalu besar. Maks ${MAX_SIZE_MB}MB` });
+      if (!fileBuffer) return res.status(400).json({ error: 'File tidak ditemukan di request' });
 
       try {
-        // Pastikan folder ada
-        if (!fs.existsSync(THUMBNAILS_DIR)) {
-          fs.mkdirSync(THUMBNAILS_DIR, { recursive: true });
-        }
-
-        // Generate nama file unik
+        if (!fs.existsSync(THUMBNAILS_DIR)) fs.mkdirSync(THUMBNAILS_DIR, { recursive: true });
         const ext = path.extname(originalName) || '.jpg';
-        const safeName = path.basename(originalName, ext)
-          .replace(/[^a-zA-Z0-9_-]/g, '_')
-          .slice(0, 40);
-        const timestamp = Date.now();
-        const finalName = `${safeName}_${timestamp}${ext}`;
-        const destPath = path.join(THUMBNAILS_DIR, finalName);
-
-        // Simpan ke VPS
+        const safeName = path.basename(originalName, ext).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40);
+        const finalName = `${safeName}_${Date.now()}${ext}`;
+        const safeCategory = category.trim().replace(/[^a-zA-Z0-9_\- ]/g, '');
+        const targetDir = safeCategory ? path.join(THUMBNAILS_DIR, safeCategory) : THUMBNAILS_DIR;
+        fs.mkdirSync(targetDir, { recursive: true });
+        const destPath = path.join(targetDir, finalName);
         fs.writeFileSync(destPath, fileBuffer);
-        console.log(`[thumbnails] Saved to VPS: ${destPath}`);
-
-        // Trigger rclone push ke Drive (async, tidak block response)
-        triggerRcloneSync().then(syncResult => {
-          if (!syncResult.success) {
-            console.error('[thumbnails] Drive sync gagal:', syncResult.error);
-          }
-          // Broadcast ke WebSocket kalau ada
-          req.wsService?.broadcast('thumbnails:updated', {
-            filename: finalName,
-            ts: new Date().toISOString(),
-          });
-        });
-
-        // Response langsung setelah file tersimpan di VPS
-        res.json({
-          success: true,
-          filename: finalName,
-          path: destPath,
-          sizeBytes: fileBuffer.length,
-        });
-
+        console.log(`[thumbnails] Saved: ${destPath}`);
+        triggerRcloneSync().catch(console.error);
+        req.wsService?.broadcast('thumbnails:updated', { filename: finalName, ts: new Date().toISOString() });
+        res.json({ success: true, filename: finalName, path: destPath, sizeBytes: fileBuffer.length });
       } catch (err) {
-        console.error('[thumbnails] save error:', err.message);
         res.status(500).json({ error: err.message });
       }
     });
 
     req.pipe(bb);
-
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -214,4 +173,136 @@ router.delete('/:filename', async (req, res) => {
   }
 });
 
+// ─── GET /api/thumbnails/categories ──────────────────────────────────────────
+router.get('/categories', (req, res) => {
+  if (!fs.existsSync(THUMBNAILS_DIR)) return res.json({ categories: [] });
+  const items = fs.readdirSync(THUMBNAILS_DIR, { withFileTypes: true });
+  const categories = items.filter(i => i.isDirectory()).map(i => i.name);
+  res.json({ categories });
+});
+
+// ─── POST /api/thumbnails/categories ─────────────────────────────────────────
+router.post('/categories', (req, res) => {
+  const { name } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'name wajib diisi' });
+  const safe = name.trim().replace(/[^a-zA-Z0-9_\- ]/g, '');
+  if (!safe) return res.status(400).json({ error: 'name tidak valid' });
+  const dir = path.join(THUMBNAILS_DIR, safe);
+  fs.mkdirSync(dir, { recursive: true });
+  res.json({ success: true, name: safe });
+});
+
+// ─── DELETE /api/thumbnails/categories/:name ──────────────────────────────────
+router.delete('/categories/:name', (req, res) => {
+  const { name } = req.params;
+  if (name.includes('..') || name.includes('/')) return res.status(400).json({ error: 'Invalid name' });
+  const dir = path.join(THUMBNAILS_DIR, name);
+  if (!fs.existsSync(dir)) return res.status(404).json({ error: 'Kategori tidak ditemukan' });
+  const files = fs.readdirSync(dir);
+  if (files.length > 0) return res.status(409).json({ error: 'Kategori masih ada filenya' });
+  fs.rmdirSync(dir);
+  res.json({ success: true });
+});
+
+// ─── GET /api/thumbnails/preview/:filename ────────────────────────────────────
+router.get('/preview/:filename', (req, res) => {
+  const { filename } = req.params;
+  if (filename.includes('..') || filename.includes('/')) {
+    return res.status(400).json({ error: 'Invalid filename' });
+  }
+  // Cari di root thumbnails dir dan semua subfolder
+  let filePath = path.join(THUMBNAILS_DIR, filename);
+  if (!fs.existsSync(filePath)) {
+    // Cari di subfolder
+    try {
+      const dirs = fs.readdirSync(THUMBNAILS_DIR, { withFileTypes: true })
+        .filter(i => i.isDirectory())
+        .map(i => i.name);
+      for (const dir of dirs) {
+        const candidate = path.join(THUMBNAILS_DIR, dir, filename);
+        if (fs.existsSync(candidate)) { filePath = candidate; break; }
+      }
+    } catch {}
+  }
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File tidak ditemukan' });
+  const ext = path.extname(filename).toLowerCase();
+  const mimeMap = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' };
+  const mime = mimeMap[ext] || 'image/jpeg';
+  res.setHeader('Content-Type', mime);
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  fs.createReadStream(filePath).pipe(res);
+});
+
 module.exports = router;
+// ─── GET /api/thumbnails/preview/:filename ────────────────────────────────────
+router.get('/preview/:filename', (req, res) => {
+  const { filename } = req.params;
+  if (filename.includes('/') || filename.includes('..')) {
+    return res.status(400).json({ error: 'Invalid filename' });
+  }
+  const filePath = path.join(THUMBNAILS_DIR, filename);
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'Not found' });
+  }
+  res.sendFile(filePath);
+});
+
+// ─── GET /api/thumbnails/categories ──────────────────────────────────────────
+router.get('/categories', (req, res) => {
+  try {
+    if (!fs.existsSync(THUMBNAILS_DIR)) return res.json({ categories: [] });
+    const items = fs.readdirSync(THUMBNAILS_DIR, { withFileTypes: true });
+    const categories = items.filter(i => i.isDirectory()).map(i => i.name);
+    res.json({ categories });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── POST /api/thumbnails/categories ─────────────────────────────────────────
+router.post('/categories', (req, res) => {
+  const { name } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'name wajib' });
+  const safe = name.trim().replace(/[^a-zA-Z0-9_\- ]/g, '');
+  if (!safe) return res.status(400).json({ error: 'name tidak valid' });
+  const dir = path.join(THUMBNAILS_DIR, safe);
+  fs.mkdirSync(dir, { recursive: true });
+  res.json({ success: true, name: safe });
+});
+
+// ─── DELETE /api/thumbnails/categories/:name ──────────────────────────────────
+router.delete('/categories/:name', (req, res) => {
+  const { name } = req.params;
+  if (name.includes('..') || name.includes('/')) return res.status(400).json({ error: 'Invalid' });
+  const dir = path.join(THUMBNAILS_DIR, name);
+  if (!fs.existsSync(dir)) return res.status(404).json({ error: 'Not found' });
+  const files = fs.readdirSync(dir);
+  if (files.length > 0) return res.status(409).json({ error: 'Kategori masih ada filenya' });
+  fs.rmdirSync(dir);
+  res.json({ success: true });
+});
+
+router.get('/categories', (req, res) => {
+  try {
+    if (!fs.existsSync(THUMBNAILS_DIR)) return res.json({ categories: [] });
+    const items = fs.readdirSync(THUMBNAILS_DIR, { withFileTypes: true });
+    const cats = items.filter(i => i.isDirectory()).map(i => i.name);
+    res.json({ categories: cats });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/categories', (req, res) => {
+  const { name } = req.body;
+  if (!name?.trim()) return res.status(400).json({ error: 'name wajib' });
+  const safe = name.trim().replace(/[^a-zA-Z0-9_\- ]/g, '');
+  fs.mkdirSync(path.join(THUMBNAILS_DIR, safe), { recursive: true });
+  res.json({ success: true, name: safe });
+});
+
+router.delete('/categories/:name', (req, res) => {
+  const { name } = req.params;
+  if (name.includes('..') || name.includes('/')) return res.status(400).json({ error: 'Invalid' });
+  const dir = path.join(THUMBNAILS_DIR, name);
+  if (!fs.existsSync(dir)) return res.status(404).json({ error: 'Not found' });
+  if (fs.readdirSync(dir).length > 0) return res.status(409).json({ error: 'Masih ada file' });
+  fs.rmdirSync(dir);
+  res.json({ success: true });
+});
