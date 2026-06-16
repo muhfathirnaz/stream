@@ -261,6 +261,23 @@ export default function StreamsPage() {
           </div>
         )}
 
+        {recentSchedules.length > 0 && (
+          <div className="bg-[#111318] border border-[#2a2e38] rounded-lg p-4 mb-5">
+            <div className="text-[10px] text-[#6b7280] uppercase tracking-widest font-mono mb-3">Riwayat Schedule (24 jam terakhir)</div>
+            <div className="flex flex-col gap-1">
+              {recentSchedules.map(s => (
+                <div key={s.id} className="flex items-center justify-between px-3 py-2 rounded hover:bg-[#0d0f12]">
+                  <div className="flex items-center gap-3">
+                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded ${s.status === 'done' ? 'bg-[#0a1a0a] text-[#5af5c8] border border-[#1a3a1a]' : s.status === 'failed' ? 'bg-[#1a0a0a] text-[#f5655a] border border-[#3a1a1a]' : 'bg-[#1a1500] text-[#f5c85a] border border-[#3a2a00]'}`}>{s.status}</span>
+                    <span className="text-xs font-mono text-[#6b7280]">{s.channel_name}</span>
+                  </div>
+                  <span className="text-[10px] font-mono text-[#3a3e48]">{formatScheduleTime(s.scheduled_at)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="bg-[#111318] border border-[#2a2e38] rounded-lg p-4 mb-5">
           <div className="flex items-center justify-between mb-3">
             <div className="text-[10px] text-[#6b7280] uppercase tracking-widest font-mono">Asset Manager <span className="ml-2 text-[#3a3e48]">({titles.length} title · {descriptions.length} desc)</span></div>
@@ -293,7 +310,39 @@ export default function StreamsPage() {
           )}
         </div>
 
+        <div className="flex items-center justify-between mb-5">
+          <div className="text-[10px] text-[#6b7280] uppercase tracking-widest font-mono">{channels.length} channel · {channels.filter(c => c.stream_status === 'live').length} live sekarang</div>
+          <button onClick={() => setShowAddForm(!showAddForm)} className="text-xs px-4 py-2 rounded border border-[#c8f55a] text-[#c8f55a] hover:bg-[#c8f55a] hover:text-[#0a0c0f] transition-colors font-mono">+ Tambah Channel</button>
+        </div>
+
+        {showAddForm && (
+          <div className="bg-[#111318] border border-[#2a2e38] rounded-lg p-5 mb-5">
+            <div className="text-[10px] text-[#6b7280] uppercase tracking-widest font-mono mb-4">Channel Baru</div>
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="text-[10px] text-[#6b7280] font-mono block mb-1">Nama Channel</label>
+                <input type="text" placeholder="contoh: Lofi Jazz Monet" value={newChannelName} onChange={e => setNewChannelName(e.target.value)} className="w-full bg-[#0a0c0f] border border-[#2a2e38] rounded px-3 py-2 text-sm font-mono focus:border-[#c8f55a] outline-none" />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[10px] text-[#6b7280] font-mono">Google Refresh Token <span className="text-[#f5655a]">*</span></label>
+                  <a href="/oauth-helper" target="_blank" className="text-[10px] text-[#c8f55a] font-mono hover:underline">Belum punya? Generate di sini →</a>
+                </div>
+                <div className="relative">
+                  <input type={showToken ? 'text' : 'password'} placeholder="1//0g..." value={newRefreshToken} onChange={e => setNewRefreshToken(e.target.value)} className="w-full bg-[#0a0c0f] border border-[#2a2e38] rounded px-3 py-2 text-sm font-mono focus:border-[#c8f55a] outline-none pr-20" />
+                  <button onClick={() => setShowToken(!showToken)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-[#6b7280] hover:text-[#e8e6e0] font-mono">{showToken ? 'sembunyikan' : 'tampilkan'}</button>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-4">
+              <button onClick={addChannel} disabled={loading || !newChannelName.trim() || !newRefreshToken.trim()} className="flex-1 py-2 bg-[#c8f55a] text-[#0a0c0f] rounded text-xs font-bold font-mono disabled:opacity-40 hover:bg-[#b8e54a] transition-colors">Simpan Channel</button>
+              <button onClick={() => { setShowAddForm(false); setNewChannelName(''); setNewRefreshToken(''); }} className="px-4 py-2 border border-[#2a2e38] rounded text-xs font-mono text-[#6b7280]">Batal</button>
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col gap-4">
+          {channels.length === 0 && <div className="bg-[#111318] border border-[#2a2e38] rounded-lg p-8 text-center text-[#6b7280] text-sm font-mono">Belum ada channel.</div>}
           {channels.map(ch => {
             const config = getConfig(ch.channel_id);
             const schedForm = scheduleForm[ch.channel_id] || { datetime: getUTCDatetimeLocal(), duration: 4, repeat: 'none' };
@@ -371,9 +420,27 @@ export default function StreamsPage() {
                     
                     {!config.auto && (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-[#111318] rounded-md border border-[#2a2e38]">
-                        <MediaDropdown label="🎥 Video Loop" options={videos} value={config.videoPath} onChange={path => updateConfig(ch.channel_id, { videoPath: path })} placeholder="— acak otomatis —" />
-                        <MediaDropdown label="🎵 Audio / Musik" options={songs} value={config.songPath} onChange={path => updateConfig(ch.channel_id, { songPath: path })} placeholder="— acak otomatis —" />
-                        <MediaDropdown label="🖼 Thumbnail" options={thumbnails} value={config.thumbnailPath} onChange={path => updateConfig(ch.channel_id, { thumbnailPath: path })} placeholder="— acak otomatis —" />
+                        <MediaDropdown 
+                          label="🎥 Video Loop" 
+                          options={videos} 
+                          value={config.videoPath} 
+                          onChange={path => updateConfig(ch.channel_id, { videoPath: path })} 
+                          placeholder="— acak otomatis —" 
+                        />
+                        <MediaDropdown 
+                          label="🎵 Audio / Musik" 
+                          options={config.folder && config.folder !== 'Semua' && config.folder !== 'default' ? songs.filter(s => s.category === config.folder) : songs} 
+                          value={config.songPath} 
+                          onChange={path => updateConfig(ch.channel_id, { songPath: path })} 
+                          placeholder="— acak otomatis —" 
+                        />
+                        <MediaDropdown 
+                          label="🖼 Thumbnail" 
+                          options={thumbnails} 
+                          value={config.thumbnailPath} 
+                          onChange={path => updateConfig(ch.channel_id, { thumbnailPath: path })} 
+                          placeholder="— acak otomatis —" 
+                        />
                         <div className="flex flex-col gap-3">
                           <AssetDropdown label="📝 Judul Live" options={titles} value={config.titleId} onChange={id => updateConfig(ch.channel_id, { titleId: id })} onDelete={deleteAsset} placeholder="— acak otomatis —" />
                           <AssetDropdown label="📄 Deskripsi" options={descriptions} value={config.descriptionId} onChange={id => updateConfig(ch.channel_id, { descriptionId: id })} onDelete={deleteAsset} placeholder="— acak otomatis —" />
