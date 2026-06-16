@@ -7,7 +7,7 @@ const API_BASE = "/media-pool-api";
 interface ToastItem { id: number; msg: string; type: "info" | "success" | "error"; }
 interface FileItem { id: string; name: string; size: number; type: "music" | "video"; category: string; status?: string; duration?: number; }
 interface UploadQueueItem { id: string; name: string; file: File; status: "pending" | "uploading" | "done" | "error"; progress: number; }
-interface ThumbnailFile { filename: string; path: string; sizeBytes: number; createdAt: string; }
+interface ThumbnailFile { filename: string; path: string; sizeBytes: number; createdAt: string; category?: string; }
 
 const Icon = {
   Music: () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>),
@@ -215,10 +215,26 @@ function MiniPlayer({ playing, type, apiBase }: { playing:FileItem|null; type:"m
   );
 }
 
-// Ganti seluruh function ThumbnailTab di media-pool/page.tsx dengan ini
-
-type ThumbUploadState = 'idle' | 'uploading' | 'done' | 'error';
-interface ThumbnailFile { filename: string; path: string; sizeBytes: number; createdAt: string; category?: string; }
+function ThumbnailCategoryItem({ cat, count, selectedCat, onSelect, onDelete }: { cat: string, count: number, selectedCat: string, onSelect: (c: string) => void, onDelete: (c: string) => void }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <div onClick={()=>onSelect(cat)}
+      onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)}
+      style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', cursor:'pointer', borderRadius:'0 8px 8px 0', marginRight:8,
+        background:selectedCat===cat?'rgba(124,111,205,.18)':hover?'rgba(255,255,255,.04)':'transparent',
+        color:selectedCat===cat?'#a78bfa':'#aaa', fontSize:13 }}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{cat}</span>
+      <span style={{ fontSize:10, color:'#555' }}>{count}</span>
+      {hover && selectedCat !== cat && (
+        <button onClick={e=>{e.stopPropagation();onDelete(cat)}}
+          style={{ background:'none', border:'none', color:'#f87171', cursor:'pointer', padding:0, display:'flex' }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg>
+        </button>
+      )}
+    </div>
+  );
+}
 
 function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"]) => void }) {
   const [thumbnails, setThumbnails] = useState<ThumbnailFile[]>([]);
@@ -340,15 +356,12 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
 
   return (
     <div style={{ display:'flex', gap:16 }}>
-      {/* Lightbox */}
       {lightbox && (
         <div onClick={()=>setLightbox(null)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000, cursor:'zoom-out' }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={lightbox} alt="preview" style={{ maxWidth:'90vw', maxHeight:'90vh', borderRadius:8, boxShadow:'0 8px 40px rgba(0,0,0,.8)' }} />
         </div>
       )}
 
-      {/* Sidebar Kategori */}
       <div style={{ width:200, flexShrink:0 }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 0 12px', marginBottom:4 }}>
           <span style={{ fontSize:11, color:'#555', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>Kategori</span>
@@ -358,7 +371,6 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
           </button>
         </div>
 
-        {/* All */}
         <div onClick={()=>setSelectedCat('__all__')}
           style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', cursor:'pointer', borderRadius:'0 8px 8px 0', marginRight:8,
             background:selectedCat==='__all__'?'rgba(124,111,205,.18)':'transparent',
@@ -368,7 +380,6 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
           <span style={{ fontSize:10, color:'#555' }}>{thumbnails.length}</span>
         </div>
 
-        {/* Uncategorized */}
         {thumbnails.some(t => !t.category || t.category === 'Uncategorized') && (
           <div onClick={()=>setSelectedCat('Uncategorized')}
             style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', cursor:'pointer', borderRadius:'0 8px 8px 0', marginRight:8,
@@ -379,30 +390,17 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
           </div>
         )}
 
-        {/* Categories */}
-        {categories.map(cat => {
-          const count = thumbnails.filter(t => t.category === cat).length;
-          const [hover, setHover] = useState(false);
-          return (
-            <div key={cat} onClick={()=>setSelectedCat(cat)}
-              onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)}
-              style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', cursor:'pointer', borderRadius:'0 8px 8px 0', marginRight:8,
-                background:selectedCat===cat?'rgba(124,111,205,.18)':hover?'rgba(255,255,255,.04)':'transparent',
-                color:selectedCat===cat?'#a78bfa':'#aaa', fontSize:13 }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-              <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{cat}</span>
-              <span style={{ fontSize:10, color:'#555' }}>{count}</span>
-              {hover && selectedCat !== cat && (
-                <button onClick={e=>{e.stopPropagation();deleteCategory(cat)}}
-                  style={{ background:'none', border:'none', color:'#f87171', cursor:'pointer', padding:0, display:'flex' }}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg>
-                </button>
-              )}
-            </div>
-          );
-        })}
+        {categories.map(cat => (
+           <ThumbnailCategoryItem
+             key={cat}
+             cat={cat}
+             count={thumbnails.filter(t => t.category === cat).length}
+             selectedCat={selectedCat}
+             onSelect={setSelectedCat}
+             onDelete={deleteCategory}
+           />
+        ))}
 
-        {/* Add category input */}
         {addingCat && (
           <div style={{ padding:'6px 10px' }}>
             <input ref={catInputRef} value={newCatName} onChange={e=>setNewCatName(e.target.value)}
@@ -414,9 +412,7 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
         )}
       </div>
 
-      {/* Main content */}
       <div style={{ flex:1 }}>
-        {/* Upload zone */}
         <div style={{ background:'#111318', border:'1px solid #2a2e38', borderRadius:12, padding:20, marginBottom:16 }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
             <span style={{ fontSize:11, color:'#555', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>Upload Thumbnail</span>
@@ -427,7 +423,6 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
             </button>
           </div>
 
-          {/* Category picker for upload */}
           <div style={{ marginBottom:12 }}>
             <label style={{ fontSize:11, color:'#555', fontWeight:600, textTransform:'uppercase', display:'block', marginBottom:6 }}>Kategori Upload</label>
             <select value={uploadCategory} onChange={e=>setUploadCategory(e.target.value)}
@@ -437,7 +432,6 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
             </select>
           </div>
 
-          {/* Drop zone */}
           <div onDragOver={e=>{e.preventDefault();setDragOver(true)}} onDragLeave={()=>setDragOver(false)} onDrop={handleDrop}
             onClick={()=>fileInputRef.current?.click()}
             style={{ border:`2px dashed ${dragOver?'#7c6fcd':previewFile?'#2a4a1a':'#2a2a3e'}`, borderRadius:10, padding:'20px', textAlign:'center', cursor:'pointer',
@@ -446,7 +440,6 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
               onChange={e=>{ const f=e.target.files?.[0]; if(f)handleFileSelect(f); e.target.value=''; }} />
             {previewUrl ? (
               <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:10 }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={previewUrl} alt="preview" style={{ maxHeight:120, maxWidth:280, objectFit:'contain', borderRadius:6, border:'1px solid #2a2a3e' }} />
                 <div style={{ fontSize:12, color:'#ccc' }}>{previewFile?.name} · {previewFile?fmtSize(previewFile.size):''}</div>
                 <div style={{ fontSize:11, color:'#555' }}>klik untuk ganti</div>
@@ -470,14 +463,12 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
           )}
         </div>
 
-        {/* Grid header */}
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
           <span style={{ fontSize:11, color:'#555', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>
             /opt/thumbnails{selectedCat!=='__all__'?` / ${selectedCat}`:''} — {visible.length} file
           </span>
         </div>
 
-        {/* Grid */}
         {visible.length === 0 ? (
           <div style={{ background:'#111318', border:'1px solid #1e1e2e', borderRadius:10, padding:'32px', textAlign:'center', color:'#444', fontSize:13 }}>
             Belum ada thumbnail{selectedCat!=='__all__'?` di kategori "${selectedCat}"`:''}. 
@@ -490,7 +481,6 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
                 onMouseLeave={e=>{const el=e.currentTarget.querySelector('.thumb-actions') as HTMLElement|null;if(el)el.style.opacity='0';}}>
                 <div style={{ aspectRatio:'16/9', background:'#0d0f12', cursor:'zoom-in', position:'relative', overflow:'hidden' }}
                   onClick={()=>setLightbox(`/api/thumbnails/preview/${encodeURIComponent(t.filename)}`)}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={`/api/thumbnails/preview/${encodeURIComponent(t.filename)}`} alt={t.filename}
                     style={{ width:'100%', height:'100%', objectFit:'cover', position:'absolute', inset:0 }}
                     onError={e=>{(e.target as HTMLImageElement).style.display='none';}} />
@@ -517,8 +507,8 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
   );
 }
 
-// ─── MAIN PAGE ────────────────────────────────────────────────────────────────
 type ActiveTab = "music" | "video" | "thumbnails";
+type ThumbUploadState = 'idle' | 'uploading' | 'done' | 'error';
 
 export default function MediaPool() {
   const { toasts, add: addToast, remove: removeToast } = useToast();
@@ -675,12 +665,10 @@ export default function MediaPool() {
         </div>
       </div>
 
-      {/* Thumbnails tab */}
       {activeTab === "thumbnails" && (
         <ThumbnailTab toast={addToast} />
       )}
 
-      {/* Music/Video tabs */}
       {activeTab !== "thumbnails" && (
         <>
           <div style={{ marginBottom:16, display:"flex", alignItems:"center", gap:10, padding:"8px 14px", background:"#0a0a12", border:"1px solid #1a1a28", borderRadius:8, fontSize:12, color:"#555" }}>
