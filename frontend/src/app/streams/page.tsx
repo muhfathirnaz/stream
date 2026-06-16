@@ -19,6 +19,7 @@ interface Schedule {
   duration_secs: number;
   title: string;
   status: string;
+  repeat_type?: string;
 }
 
 interface Folder { name: string; count: number; }
@@ -84,6 +85,8 @@ function getCountdown(iso: string) {
   if (h > 0) return `${h}j ${m}m lagi`;
   return `${m}m lagi`;
 }
+
+const repeatLabel: Record<string, string> = { daily: 'Harian', weekly: 'Mingguan', monthly: 'Bulanan' };
 
 const defaultConfig = (): StreamConfig => ({
   folder: 'default', thumbnailPath: null, titleId: null, descriptionId: null, auto: true, duration: 4
@@ -165,7 +168,10 @@ export default function StreamsPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [showToken, setShowToken] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [scheduleForm, setScheduleForm] = useState<{ [key: string]: { datetime: string; duration: number } }>({});
+  
+  // Update state untuk menyertakan mode "repeat"
+  const [scheduleForm, setScheduleForm] = useState<{ [key: string]: { datetime: string; duration: number; repeat: string } }>({});
+  
   const [showScheduleFor, setShowScheduleFor] = useState<string | null>(null);
   const [showConfigFor, setShowConfigFor] = useState<string | null>(null);
   const [streamConfigs, setStreamConfigs] = useState<{ [channelId: string]: StreamConfig }>({});
@@ -290,7 +296,13 @@ export default function StreamsPage() {
     setLoading(true);
     try {
       const body: Record<string, unknown> = {
-        channelId, scheduledAt, durationSecs: (form.duration || 4) * 3600, folder: config.folder, auto: config.auto, title: 'Lofi Jazz Radio - Live Stream',
+        channelId, 
+        scheduledAt, 
+        durationSecs: (form.duration || 4) * 3600, 
+        folder: config.folder, 
+        auto: config.auto, 
+        title: 'Lofi Jazz Radio - Live Stream',
+        repeatType: form.repeat || 'none'
       };
       if (!config.auto && config.titleId) { const t = titles.find(x => x.id === config.titleId); if (t) body.title = t.value; }
       const res = await fetch('/api/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -314,7 +326,9 @@ export default function StreamsPage() {
   const deleteAsset = async (id: number) => { await fetch(`/api/assets/${id}`, { method: 'DELETE' }); await fetchAssets(); };
 
   const initScheduleForm = (channelId: string) => {
-    if (!scheduleForm[channelId]) { setScheduleForm(prev => ({ ...prev, [channelId]: { datetime: getUTCDatetimeLocal(), duration: 4 } })); }
+    if (!scheduleForm[channelId]) { 
+      setScheduleForm(prev => ({ ...prev, [channelId]: { datetime: getUTCDatetimeLocal(), duration: 4, repeat: 'none' } })); 
+    }
     setShowScheduleFor(channelId);
   };
 
@@ -334,7 +348,10 @@ export default function StreamsPage() {
                     <div className="w-1.5 h-1.5 rounded-full bg-[#f5c85a] animate-pulse" />
                     <div>
                       <div className="text-xs font-mono text-[#e8e6e0]">{s.channel_name}</div>
-                      <div className="text-[10px] font-mono text-[#6b7280]">{formatScheduleTime(s.scheduled_at)} · {Math.round(s.duration_secs / 3600)}j</div>
+                      <div className="text-[10px] font-mono text-[#6b7280]">
+                        {formatScheduleTime(s.scheduled_at)} · {Math.round(s.duration_secs / 3600)}j
+                        {s.repeat_type && s.repeat_type !== 'none' && ` · 🔁 ${repeatLabel[s.repeat_type]}`}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
@@ -433,7 +450,7 @@ export default function StreamsPage() {
           {channels.length === 0 && <div className="bg-[#111318] border border-[#2a2e38] rounded-lg p-8 text-center text-[#6b7280] text-sm font-mono">Belum ada channel.</div>}
           {channels.map(ch => {
             const config = getConfig(ch.channel_id);
-            const schedForm = scheduleForm[ch.channel_id] || { datetime: getUTCDatetimeLocal(), duration: 4 };
+            const schedForm = scheduleForm[ch.channel_id] || { datetime: getUTCDatetimeLocal(), duration: 4, repeat: 'none' };
             const isShowingSchedule = showScheduleFor === ch.channel_id;
             const isShowingConfig = showConfigFor === ch.channel_id;
             const hasToken = !!ch.google_refresh_token;
@@ -540,7 +557,7 @@ export default function StreamsPage() {
                 {isShowingSchedule && !chSchedule && (
                   <div className="mt-3 bg-[#0d0f12] border border-[#f5c85a33] rounded-lg p-4">
                     <div className="text-[10px] text-[#f5c85a] uppercase tracking-widest font-mono mb-3">Jadwalkan Stream — Waktu dalam UTC</div>
-                    <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
                       <div>
                         <label className="text-[10px] text-[#6b7280] font-mono block mb-1">Tanggal & Jam (UTC)</label>
                         <input type="datetime-local" value={schedForm.datetime} onChange={e => setScheduleForm(prev => ({ ...prev, [ch.channel_id]: { ...schedForm, datetime: e.target.value } }))} className="w-full bg-[#111318] border border-[#2a2e38] rounded px-3 py-2 text-xs font-mono focus:border-[#f5c85a] outline-none text-[#e8e6e0]" />
@@ -553,6 +570,15 @@ export default function StreamsPage() {
                             <button key={h} onClick={() => setScheduleForm(prev => ({ ...prev, [ch.channel_id]: { ...schedForm, duration: h } }))} className={`py-2 rounded text-xs font-mono transition-colors ${schedForm.duration === h ? 'bg-[#f5c85a] text-[#0a0c0f] font-bold' : 'border border-[#2a2e38] text-[#6b7280] hover:border-[#f5c85a] hover:text-[#f5c85a]'}`}>{h}j</button>
                           ))}
                         </div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-[#6b7280] font-mono block mb-1">Ulangi Jadwal</label>
+                        <select value={schedForm.repeat || 'none'} onChange={e => setScheduleForm(prev => ({ ...prev, [ch.channel_id]: { ...schedForm, repeat: e.target.value } }))} className="w-full bg-[#111318] border border-[#2a2e38] rounded px-3 py-2 text-xs font-mono focus:border-[#f5c85a] outline-none text-[#e8e6e0]">
+                          <option value="none">Tidak (Sekali saja)</option>
+                          <option value="daily">Setiap Hari</option>
+                          <option value="weekly">Setiap Minggu</option>
+                          <option value="monthly">Setiap Bulan</option>
+                        </select>
                       </div>
                     </div>
                     <div className="flex gap-2">
