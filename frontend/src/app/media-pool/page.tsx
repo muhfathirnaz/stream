@@ -215,11 +215,18 @@ function MiniPlayer({ playing, type, apiBase }: { playing:FileItem|null; type:"m
   );
 }
 
-// ─── THUMBNAIL TAB ────────────────────────────────────────────────────────────
+// Ganti seluruh function ThumbnailTab di media-pool/page.tsx dengan ini
+
 type ThumbUploadState = 'idle' | 'uploading' | 'done' | 'error';
+interface ThumbnailFile { filename: string; path: string; sizeBytes: number; createdAt: string; category?: string; }
 
 function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"]) => void }) {
   const [thumbnails, setThumbnails] = useState<ThumbnailFile[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [selectedCat, setSelectedCat] = useState('__all__');
+  const [newCatName, setNewCatName] = useState('');
+  const [addingCat, setAddingCat] = useState(false);
+  const catInputRef = useRef<HTMLInputElement>(null);
   const [uploadState, setUploadState] = useState<ThumbUploadState>('idle');
   const [uploadMsg, setUploadMsg] = useState('');
   const [dragOver, setDragOver] = useState(false);
@@ -227,6 +234,7 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
   const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
+  const [uploadCategory, setUploadCategory] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchThumbnails = useCallback(async () => {
@@ -236,7 +244,14 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
     } catch {}
   }, []);
 
-  useEffect(() => { fetchThumbnails(); }, [fetchThumbnails]);
+  const fetchCategories = useCallback(async () => {
+    try {
+      const res = await fetch('/api/thumbnails/categories');
+      if (res.ok) { const d = await res.json(); setCategories(d.categories || []); }
+    } catch {}
+  }, []);
+
+  useEffect(() => { fetchThumbnails(); fetchCategories(); }, [fetchThumbnails, fetchCategories]);
   useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
 
   const handleFileSelect = (file: File) => {
@@ -261,10 +276,12 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
     try {
       const formData = new FormData();
       formData.append('file', previewFile);
+      if (uploadCategory) formData.append('category', uploadCategory);
       const res = await fetch('/api/thumbnails/upload', { method: 'POST', body: formData });
       const data = await res.json();
       if (!res.ok) { setUploadState('error'); setUploadMsg(data.error || 'Upload gagal'); return; }
       await fetchThumbnails();
+      await fetchCategories();
       setUploadState('done'); setUploadMsg(`✓ ${data.filename} tersimpan`);
       toast(`${data.filename} berhasil diupload`, 'success');
       setTimeout(() => {
@@ -292,94 +309,210 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
     toast(`${filename} dihapus`, 'info');
   };
 
+  const addCategory = async () => {
+    const n = newCatName.trim();
+    if (!n) return;
+    try {
+      const res = await fetch('/api/thumbnails/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: n }),
+      });
+      if (!res.ok) { const e = await res.json(); toast(e.error, 'error'); return; }
+      await fetchCategories();
+      setNewCatName(''); setAddingCat(false);
+      toast(`Kategori "${n}" ditambahkan`, 'success');
+    } catch { toast('Gagal tambah kategori', 'error'); }
+  };
+
+  const deleteCategory = async (name: string) => {
+    try {
+      const res = await fetch(`/api/thumbnails/categories/${encodeURIComponent(name)}`, { method: 'DELETE' });
+      if (!res.ok) { const e = await res.json(); toast(e.error, 'error'); return; }
+      await fetchCategories();
+      if (selectedCat === name) setSelectedCat('__all__');
+      toast(`Kategori "${name}" dihapus`, 'info');
+    } catch { toast('Gagal hapus kategori', 'error'); }
+  };
+
   const stateColor = { idle:'', uploading:'#f5c85a', done:'#4ade80', error:'#f87171' }[uploadState];
+  const visible = thumbnails.filter(t => selectedCat === '__all__' || (t.category || 'Uncategorized') === selectedCat);
 
   return (
-    <div>
+    <div style={{ display:'flex', gap:16 }}>
       {/* Lightbox */}
       {lightbox && (
-        <div onClick={()=>setLightbox(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.85)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, cursor:"zoom-out" }}>
+        <div onClick={()=>setLightbox(null)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000, cursor:'zoom-out' }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={lightbox} alt="preview" style={{ maxWidth:"90vw", maxHeight:"90vh", borderRadius:8, boxShadow:"0 8px 40px rgba(0,0,0,.8)" }} />
+          <img src={lightbox} alt="preview" style={{ maxWidth:'90vw', maxHeight:'90vh', borderRadius:8, boxShadow:'0 8px 40px rgba(0,0,0,.8)' }} />
         </div>
       )}
 
-      {/* Upload zone */}
-      <div style={{ background:"#111318", border:"1px solid #2a2e38", borderRadius:12, padding:20, marginBottom:16 }}>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
-          <span style={{ fontSize:11, color:"#555", fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase" }}>Upload Thumbnail</span>
-          <button onClick={handleSync} disabled={syncLoading}
-            style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 12px", borderRadius:6, border:"1px solid #2a2a3e", background:"transparent", color:syncLoading?"#7c6fcd":"#aaa", cursor:syncLoading?"not-allowed":"pointer", fontSize:12, fontWeight:600 }}>
-            <span style={{ display:"inline-flex", animation:syncLoading?"spin 1s linear infinite":"none" }}><Icon.Sync /></span>
-            {syncLoading?"Syncing...":"Sync ke Drive"}
+      {/* Sidebar Kategori */}
+      <div style={{ width:200, flexShrink:0 }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 0 12px', marginBottom:4 }}>
+          <span style={{ fontSize:11, color:'#555', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>Kategori</span>
+          <button onClick={()=>{setAddingCat(true);setTimeout(()=>catInputRef.current?.focus(),50)}}
+            style={{ background:'none', border:'none', color:'#7c6fcd', cursor:'pointer', padding:2, display:'flex' }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
         </div>
 
-        <div
-          onDragOver={e=>{e.preventDefault();setDragOver(true)}} onDragLeave={()=>setDragOver(false)} onDrop={handleDrop}
-          onClick={()=>fileInputRef.current?.click()}
-          style={{ border:`2px dashed ${dragOver?"#7c6fcd":previewFile?"#2a4a1a":"#2a2a3e"}`, borderRadius:10, padding:"20px", textAlign:"center", cursor:"pointer", background:dragOver?"rgba(124,111,205,.06)":previewFile?"#0a1200":"transparent", transition:"all .15s" }}>
-          <input ref={fileInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp" style={{ display:"none" }}
-            onChange={e=>{ const f=e.target.files?.[0]; if(f)handleFileSelect(f); }} />
-          {previewUrl ? (
-            <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:10 }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={previewUrl} alt="preview" style={{ maxHeight:120, maxWidth:280, objectFit:"contain", borderRadius:6, border:"1px solid #2a2a3e" }} />
-              <div style={{ fontSize:12, color:"#ccc" }}>{previewFile?.name} · {previewFile?fmtSize(previewFile.size):""}</div>
-              <div style={{ fontSize:11, color:"#555" }}>klik untuk ganti</div>
-            </div>
-          ) : (
-            <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:8 }}>
-              <span style={{ fontSize:28, opacity:.25 }}>🖼</span>
-              <div style={{ fontSize:13, color:"#666" }}>Drop gambar atau <span style={{ color:"#7c6fcd" }}>klik pilih</span></div>
-              <div style={{ fontSize:11, color:"#444" }}>JPG · PNG · WebP · max 5MB</div>
-            </div>
-          )}
+        {/* All */}
+        <div onClick={()=>setSelectedCat('__all__')}
+          style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', cursor:'pointer', borderRadius:'0 8px 8px 0', marginRight:8,
+            background:selectedCat==='__all__'?'rgba(124,111,205,.18)':'transparent',
+            color:selectedCat==='__all__'?'#a78bfa':'#aaa', fontSize:13 }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <span style={{ flex:1 }}>Semua</span>
+          <span style={{ fontSize:10, color:'#555' }}>{thumbnails.length}</span>
         </div>
 
-        {uploadMsg && <div style={{ marginTop:10, fontSize:12, color:stateColor }}>{uploadMsg}</div>}
+        {/* Uncategorized */}
+        {thumbnails.some(t => !t.category || t.category === 'Uncategorized') && (
+          <div onClick={()=>setSelectedCat('Uncategorized')}
+            style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', cursor:'pointer', borderRadius:'0 8px 8px 0', marginRight:8,
+              background:selectedCat==='Uncategorized'?'rgba(124,111,205,.18)':'transparent',
+              color:selectedCat==='Uncategorized'?'#a78bfa':'#aaa', fontSize:13 }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            <span style={{ flex:1 }}>Uncategorized</span>
+          </div>
+        )}
 
-        {previewFile && uploadState !== 'done' && (
-          <button onClick={handleUpload} disabled={uploadState==='uploading'}
-            style={{ width:"100%", marginTop:12, padding:"10px", borderRadius:8, border:"none", background:uploadState==='uploading'?"#3a3a5e":"#7c6fcd", color:"#fff", cursor:uploadState==='uploading'?"not-allowed":"pointer", fontWeight:600, fontSize:13 }}>
-            {uploadState==='uploading'?"⟳ Uploading...":"↑ Upload ke VPS"}
-          </button>
+        {/* Categories */}
+        {categories.map(cat => {
+          const count = thumbnails.filter(t => t.category === cat).length;
+          const [hover, setHover] = useState(false);
+          return (
+            <div key={cat} onClick={()=>setSelectedCat(cat)}
+              onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)}
+              style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', cursor:'pointer', borderRadius:'0 8px 8px 0', marginRight:8,
+                background:selectedCat===cat?'rgba(124,111,205,.18)':hover?'rgba(255,255,255,.04)':'transparent',
+                color:selectedCat===cat?'#a78bfa':'#aaa', fontSize:13 }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{cat}</span>
+              <span style={{ fontSize:10, color:'#555' }}>{count}</span>
+              {hover && selectedCat !== cat && (
+                <button onClick={e=>{e.stopPropagation();deleteCategory(cat)}}
+                  style={{ background:'none', border:'none', color:'#f87171', cursor:'pointer', padding:0, display:'flex' }}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg>
+                </button>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Add category input */}
+        {addingCat && (
+          <div style={{ padding:'6px 10px' }}>
+            <input ref={catInputRef} value={newCatName} onChange={e=>setNewCatName(e.target.value)}
+              onKeyDown={e=>{if(e.key==='Enter')addCategory();if(e.key==='Escape'){setAddingCat(false);setNewCatName('');}}}
+              onBlur={()=>{if(!newCatName.trim()){setAddingCat(false);}}}
+              placeholder="Nama kategori..."
+              style={{ width:'100%', background:'#16161f', border:'1px solid #7c6fcd', borderRadius:6, padding:'6px 10px', color:'#e8e8ea', fontSize:13, outline:'none', boxSizing:'border-box' }} />
+          </div>
         )}
       </div>
 
-      {/* Grid */}
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
-        <span style={{ fontSize:11, color:"#555", fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase" }}>
-          /opt/thumbnails — {thumbnails.length} file
-        </span>
-      </div>
+      {/* Main content */}
+      <div style={{ flex:1 }}>
+        {/* Upload zone */}
+        <div style={{ background:'#111318', border:'1px solid #2a2e38', borderRadius:12, padding:20, marginBottom:16 }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+            <span style={{ fontSize:11, color:'#555', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>Upload Thumbnail</span>
+            <button onClick={handleSync} disabled={syncLoading}
+              style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 12px', borderRadius:6, border:'1px solid #2a2a3e', background:'transparent', color:syncLoading?'#7c6fcd':'#aaa', cursor:syncLoading?'not-allowed':'pointer', fontSize:12, fontWeight:600 }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ animation:syncLoading?'spin 1s linear infinite':'none' }}><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              {syncLoading?'Syncing...':'Sync ke Drive'}
+            </button>
+          </div>
 
-      {thumbnails.length === 0 ? (
-        <div style={{ background:"#111318", border:"1px solid #1e1e2e", borderRadius:10, padding:"32px", textAlign:"center", color:"#444", fontSize:13 }}>Belum ada thumbnail.</div>
-      ) : (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(140px, 1fr))", gap:10 }}>
-          {thumbnails.map(t => (
-            <div key={t.filename} style={{ background:"#111318", border:"1px solid #2a2e38", borderRadius:8, overflow:"hidden", position:"relative" }}
-              onMouseEnter={e=>(e.currentTarget.querySelector('.thumb-actions') as HTMLElement|null)?.style && ((e.currentTarget.querySelector('.thumb-actions') as HTMLElement).style.opacity='1')}
-              onMouseLeave={e=>(e.currentTarget.querySelector('.thumb-actions') as HTMLElement|null)?.style && ((e.currentTarget.querySelector('.thumb-actions') as HTMLElement).style.opacity='0')}>
-              <div style={{ aspectRatio:"16/9", background:"#0d0f12", display:"flex", alignItems:"center", justifyContent:"center", cursor:"zoom-in", position:"relative" }}
-                onClick={()=>setLightbox(`/api/thumbnails/preview/${encodeURIComponent(t.filename)}`)}>
-                <span style={{ fontSize:24, opacity:.2 }}>🖼</span>
+          {/* Category picker for upload */}
+          <div style={{ marginBottom:12 }}>
+            <label style={{ fontSize:11, color:'#555', fontWeight:600, textTransform:'uppercase', display:'block', marginBottom:6 }}>Kategori Upload</label>
+            <select value={uploadCategory} onChange={e=>setUploadCategory(e.target.value)}
+              style={{ width:'100%', background:'#16161f', border:'1px solid #2a2a3e', borderRadius:8, padding:'8px 12px', color:'#e8e8ea', fontSize:13, outline:'none' }}>
+              <option value="">— Uncategorized —</option>
+              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+
+          {/* Drop zone */}
+          <div onDragOver={e=>{e.preventDefault();setDragOver(true)}} onDragLeave={()=>setDragOver(false)} onDrop={handleDrop}
+            onClick={()=>fileInputRef.current?.click()}
+            style={{ border:`2px dashed ${dragOver?'#7c6fcd':previewFile?'#2a4a1a':'#2a2a3e'}`, borderRadius:10, padding:'20px', textAlign:'center', cursor:'pointer',
+              background:dragOver?'rgba(124,111,205,.06)':previewFile?'#0a1200':'transparent', transition:'all .15s' }}>
+            <input ref={fileInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp" style={{ display:'none' }}
+              onChange={e=>{ const f=e.target.files?.[0]; if(f)handleFileSelect(f); e.target.value=''; }} />
+            {previewUrl ? (
+              <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:10 }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={previewUrl} alt="preview" style={{ maxHeight:120, maxWidth:280, objectFit:'contain', borderRadius:6, border:'1px solid #2a2a3e' }} />
+                <div style={{ fontSize:12, color:'#ccc' }}>{previewFile?.name} · {previewFile?fmtSize(previewFile.size):''}</div>
+                <div style={{ fontSize:11, color:'#555' }}>klik untuk ganti</div>
               </div>
-              <div className="thumb-actions" style={{ position:"absolute", top:4, right:4, display:"flex", gap:4, opacity:0, transition:"opacity .15s" }}>
-                <button onClick={()=>handleDelete(t.filename)}
-                  style={{ width:22, height:22, borderRadius:4, background:"rgba(26,10,10,.9)", border:"1px solid #3a1a1a", color:"#f87171", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontSize:10 }}>
-                  ✕
-                </button>
+            ) : (
+              <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:8 }}>
+                <span style={{ fontSize:28, opacity:.25 }}>🖼</span>
+                <div style={{ fontSize:13, color:'#666' }}>Drop gambar atau <span style={{ color:'#7c6fcd' }}>klik pilih</span></div>
+                <div style={{ fontSize:11, color:'#444' }}>JPG · PNG · WebP · max 5MB</div>
               </div>
-              <div style={{ padding:"6px 8px" }}>
-                <div style={{ fontSize:10, color:"#ccc", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }} title={t.filename}>{t.filename}</div>
-                <div style={{ fontSize:9, color:"#444", marginTop:2 }}>{fmtSize(t.sizeBytes)}</div>
-              </div>
-            </div>
-          ))}
+            )}
+          </div>
+
+          {uploadMsg && <div style={{ marginTop:10, fontSize:12, color:stateColor }}>{uploadMsg}</div>}
+
+          {previewFile && uploadState !== 'done' && (
+            <button onClick={handleUpload} disabled={uploadState==='uploading'}
+              style={{ width:'100%', marginTop:12, padding:'10px', borderRadius:8, border:'none', background:uploadState==='uploading'?'#3a3a5e':'#7c6fcd', color:'#fff', cursor:uploadState==='uploading'?'not-allowed':'pointer', fontWeight:600, fontSize:13 }}>
+              {uploadState==='uploading'?'⟳ Uploading...':'↑ Upload ke VPS'}
+            </button>
+          )}
         </div>
-      )}
+
+        {/* Grid header */}
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+          <span style={{ fontSize:11, color:'#555', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>
+            /opt/thumbnails{selectedCat!=='__all__'?` / ${selectedCat}`:''} — {visible.length} file
+          </span>
+        </div>
+
+        {/* Grid */}
+        {visible.length === 0 ? (
+          <div style={{ background:'#111318', border:'1px solid #1e1e2e', borderRadius:10, padding:'32px', textAlign:'center', color:'#444', fontSize:13 }}>
+            Belum ada thumbnail{selectedCat!=='__all__'?` di kategori "${selectedCat}"`:''}. 
+          </div>
+        ) : (
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(160px, 1fr))', gap:10 }}>
+            {visible.map(t => (
+              <div key={t.filename} style={{ background:'#111318', border:'1px solid #2a2e38', borderRadius:8, overflow:'hidden', position:'relative' }}
+                onMouseEnter={e=>{const el=e.currentTarget.querySelector('.thumb-actions') as HTMLElement|null;if(el)el.style.opacity='1';}}
+                onMouseLeave={e=>{const el=e.currentTarget.querySelector('.thumb-actions') as HTMLElement|null;if(el)el.style.opacity='0';}}>
+                <div style={{ aspectRatio:'16/9', background:'#0d0f12', cursor:'zoom-in', position:'relative', overflow:'hidden' }}
+                  onClick={()=>setLightbox(`/api/thumbnails/preview/${encodeURIComponent(t.filename)}`)}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={`/api/thumbnails/preview/${encodeURIComponent(t.filename)}`} alt={t.filename}
+                    style={{ width:'100%', height:'100%', objectFit:'cover', position:'absolute', inset:0 }}
+                    onError={e=>{(e.target as HTMLImageElement).style.display='none';}} />
+                </div>
+                <div className="thumb-actions" style={{ position:'absolute', top:4, right:4, display:'flex', gap:4, opacity:0, transition:'opacity .15s' }}>
+                  <button onClick={()=>handleDelete(t.filename)}
+                    style={{ width:22, height:22, borderRadius:4, background:'rgba(26,10,10,.9)', border:'1px solid #3a1a1a', color:'#f87171', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11 }}>✕</button>
+                </div>
+                <div style={{ padding:'6px 8px' }}>
+                  <div style={{ fontSize:10, color:'#ccc', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }} title={t.filename}>{t.filename}</div>
+                  <div style={{ fontSize:9, color:'#444', marginTop:2, display:'flex', justifyContent:'space-between' }}>
+                    <span>{fmtSize(t.sizeBytes)}</span>
+                    {t.category && t.category !== 'Uncategorized' && (
+                      <span style={{ color:'#3a3a5e', background:'#1a1a2e', borderRadius:4, padding:'0 4px' }}>{t.category}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
