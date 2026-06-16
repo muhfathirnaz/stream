@@ -7,10 +7,12 @@ const API_BASE = "/media-pool-api";
 interface ToastItem { id: number; msg: string; type: "info" | "success" | "error"; }
 interface FileItem { id: string; name: string; size: number; type: "music" | "video"; category: string; status?: string; duration?: number; }
 interface UploadQueueItem { id: string; name: string; file: File; status: "pending" | "uploading" | "done" | "error"; progress: number; }
+interface ThumbnailFile { filename: string; path: string; sizeBytes: number; createdAt: string; }
 
 const Icon = {
   Music: () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>),
   Video: () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18"><rect x="2" y="3" width="15" height="15" rx="2" /><path d="m17 8 5-3v14l-5-3" /></svg>),
+  Image: () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>),
   Upload: () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>),
   Folder: () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>),
   Plus: () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>),
@@ -213,9 +215,181 @@ function MiniPlayer({ playing, type, apiBase }: { playing:FileItem|null; type:"m
   );
 }
 
+// ─── THUMBNAIL TAB ────────────────────────────────────────────────────────────
+type ThumbUploadState = 'idle' | 'uploading' | 'done' | 'error';
+
+function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"]) => void }) {
+  const [thumbnails, setThumbnails] = useState<ThumbnailFile[]>([]);
+  const [uploadState, setUploadState] = useState<ThumbUploadState>('idle');
+  const [uploadMsg, setUploadMsg] = useState('');
+  const [dragOver, setDragOver] = useState(false);
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [previewFile, setPreviewFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchThumbnails = useCallback(async () => {
+    try {
+      const res = await fetch('/api/thumbnails');
+      if (res.ok) { const d = await res.json(); setThumbnails(d.files || []); }
+    } catch {}
+  }, []);
+
+  useEffect(() => { fetchThumbnails(); }, [fetchThumbnails]);
+  useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
+
+  const handleFileSelect = (file: File) => {
+    if (!file.type.startsWith('image/')) { toast('Hanya JPG, PNG, WebP', 'error'); return; }
+    if (file.size > 5 * 1024 * 1024) { toast('File max 5MB', 'error'); return; }
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewFile(file);
+    setPreviewUrl(URL.createObjectURL(file));
+    setUploadState('idle');
+    setUploadMsg('');
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault(); setDragOver(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFileSelect(file);
+  };
+
+  const handleUpload = async () => {
+    if (!previewFile) return;
+    setUploadState('uploading'); setUploadMsg('Mengupload ke VPS...');
+    try {
+      const formData = new FormData();
+      formData.append('file', previewFile);
+      const res = await fetch('/api/thumbnails/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok) { setUploadState('error'); setUploadMsg(data.error || 'Upload gagal'); return; }
+      await fetchThumbnails();
+      setUploadState('done'); setUploadMsg(`✓ ${data.filename} tersimpan`);
+      toast(`${data.filename} berhasil diupload`, 'success');
+      setTimeout(() => {
+        setPreviewFile(null);
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        setPreviewUrl(null); setUploadState('idle'); setUploadMsg('');
+      }, 2000);
+    } catch (err) { setUploadState('error'); setUploadMsg(err instanceof Error ? err.message : 'Error'); }
+  };
+
+  const handleSync = async () => {
+    setSyncLoading(true);
+    try {
+      const res = await fetch('/api/thumbnails/sync', { method: 'POST' });
+      const data = await res.json();
+      toast(`Sync selesai — ${data.total} file`, 'success');
+    } catch { toast('Sync gagal', 'error'); }
+    finally { setSyncLoading(false); }
+  };
+
+  const handleDelete = async (filename: string) => {
+    if (!confirm(`Hapus ${filename}?`)) return;
+    await fetch(`/api/thumbnails/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+    await fetchThumbnails();
+    toast(`${filename} dihapus`, 'info');
+  };
+
+  const stateColor = { idle:'', uploading:'#f5c85a', done:'#4ade80', error:'#f87171' }[uploadState];
+
+  return (
+    <div>
+      {/* Lightbox */}
+      {lightbox && (
+        <div onClick={()=>setLightbox(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.85)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, cursor:"zoom-out" }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={lightbox} alt="preview" style={{ maxWidth:"90vw", maxHeight:"90vh", borderRadius:8, boxShadow:"0 8px 40px rgba(0,0,0,.8)" }} />
+        </div>
+      )}
+
+      {/* Upload zone */}
+      <div style={{ background:"#111318", border:"1px solid #2a2e38", borderRadius:12, padding:20, marginBottom:16 }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
+          <span style={{ fontSize:11, color:"#555", fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase" }}>Upload Thumbnail</span>
+          <button onClick={handleSync} disabled={syncLoading}
+            style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 12px", borderRadius:6, border:"1px solid #2a2a3e", background:"transparent", color:syncLoading?"#7c6fcd":"#aaa", cursor:syncLoading?"not-allowed":"pointer", fontSize:12, fontWeight:600 }}>
+            <span style={{ display:"inline-flex", animation:syncLoading?"spin 1s linear infinite":"none" }}><Icon.Sync /></span>
+            {syncLoading?"Syncing...":"Sync ke Drive"}
+          </button>
+        </div>
+
+        <div
+          onDragOver={e=>{e.preventDefault();setDragOver(true)}} onDragLeave={()=>setDragOver(false)} onDrop={handleDrop}
+          onClick={()=>fileInputRef.current?.click()}
+          style={{ border:`2px dashed ${dragOver?"#7c6fcd":previewFile?"#2a4a1a":"#2a2a3e"}`, borderRadius:10, padding:"20px", textAlign:"center", cursor:"pointer", background:dragOver?"rgba(124,111,205,.06)":previewFile?"#0a1200":"transparent", transition:"all .15s" }}>
+          <input ref={fileInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp" style={{ display:"none" }}
+            onChange={e=>{ const f=e.target.files?.[0]; if(f)handleFileSelect(f); }} />
+          {previewUrl ? (
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:10 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={previewUrl} alt="preview" style={{ maxHeight:120, maxWidth:280, objectFit:"contain", borderRadius:6, border:"1px solid #2a2a3e" }} />
+              <div style={{ fontSize:12, color:"#ccc" }}>{previewFile?.name} · {previewFile?fmtSize(previewFile.size):""}</div>
+              <div style={{ fontSize:11, color:"#555" }}>klik untuk ganti</div>
+            </div>
+          ) : (
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:8 }}>
+              <span style={{ fontSize:28, opacity:.25 }}>🖼</span>
+              <div style={{ fontSize:13, color:"#666" }}>Drop gambar atau <span style={{ color:"#7c6fcd" }}>klik pilih</span></div>
+              <div style={{ fontSize:11, color:"#444" }}>JPG · PNG · WebP · max 5MB</div>
+            </div>
+          )}
+        </div>
+
+        {uploadMsg && <div style={{ marginTop:10, fontSize:12, color:stateColor }}>{uploadMsg}</div>}
+
+        {previewFile && uploadState !== 'done' && (
+          <button onClick={handleUpload} disabled={uploadState==='uploading'}
+            style={{ width:"100%", marginTop:12, padding:"10px", borderRadius:8, border:"none", background:uploadState==='uploading'?"#3a3a5e":"#7c6fcd", color:"#fff", cursor:uploadState==='uploading'?"not-allowed":"pointer", fontWeight:600, fontSize:13 }}>
+            {uploadState==='uploading'?"⟳ Uploading...":"↑ Upload ke VPS"}
+          </button>
+        )}
+      </div>
+
+      {/* Grid */}
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
+        <span style={{ fontSize:11, color:"#555", fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase" }}>
+          /opt/thumbnails — {thumbnails.length} file
+        </span>
+      </div>
+
+      {thumbnails.length === 0 ? (
+        <div style={{ background:"#111318", border:"1px solid #1e1e2e", borderRadius:10, padding:"32px", textAlign:"center", color:"#444", fontSize:13 }}>Belum ada thumbnail.</div>
+      ) : (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(140px, 1fr))", gap:10 }}>
+          {thumbnails.map(t => (
+            <div key={t.filename} style={{ background:"#111318", border:"1px solid #2a2e38", borderRadius:8, overflow:"hidden", position:"relative" }}
+              onMouseEnter={e=>(e.currentTarget.querySelector('.thumb-actions') as HTMLElement|null)?.style && ((e.currentTarget.querySelector('.thumb-actions') as HTMLElement).style.opacity='1')}
+              onMouseLeave={e=>(e.currentTarget.querySelector('.thumb-actions') as HTMLElement|null)?.style && ((e.currentTarget.querySelector('.thumb-actions') as HTMLElement).style.opacity='0')}>
+              <div style={{ aspectRatio:"16/9", background:"#0d0f12", display:"flex", alignItems:"center", justifyContent:"center", cursor:"zoom-in", position:"relative" }}
+                onClick={()=>setLightbox(`/api/thumbnails/preview/${encodeURIComponent(t.filename)}`)}>
+                <span style={{ fontSize:24, opacity:.2 }}>🖼</span>
+              </div>
+              <div className="thumb-actions" style={{ position:"absolute", top:4, right:4, display:"flex", gap:4, opacity:0, transition:"opacity .15s" }}>
+                <button onClick={()=>handleDelete(t.filename)}
+                  style={{ width:22, height:22, borderRadius:4, background:"rgba(26,10,10,.9)", border:"1px solid #3a1a1a", color:"#f87171", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontSize:10 }}>
+                  ✕
+                </button>
+              </div>
+              <div style={{ padding:"6px 8px" }}>
+                <div style={{ fontSize:10, color:"#ccc", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }} title={t.filename}>{t.filename}</div>
+                <div style={{ fontSize:9, color:"#444", marginTop:2 }}>{fmtSize(t.sizeBytes)}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── MAIN PAGE ────────────────────────────────────────────────────────────────
+type ActiveTab = "music" | "video" | "thumbnails";
+
 export default function MediaPool() {
   const { toasts, add: addToast, remove: removeToast } = useToast();
-  const [activeTab, setActiveTab] = useState<"music"|"video">("music");
+  const [activeTab, setActiveTab] = useState<ActiveTab>("music");
   const [musicCats, setMusicCats] = useState<string[]>(["Rainy","Jazz","Night","Chill","Hype"]);
   const [videoCats, setVideoCats] = useState<string[]>(["Overlay","BRB","Starting","Ending"]);
   const [musicCat, setMusicCat] = useState("__all__");
@@ -228,9 +402,7 @@ export default function MediaPool() {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = await r.json();
       setFiles(Array.isArray(data.files) ? data.files : []);
-    } catch (err) {
-      console.error("Gagal load files:", err);
-    }
+    } catch (err) { console.error("Gagal load files:", err); }
   }, []);
 
   useEffect(() => { fetchFiles(); }, [fetchFiles]);
@@ -242,22 +414,22 @@ export default function MediaPool() {
       const data = await r.json();
       if (Array.isArray(data.music)) setMusicCats(data.music);
       if (Array.isArray(data.video)) setVideoCats(data.video);
-    } catch (err) {
-      console.error("Gagal load categories:", err);
-    }
+    } catch (err) { console.error("Gagal load categories:", err); }
   }, []);
 
   useEffect(() => { fetchCategories(); }, [fetchCategories]);
+
   const [queue, setQueue] = useState<UploadQueueItem[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [playing, setPlaying] = useState<FileItem|null>(null);
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<string|null>(null);
 
-  const cats = activeTab==="music"?musicCats:videoCats;
-  const selCat = activeTab==="music"?musicCat:videoCat;
-  const setSelCat = activeTab==="music"?setMusicCat:setVideoCat;
-  const visible = files.filter(f => f.type===activeTab && (selCat==="__all__"||f.category===selCat));
+  const mediaType = activeTab === "thumbnails" ? "music" : activeTab;
+  const cats = mediaType==="music"?musicCats:videoCats;
+  const selCat = mediaType==="music"?musicCat:videoCat;
+  const setSelCat = mediaType==="music"?setMusicCat:setVideoCat;
+  const visible = files.filter(f => f.type===mediaType && (selCat==="__all__"||f.category===selCat));
 
   const handleUpload = async (rawFiles: File[], category: string) => {
     const items: UploadQueueItem[] = rawFiles.map(f => ({ id:`${Date.now()}-${Math.random()}`, name:f.name, file:f, status:"pending", progress:0 }));
@@ -266,7 +438,7 @@ export default function MediaPool() {
       try {
         setQueue(q => q.map(i => i.id===item.id?{...i,status:"uploading"}:i));
         const fd = new FormData();
-        fd.append("type", activeTab);
+        fd.append("type", mediaType);
         fd.append("category", category);
         fd.append("file", item.file);
         await new Promise<void>((resolve, reject) => {
@@ -307,10 +479,9 @@ export default function MediaPool() {
       if (!res.ok) { const err = await res.json(); throw new Error(err.error || `HTTP ${res.status}`); }
       await fetchCategories();
       addToast(`Kategori "${name}" ditambahkan`,"success");
-    } catch(err) {
-      addToast(`Gagal: ${err instanceof Error?err.message:"error"}`, "error");
-    }
+    } catch(err) { addToast(`Gagal: ${err instanceof Error?err.message:"error"}`, "error"); }
   };
+
   const delCat = async (type:"music"|"video", name:string) => {
     if (files.some(f=>f.type===type&&f.category===name)) { addToast(`"${name}" masih ada filenya`,"error"); return; }
     try {
@@ -319,10 +490,9 @@ export default function MediaPool() {
       await fetchCategories();
       if(selCat===name)setSelCat("__all__");
       addToast(`Kategori "${name}" dihapus`,"info");
-    } catch(err) {
-      addToast(`Gagal: ${err instanceof Error?err.message:"error"}`, "error");
-    }
+    } catch(err) { addToast(`Gagal: ${err instanceof Error?err.message:"error"}`, "error"); }
   };
+
   const delFile = async (id:string) => {
     const f = files.find(x=>x.id===id);
     if (!f) return;
@@ -332,79 +502,104 @@ export default function MediaPool() {
       if (playing?.id===id) setPlaying(null);
       await fetchFiles();
       addToast("File dihapus","info");
-    } catch(err) {
-      addToast(`Gagal hapus: ${err instanceof Error?err.message:"error"}`, "error");
-    }
+    } catch(err) { addToast(`Gagal hapus: ${err instanceof Error?err.message:"error"}`, "error"); }
   };
+
+  const tabStyle = (tab: ActiveTab) => ({
+    display:"flex" as const, alignItems:"center" as const, gap:6,
+    padding:"8px 16px", borderRadius:6, fontSize:12, fontWeight:600,
+    cursor:"pointer" as const, border:"1px solid transparent",
+    background: activeTab===tab ? "var(--accent)" : "transparent",
+    color: activeTab===tab ? "#fff" : "var(--text-secondary)",
+    borderColor: activeTab===tab ? "var(--accent)" : "var(--border)",
+    transition:"all .15s",
+  });
 
   return (
     <>
       <div className="page-header">
         <div>
           <h1 className="page-title">Media Pool</h1>
-          <p className="page-subtitle">Manage music & video files</p>
+          <p className="page-subtitle">Manage music, video & thumbnails</p>
         </div>
-        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          {(["music","video"] as const).map(t => (
-            <button key={t} onClick={()=>setActiveTab(t)} className={`btn ${activeTab===t?"btn-primary":"btn-secondary"}`}>
-              {t==="music"?<Icon.Music />:<Icon.Video />} {t==="music"?"Musik":"Video"}
-              <span style={{ background:"rgba(255,255,255,0.15)", borderRadius:99, padding:"1px 7px", fontSize:11 }}>{files.filter(f=>f.type===t).length}</span>
-            </button>
-          ))}
-          <button onClick={()=>setShowModal(true)} className="btn btn-primary">
-            <Icon.Upload /> Upload {activeTab==="music"?"Musik":"Video"}
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <button style={tabStyle("music")} onClick={()=>setActiveTab("music")}>
+            <Icon.Music /> Musik
+            <span style={{ background:"rgba(255,255,255,0.15)", borderRadius:99, padding:"1px 7px", fontSize:11 }}>{files.filter(f=>f.type==="music").length}</span>
           </button>
+          <button style={tabStyle("video")} onClick={()=>setActiveTab("video")}>
+            <Icon.Video /> Video
+            <span style={{ background:"rgba(255,255,255,0.15)", borderRadius:99, padding:"1px 7px", fontSize:11 }}>{files.filter(f=>f.type==="video").length}</span>
+          </button>
+          <button style={tabStyle("thumbnails")} onClick={()=>setActiveTab("thumbnails")}>
+            <Icon.Image /> Thumbnails
+          </button>
+          {activeTab !== "thumbnails" && (
+            <button onClick={()=>setShowModal(true)} className="btn btn-primary">
+              <Icon.Upload /> Upload {activeTab==="music"?"Musik":"Video"}
+            </button>
+          )}
         </div>
       </div>
 
-      <div style={{ marginBottom:16, display:"flex", alignItems:"center", gap:10, padding:"8px 14px", background:"#0a0a12", border:"1px solid #1a1a28", borderRadius:8, fontSize:12, color:"#555" }}>
-        <Icon.Cloud />
-        <span style={{ flex:1 }}>GDrive Sync {lastSync?`- Terakhir: ${lastSync}`:"- Belum pernah sync"}</span>
-        <button onClick={()=>triggerSync(false)} disabled={syncing} style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 12px", borderRadius:6, border:"1px solid #2a2a3e", background:syncing?"#1a1a2e":"transparent", color:syncing?"#7c6fcd":"#aaa", cursor:syncing?"not-allowed":"pointer", fontSize:12, fontWeight:600 }}>
-          <span style={{ display:"inline-flex", animation:syncing?"spin 1s linear infinite":"none" }}><Icon.Sync /></span>
-          {syncing?"Syncing...":"Sync ke Drive"}
-        </button>
-      </div>
-
-      {queue.length>0 && (
-        <div style={{ margin:"12px 0", display:"flex", flexDirection:"column", gap:6 }}>
-          {queue.map(item => (
-            <div key={item.id} style={{ background:"#111118", border:"1px solid #1e1e2e", borderRadius:8, padding:"8px 12px" }}>
-              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
-                <span style={{ fontSize:12, color:"#ccc", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"70%" }}>{item.name}</span>
-                <span style={{ fontSize:11, color:item.status==="done"?"#4ade80":item.status==="error"?"#f87171":"#7c6fcd" }}>
-                  {item.status==="uploading"?`${item.progress}%`:item.status==="done"?"selesai":item.status==="error"?"gagal":"menunggu..."}
-                </span>
-              </div>
-              <div style={{ height:3, background:"#1e1e2e", borderRadius:99, overflow:"hidden" }}>
-                <div style={{ height:"100%", borderRadius:99, width:`${item.progress}%`, background:item.status==="done"?"#4ade80":item.status==="error"?"#f87171":"#7c6fcd" }} />
-              </div>
-            </div>
-          ))}
-        </div>
+      {/* Thumbnails tab */}
+      {activeTab === "thumbnails" && (
+        <ThumbnailTab toast={addToast} />
       )}
 
-      <div style={{ display:"flex", background:"#0e0e16", border:"1px solid #1e1e2e", borderRadius:12, overflow:"hidden", minHeight:420 }}>
-        <div style={{ paddingTop:16, paddingBottom:16, borderRight:"1px solid #1e1e2e" }}>
-          <CategorySidebar type={activeTab} categories={cats} selected={selCat} onSelect={setSelCat} onAdd={n=>addCat(activeTab,n)} onDelete={n=>delCat(activeTab,n)} />
-        </div>
-        <div style={{ flex:1, padding:16, overflowY:"auto", maxHeight:560 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:12, fontSize:12, color:"#555" }}>
-            <span>{activeTab==="music"?"Musik":"Video"}</span>
-            {selCat!=="__all__"&&<><Icon.ChevronRight /><span style={{ color:"#a78bfa" }}>{selCat}</span></>}
-            <span style={{ marginLeft:"auto", color:"#444" }}>{visible.length} file</span>
+      {/* Music/Video tabs */}
+      {activeTab !== "thumbnails" && (
+        <>
+          <div style={{ marginBottom:16, display:"flex", alignItems:"center", gap:10, padding:"8px 14px", background:"#0a0a12", border:"1px solid #1a1a28", borderRadius:8, fontSize:12, color:"#555" }}>
+            <Icon.Cloud />
+            <span style={{ flex:1 }}>GDrive Sync {lastSync?`- Terakhir: ${lastSync}`:"- Belum pernah sync"}</span>
+            <button onClick={()=>triggerSync(false)} disabled={syncing} style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 12px", borderRadius:6, border:"1px solid #2a2a3e", background:syncing?"#1a1a2e":"transparent", color:syncing?"#7c6fcd":"#aaa", cursor:syncing?"not-allowed":"pointer", fontSize:12, fontWeight:600 }}>
+              <span style={{ display:"inline-flex", animation:syncing?"spin 1s linear infinite":"none" }}><Icon.Sync /></span>
+              {syncing?"Syncing...":"Sync ke Drive"}
+            </button>
           </div>
-          <FileList files={visible} type={activeTab} onDelete={delFile} onPlay={setPlaying} playing={playing} />
-        </div>
-      </div>
 
-      <div style={{ marginTop:12, padding:"10px 14px", background:"#0a0a12", border:"1px solid #1a1a28", borderRadius:8, fontSize:12, color:"#444", display:"flex", gap:8 }}>
-        <span>Info:</span>
-        <span>File disimpan di VPS: <code style={{ color:"#666" }}>/opt/media/{activeTab}/[kategori]/</code> - di-sync ke GDrive via rclone.</span>
-      </div>
+          {queue.length>0 && (
+            <div style={{ margin:"12px 0", display:"flex", flexDirection:"column", gap:6 }}>
+              {queue.map(item => (
+                <div key={item.id} style={{ background:"#111118", border:"1px solid #1e1e2e", borderRadius:8, padding:"8px 12px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                    <span style={{ fontSize:12, color:"#ccc", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"70%" }}>{item.name}</span>
+                    <span style={{ fontSize:11, color:item.status==="done"?"#4ade80":item.status==="error"?"#f87171":"#7c6fcd" }}>
+                      {item.status==="uploading"?`${item.progress}%`:item.status==="done"?"selesai":item.status==="error"?"gagal":"menunggu..."}
+                    </span>
+                  </div>
+                  <div style={{ height:3, background:"#1e1e2e", borderRadius:99, overflow:"hidden" }}>
+                    <div style={{ height:"100%", borderRadius:99, width:`${item.progress}%`, background:item.status==="done"?"#4ade80":item.status==="error"?"#f87171":"#7c6fcd" }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
-      {showModal && <UploadModal type={activeTab} categories={cats} onClose={()=>setShowModal(false)} onUpload={handleUpload} />}
-      <MiniPlayer playing={playing} type={activeTab} apiBase={API_BASE} />
+          <div style={{ display:"flex", background:"#0e0e16", border:"1px solid #1e1e2e", borderRadius:12, overflow:"hidden", minHeight:420 }}>
+            <div style={{ paddingTop:16, paddingBottom:16, borderRight:"1px solid #1e1e2e" }}>
+              <CategorySidebar type={activeTab} categories={cats} selected={selCat} onSelect={setSelCat} onAdd={n=>addCat(activeTab,n)} onDelete={n=>delCat(activeTab,n)} />
+            </div>
+            <div style={{ flex:1, padding:16, overflowY:"auto", maxHeight:560 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:12, fontSize:12, color:"#555" }}>
+                <span>{activeTab==="music"?"Musik":"Video"}</span>
+                {selCat!=="__all__"&&<><Icon.ChevronRight /><span style={{ color:"#a78bfa" }}>{selCat}</span></>}
+                <span style={{ marginLeft:"auto", color:"#444" }}>{visible.length} file</span>
+              </div>
+              <FileList files={visible} type={activeTab} onDelete={delFile} onPlay={setPlaying} playing={playing} />
+            </div>
+          </div>
+
+          <div style={{ marginTop:12, padding:"10px 14px", background:"#0a0a12", border:"1px solid #1a1a28", borderRadius:8, fontSize:12, color:"#444", display:"flex", gap:8 }}>
+            <span>Info:</span>
+            <span>File disimpan di VPS: <code style={{ color:"#666" }}>/opt/media/{activeTab}/[kategori]/</code></span>
+          </div>
+        </>
+      )}
+
+      {showModal && <UploadModal type={activeTab as "music"|"video"} categories={cats} onClose={()=>setShowModal(false)} onUpload={handleUpload} />}
+      {activeTab !== "thumbnails" && <MiniPlayer playing={playing} type={activeTab as "music"|"video"} apiBase={API_BASE} />}
       <Toast toasts={toasts} remove={removeToast} />
     </>
   );

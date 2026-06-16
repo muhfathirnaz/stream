@@ -7,7 +7,6 @@ const navItems = [
   { label: 'Dashboard',    icon: '⊞', href: '/' },
   { label: 'Live Streams', icon: '◉', href: '/streams' },
   { label: 'Media Pool',   icon: '🎵', href: '/media-pool' },
-  { label: 'Thumbnails',   icon: '🖼', href: '/thumbnails' },
   { label: 'OAuth Tool',   icon: '🔑', href: '/oauth-helper' },
 ];
 
