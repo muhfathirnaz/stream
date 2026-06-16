@@ -142,7 +142,11 @@ export default function StreamsPage() {
         fetch('/api/assets/folders'), fetch('/api/thumbnails'), fetch('/api/assets/titles'), fetch('/api/assets/descriptions'), fetch('/api/assets/mediaFiles')
       ]);
       if (fRes.ok) { const d = await fRes.json(); setFolders(d.folders || []); }
-      if (thRes.ok) { const d = await thRes.json(); setThumbnails(d.files || []); }
+      if (thRes.ok) { 
+        const d = await thRes.json(); 
+        // FIX: Pastikan "path" selalu terkirim ke dropdown
+        setThumbnails((d.files || []).map((f: any) => ({ ...f, path: f.path || f.filename }))); 
+      }
       if (tiRes.ok) setTitles(await tiRes.json());
       if (dRes.ok) setDescriptions(await dRes.json());
       if (mfRes.ok) { const d = await mfRes.json(); setVideos(d.videos || []); setSongs(d.songs || []); }
@@ -255,23 +259,6 @@ export default function StreamsPage() {
                     <span className="text-[10px] font-mono text-[#f5c85a]">{countdown[s.id] || getCountdown(s.scheduled_at)}</span>
                     <button onClick={() => cancelSchedule(s.id)} className="text-[10px] text-[#f5655a] border border-[#f5655a33] px-2 py-1 rounded hover:bg-[#1a0a0a] font-mono transition-colors">✕ Cancel Jadwal</button>
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {recentSchedules.length > 0 && (
-          <div className="bg-[#111318] border border-[#2a2e38] rounded-lg p-4 mb-5">
-            <div className="text-[10px] text-[#6b7280] uppercase tracking-widest font-mono mb-3">Riwayat Schedule (24 jam terakhir)</div>
-            <div className="flex flex-col gap-1">
-              {recentSchedules.map(s => (
-                <div key={s.id} className="flex items-center justify-between px-3 py-2 rounded hover:bg-[#0d0f12]">
-                  <div className="flex items-center gap-3">
-                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded ${s.status === 'done' ? 'bg-[#0a1a0a] text-[#5af5c8] border border-[#1a3a1a]' : s.status === 'failed' ? 'bg-[#1a0a0a] text-[#f5655a] border border-[#3a1a1a]' : 'bg-[#1a1500] text-[#f5c85a] border border-[#3a2a00]'}`}>{s.status}</span>
-                    <span className="text-xs font-mono text-[#6b7280]">{s.channel_name}</span>
-                  </div>
-                  <span className="text-[10px] font-mono text-[#3a3e48]">{formatScheduleTime(s.scheduled_at)}</span>
                 </div>
               ))}
             </div>

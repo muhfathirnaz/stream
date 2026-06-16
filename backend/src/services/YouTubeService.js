@@ -1,39 +1,48 @@
 const { google } = require('googleapis');
 const fs = require('fs');
+const path = require('path');
 
 class YouTubeService {
   constructor() {
-    this.oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      'https://aksarastream.ddns.net/auth/google/callback'
-    );
+    let clientId = process.env.GOOGLE_CLIENT_ID;
+    let clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    let redirectUri = 'https://aksarastream.ddns.net/auth/google/callback';
+
+    const rootPath = path.resolve(__dirname, '../../');
+    const credPath = path.join(rootPath, 'credentials.json');
+    
+    if (fs.existsSync(credPath)) {
+      try {
+        const credentials = JSON.parse(fs.readFileSync(credPath));
+        const key = credentials.installed ? 'installed' : 'web';
+        clientId = credentials[key].client_id;
+        clientSecret = credentials[key].client_secret;
+        if (credentials[key].redirect_uris && credentials[key].redirect_uris.length > 0) {
+            redirectUri = credentials[key].redirect_uris[0];
+        }
+      } catch(e) {}
+    }
+
+    this.oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
     this.youtube = google.youtube({ version: 'v3', auth: this.oauth2Client });
   }
 
   async createBroadcast({ refreshToken, title, description, thumbnailPath }) {
     this.oauth2Client.setCredentials({ refresh_token: refreshToken });
-
     console.log('🎬 [YouTube] Creating Live Broadcast...');
+    
     const broadcastRes = await this.youtube.liveBroadcasts.insert({
-  part: 'snippet,status,contentDetails',  // ← tambah contentDetails
-  requestBody: {
-    snippet: {
-      title: title || 'Lofi Jazz 24/7',
-      description: description || 'Automated Lofi Jazz Stream',
-      scheduledStartTime: new Date().toISOString(),
-    },
-    status: {
-      privacyStatus: 'public',
-      selfDeclaredMadeForKids: false,
-    },
-    contentDetails: {
-      enableAutoStart: true,   // ← otomatis live saat RTMP aktif
-      enableAutoStop: true,
-      latencyPreference: 'normal',
-    },
-  },
-});
+      part: 'snippet,status,contentDetails',
+      requestBody: {
+        snippet: {
+          title: title || 'Lofi Jazz 24/7',
+          description: description || 'Automated Lofi Jazz Stream',
+          scheduledStartTime: new Date().toISOString(),
+        },
+        status: { privacyStatus: 'public', selfDeclaredMadeForKids: false },
+        contentDetails: { enableAutoStart: true, enableAutoStop: true, latencyPreference: 'normal' },
+      },
+    });
     const broadcastId = broadcastRes.data.id;
 
     console.log('📡 [YouTube] Creating Live Stream (RTMP)...');
@@ -41,11 +50,7 @@ class YouTubeService {
       part: 'snippet,cdn',
       requestBody: {
         snippet: { title: `Stream Engine for ${title || broadcastId}` },
-        cdn: {
-          frameRate: '30fps',
-          ingestionType: 'rtmp',
-          resolution: '1080p',
-        },
+        cdn: { frameRate: '30fps', ingestionType: 'rtmp', resolution: '1080p' },
       },
     });
     const streamId = streamRes.data.id;
@@ -53,96 +58,66 @@ class YouTubeService {
     const streamKey = streamRes.data.cdn.ingestionInfo.streamName;
 
     console.log('🔗 [YouTube] Binding Broadcast to Stream...');
-    await this.youtube.liveBroadcasts.bind({
-      part: 'id,contentDetails',
-      id: broadcastId,
-      streamId: streamId,
-    });
+    await this.youtube.liveBroadcasts.bind({ part: 'id,contentDetails', id: broadcastId, streamId: streamId });
 
     if (thumbnailPath && fs.existsSync(thumbnailPath)) {
-      console.log('🖼️ [YouTube] Uploading Thumbnail...');
-      await this.youtube.thumbnails.set({
-        videoId: broadcastId,
-        media: { body: fs.createReadStream(thumbnailPath) },
-      });
+      console.log(`🖼️ [YouTube] Mulai Uploading Thumbnail dari: ${thumbnailPath}`);
+      try {
+        await this.youtube.thumbnails.set({ 
+          videoId: broadcastId, 
+          media: { body: fs.createReadStream(thumbnailPath) } 
+        });
+        console.log('✅ [YouTube] Thumbnail berhasil diupload ke YouTube!');
+      } catch (err) {
+        console.error('❌ [YouTube] GAGAL upload thumbnail! Alasan:', err.response?.data?.error?.message || err.message);
+      }
+    } else {
+      console.log(`⚠️ [YouTube] Thumbnail dilewati (Path tidak valid atau file hilang: ${thumbnailPath})`);
     }
 
     console.log('✅ [YouTube] Broadcast created. Start FFmpeg, then call goLive().');
-    return {
-      broadcastId,
-      streamId,
-      rtmpUrl: `${rtmpUrl}/${streamKey}`,
-    };
+    return { broadcastId, streamId, rtmpUrl: `${rtmpUrl}/${streamKey}` };
   }
 
- async goLive({ refreshToken, broadcastId, streamId }) {
-  this.oauth2Client.setCredentials({ refresh_token: refreshToken });
+  async goLive({ refreshToken, broadcastId, streamId }) {
+    this.oauth2Client.setCredentials({ refresh_token: refreshToken });
+    console.log('⏳ [YouTube] Waiting for stream to become active...');
+    await this._waitForStreamActive(streamId);
+    await new Promise(r => setTimeout(r, 5000));
 
-  console.log('⏳ [YouTube] Waiting for stream to become active...');
-  await this._waitForStreamActive(streamId);
+    const broadcastCheck = await this.youtube.liveBroadcasts.list({ part: 'status', id: broadcastId });
+    const broadcastStatus = broadcastCheck.data.items?.[0]?.status?.lifeCycleStatus;
+    console.log(`📊 [YouTube] Broadcast status: ${broadcastStatus}`);
 
-  await new Promise(r => setTimeout(r, 5000));
+    if (broadcastStatus === 'live') return console.log('✅ [YouTube] Already live!');
 
-  const broadcastCheck = await this.youtube.liveBroadcasts.list({
-    part: 'status',
-    id: broadcastId,
-  });
-  const broadcastStatus = broadcastCheck.data.items?.[0]?.status?.lifeCycleStatus;
-  console.log(`📊 [YouTube] Broadcast status: ${broadcastStatus}`);
-
-  if (broadcastStatus === 'live') {
-    console.log('✅ [YouTube] Already live!');
-    return;
-  }
-
-  // Step 1: Transisi ke testing dulu
-  if (broadcastStatus === 'ready') {
-    console.log('🧪 [YouTube] Transitioning to testing...');
-    try {
-      await this.youtube.liveBroadcasts.transition({
-        part: 'snippet,status',
-        id: broadcastId,
-        broadcastStatus: 'testing',
-      });
-      console.log('✅ [YouTube] Now in testing mode, waiting 5s...');
-      await new Promise(r => setTimeout(r, 5000));
-    } catch (e) {
-      console.error('❌ Testing transition failed:', e.response?.data?.error?.message || e.message);
+    if (broadcastStatus === 'ready') {
+      console.log('🧪 [YouTube] Transitioning to testing...');
+      try {
+        await this.youtube.liveBroadcasts.transition({ part: 'snippet,status', id: broadcastId, broadcastStatus: 'testing' });
+        await new Promise(r => setTimeout(r, 5000));
+      } catch (e) {}
     }
-  }
 
-  // Step 2: Transisi ke live
-  console.log('🚀 [YouTube] Transitioning to live...');
-  try {
-    await this.youtube.liveBroadcasts.transition({
-      part: 'snippet,status',
-      id: broadcastId,
-      broadcastStatus: 'live',
-    });
-    console.log('🎉 [YouTube] Broadcast is now LIVE!');
-  } catch (e) {
-    const errMsg = e.response?.data?.error?.message || e.message;
-    console.error('❌ [YouTube API Error]:', errMsg);
-    console.log('⚠️ Stream tetap jalan, cek YouTube Studio untuk transisi manual');
-  }
-}  
-
-
+    console.log('🚀 [YouTube] Transitioning to live...');
+    try {
+      await this.youtube.liveBroadcasts.transition({ part: 'snippet,status', id: broadcastId, broadcastStatus: 'live' });
+      console.log('🎉 [YouTube] Broadcast is now LIVE!');
+    } catch (e) {
+      console.error('❌ [YouTube API Error]:', e.response?.data?.error?.message || e.message);
+    }
+  }  
 
   async _waitForStreamActive(streamId, timeoutMs = 180000, intervalMs = 5000) {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
-      const res = await this.youtube.liveStreams.list({
-        part: 'status',
-        id: streamId,
-      });
+      const res = await this.youtube.liveStreams.list({ part: 'status', id: streamId });
       const status = res.data.items?.[0]?.status?.streamStatus;
       console.log(`   Stream status: ${status}`);
       if (status === 'active') return;
       await new Promise(r => setTimeout(r, intervalMs));
     }
-    throw new Error('Stream tidak aktif setelah 3 menit — pastikan FFmpeg berjalan dan mengirim data ke RTMP URL.');
+    throw new Error('Stream tidak aktif setelah 3 menit.');
   }
 }
-
 module.exports = YouTubeService;
