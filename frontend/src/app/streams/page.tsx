@@ -2,51 +2,19 @@
 
 import { useEffect, useState, useCallback } from 'react';
 
-interface Channel {
-  id: number;
-  channel_id: string;
-  name: string;
-  google_refresh_token?: string;
-  stream_status?: string;
-  activeStreams: { streamId: string; elapsedSeconds: number }[];
-}
-
-interface Schedule {
-  id: number;
-  channel_id: string;
-  channel_name: string;
-  scheduled_at: string;
-  duration_secs: number;
-  title: string;
-  status: string;
-  repeat_type?: string;
-}
-
+interface Channel { id: number; channel_id: string; name: string; google_refresh_token?: string; stream_status?: string; activeStreams: { streamId: string; elapsedSeconds: number }[]; }
+interface Schedule { id: number; channel_id: string; channel_name: string; scheduled_at: string; duration_secs: number; title: string; status: string; repeat_type?: string; }
 interface Folder { name: string; count: number; }
 interface Asset { id: number; type: string; value: string; label: string; in_use?: boolean; }
-interface ThumbnailFile { filename: string; path: string; sizeBytes?: number; createdAt?: string; category?: string; }
+interface MediaFile { filename: string; path: string; category?: string; }
 
-interface StreamConfig {
-  folder: string;
-  thumbnailPath: string | null;
-  titleId: number | null;
-  descriptionId: number | null;
-  auto: boolean;
-  duration: number;
-}
+interface StreamConfig { folder: string; videoPath: string | null; songPath: string | null; thumbnailPath: string | null; titleId: number | null; descriptionId: number | null; auto: boolean; duration: number; }
 
 function UTCClock() {
-  const [time, setTime] = useState('');
-  const [date, setDate] = useState('');
+  const [time, setTime] = useState(''); const [date, setDate] = useState('');
   useEffect(() => {
-    const update = () => {
-      const now = new Date();
-      setTime(now.toUTCString().slice(17, 25));
-      setDate(now.toUTCString().slice(0, 16));
-    };
-    update();
-    const t = setInterval(update, 1000);
-    return () => clearInterval(t);
+    const update = () => { const now = new Date(); setTime(now.toUTCString().slice(17, 25)); setDate(now.toUTCString().slice(0, 16)); };
+    update(); const t = setInterval(update, 1000); return () => clearInterval(t);
   }, []);
   return (
     <div className="flex items-center gap-2 bg-[#0a0c0f] border border-[#2a2e38] rounded px-3 py-1.5">
@@ -57,44 +25,15 @@ function UTCClock() {
   );
 }
 
-function formatElapsed(secs: number) {
-  const h = Math.floor(secs / 3600);
-  const m = Math.floor((secs % 3600) / 60);
-  const s = secs % 60;
-  return `${h}j ${m}m ${s}d`;
-}
-
-function formatScheduleTime(iso: string) {
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`;
-}
-
-function getUTCDatetimeLocal() {
-  const now = new Date();
-  now.setMinutes(now.getMinutes() + 5);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${now.getUTCFullYear()}-${pad(now.getUTCMonth()+1)}-${pad(now.getUTCDate())}T${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}`;
-}
-
-function getCountdown(iso: string) {
-  const diff = new Date(iso).getTime() - Date.now();
-  if (diff <= 0) return 'sebentar lagi...';
-  const h = Math.floor(diff / 3600000);
-  const m = Math.floor((diff % 3600000) / 60000);
-  if (h > 0) return `${h}j ${m}m lagi`;
-  return `${m}m lagi`;
-}
+function formatElapsed(secs: number) { const h = Math.floor(secs / 3600); const m = Math.floor((secs % 3600) / 60); const s = secs % 60; return `${h}j ${m}m ${s}d`; }
+function formatScheduleTime(iso: string) { const d = new Date(iso); const pad = (n: number) => String(n).padStart(2, '0'); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`; }
+function getUTCDatetimeLocal() { const now = new Date(); now.setMinutes(now.getMinutes() + 5); const pad = (n: number) => String(n).padStart(2, '0'); return `${now.getUTCFullYear()}-${pad(now.getUTCMonth()+1)}-${pad(now.getUTCDate())}T${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}`; }
+function getCountdown(iso: string) { const diff = new Date(iso).getTime() - Date.now(); if (diff <= 0) return 'sebentar lagi...'; const h = Math.floor(diff / 3600000); const m = Math.floor((diff % 3600000) / 60000); if (h > 0) return `${h}j ${m}m lagi`; return `${m}m lagi`; }
 
 const repeatLabel: Record<string, string> = { daily: 'Harian', weekly: 'Mingguan', monthly: 'Bulanan' };
+const defaultConfig = (): StreamConfig => ({ folder: 'default', videoPath: null, songPath: null, thumbnailPath: null, titleId: null, descriptionId: null, auto: true, duration: 4 });
 
-const defaultConfig = (): StreamConfig => ({
-  folder: 'default', thumbnailPath: null, titleId: null, descriptionId: null, auto: true, duration: 4
-});
-
-function ThumbDropdown({ label, options, value, onChange, placeholder, disabled }: {
-  label: string; options: ThumbnailFile[]; value: string | null; onChange: (path: string | null) => void; placeholder?: string; disabled?: boolean;
-}) {
+function MediaDropdown({ label, options, value, onChange, placeholder, disabled }: { label: string; options: MediaFile[]; value: string | null; onChange: (path: string | null) => void; placeholder?: string; disabled?: boolean; }) {
   const [open, setOpen] = useState(false);
   const selected = options.find(o => o.path === value);
   return (
@@ -103,13 +42,13 @@ function ThumbDropdown({ label, options, value, onChange, placeholder, disabled 
       <button type="button" onClick={() => !disabled && setOpen(!open)} disabled={disabled}
         className={`w-full flex items-center justify-between px-3 py-2 rounded border text-xs font-mono transition-colors text-left
           ${disabled ? 'border-[#1a1d24] text-[#3a3e48] cursor-not-allowed bg-transparent' : open ? 'border-[#c8f55a] text-[#c8f55a] bg-[#0a1500]' : selected ? 'border-[#2a4a1a] text-[#e8e6e0] bg-[#0d0f12]' : 'border-[#2a2e38] text-[#6b7280] bg-transparent hover:border-[#3a3e48]'}`}>
-        <span className="truncate">{selected ? selected.filename : (placeholder || '— pilih —')}</span>
+        <span className="truncate">{selected ? selected.filename : (placeholder || '— pilih manual —')}</span>
         <span className="ml-2 flex-shrink-0 text-[#6b7280]">{open ? '▲' : '▼'}</span>
       </button>
       {open && (
         <div className="absolute z-50 w-full mt-1 bg-[#111318] border border-[#2a2e38] rounded shadow-lg max-h-48 overflow-y-auto">
-          <button onClick={() => { onChange(null); setOpen(false); }} className="w-full text-left px-3 py-2 text-xs font-mono text-[#6b7280] hover:bg-[#1a1d24] border-b border-[#1a1d24]">— tidak dipilih —</button>
-          {options.length === 0 && <div className="px-3 py-2 text-xs font-mono text-[#3a3e48]">Belum ada data di Media Pool</div>}
+          <button onClick={() => { onChange(null); setOpen(false); }} className="w-full text-left px-3 py-2 text-xs font-mono text-[#6b7280] hover:bg-[#1a1d24] border-b border-[#1a1d24]">— acak otomatis —</button>
+          {options.length === 0 && <div className="px-3 py-2 text-xs font-mono text-[#3a3e48]">Tidak ada file</div>}
           {options.map(opt => (
             <button key={opt.path} className={`w-full flex items-center justify-between px-3 py-2 hover:bg-[#1a1d24] text-left text-xs font-mono truncate ${opt.path === value ? 'bg-[#0a1500] text-[#c8f55a]' : 'text-[#e8e6e0]'}`} onClick={() => { onChange(opt.path); setOpen(false); }}>
               <span className="truncate">{opt.filename}</span>
@@ -123,9 +62,7 @@ function ThumbDropdown({ label, options, value, onChange, placeholder, disabled 
   );
 }
 
-function AssetDropdown({ label, options, value, onChange, onDelete, placeholder, disabled }: {
-  label: string; options: Asset[]; value: number | null; onChange: (id: number | null) => void; onDelete: (id: number) => void; placeholder?: string; disabled?: boolean;
-}) {
+function AssetDropdown({ label, options, value, onChange, onDelete, placeholder, disabled }: { label: string; options: Asset[]; value: number | null; onChange: (id: number | null) => void; onDelete: (id: number) => void; placeholder?: string; disabled?: boolean; }) {
   const [open, setOpen] = useState(false);
   const selected = options.find(o => o.id === value);
   return (
@@ -134,7 +71,7 @@ function AssetDropdown({ label, options, value, onChange, onDelete, placeholder,
       <button type="button" onClick={() => !disabled && setOpen(!open)} disabled={disabled}
         className={`w-full flex items-center justify-between px-3 py-2 rounded border text-xs font-mono transition-colors text-left
           ${disabled ? 'border-[#1a1d24] text-[#3a3e48] cursor-not-allowed bg-transparent' : open ? 'border-[#c8f55a] text-[#c8f55a] bg-[#0a1500]' : selected ? 'border-[#2a4a1a] text-[#e8e6e0] bg-[#0d0f12]' : 'border-[#2a2e38] text-[#6b7280] bg-transparent hover:border-[#3a3e48]'}`}>
-        <span className="truncate">{selected ? selected.label : (placeholder || '— pilih —')}</span>
+        <span className="truncate">{selected ? selected.label : (placeholder || '— pilih manual —')}</span>
         <span className="ml-2 flex-shrink-0 text-[#6b7280]">{open ? '▲' : '▼'}</span>
       </button>
       {open && (
@@ -160,7 +97,9 @@ export default function StreamsPage() {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
-  const [thumbnails, setThumbnails] = useState<ThumbnailFile[]>([]);
+  const [thumbnails, setThumbnails] = useState<MediaFile[]>([]);
+  const [videos, setVideos] = useState<MediaFile[]>([]);
+  const [songs, setSongs] = useState<MediaFile[]>([]);
   const [titles, setTitles] = useState<Asset[]>([]);
   const [descriptions, setDescriptions] = useState<Asset[]>([]);
   const [newChannelName, setNewChannelName] = useState('');
@@ -169,9 +108,7 @@ export default function StreamsPage() {
   const [showToken, setShowToken] = useState(false);
   const [loading, setLoading] = useState(false);
   
-  // Update state untuk menyertakan mode "repeat"
   const [scheduleForm, setScheduleForm] = useState<{ [key: string]: { datetime: string; duration: number; repeat: string } }>({});
-  
   const [showScheduleFor, setShowScheduleFor] = useState<string | null>(null);
   const [showConfigFor, setShowConfigFor] = useState<string | null>(null);
   const [streamConfigs, setStreamConfigs] = useState<{ [channelId: string]: StreamConfig }>({});
@@ -194,62 +131,41 @@ export default function StreamsPage() {
         }));
         setChannels(merged);
       }
-    } catch (err) { console.error(err); }
+    } catch (err) {}
   }, []);
 
-  const fetchSchedules = useCallback(async () => {
-    try { const res = await fetch('/api/schedules'); if (res.ok) setSchedules(await res.json()); } catch (err) { console.error(err); }
-  }, []);
+  const fetchSchedules = useCallback(async () => { try { const res = await fetch('/api/schedules'); if (res.ok) setSchedules(await res.json()); } catch (err) {} }, []);
 
   const fetchAssets = useCallback(async () => {
     try {
-      const [fRes, thRes, tiRes, dRes] = await Promise.all([
-        fetch('/api/assets/folders'),
-        fetch('/api/thumbnails'),
-        fetch('/api/assets/titles'),
-        fetch('/api/assets/descriptions'),
+      const [fRes, thRes, tiRes, dRes, mfRes] = await Promise.all([
+        fetch('/api/assets/folders'), fetch('/api/thumbnails'), fetch('/api/assets/titles'), fetch('/api/assets/descriptions'), fetch('/api/assets/mediaFiles')
       ]);
       if (fRes.ok) { const d = await fRes.json(); setFolders(d.folders || []); }
       if (thRes.ok) { const d = await thRes.json(); setThumbnails(d.files || []); }
       if (tiRes.ok) setTitles(await tiRes.json());
       if (dRes.ok) setDescriptions(await dRes.json());
-    } catch (err) { console.error(err); }
+      if (mfRes.ok) { const d = await mfRes.json(); setVideos(d.videos || []); setSongs(d.songs || []); }
+    } catch (err) {}
   }, []);
 
-  useEffect(() => {
-    fetchChannels(); fetchSchedules(); fetchAssets();
-    const interval = setInterval(() => { fetchChannels(); fetchSchedules(); }, 10000);
-    return () => clearInterval(interval);
-  }, [fetchChannels, fetchSchedules, fetchAssets]);
-
-  useEffect(() => {
-    const update = () => {
-      const counts: { [key: number]: string } = {};
-      schedules.filter(s => s.status === 'pending').forEach(s => { counts[s.id] = getCountdown(s.scheduled_at); });
-      setCountdown(counts);
-    };
-    update();
-    const t = setInterval(update, 30000);
-    return () => clearInterval(t);
-  }, [schedules]);
+  useEffect(() => { fetchChannels(); fetchSchedules(); fetchAssets(); const interval = setInterval(() => { fetchChannels(); fetchSchedules(); }, 10000); return () => clearInterval(interval); }, [fetchChannels, fetchSchedules, fetchAssets]);
+  useEffect(() => { const update = () => { const counts: { [key: number]: string } = {}; schedules.filter(s => s.status === 'pending').forEach(s => { counts[s.id] = getCountdown(s.scheduled_at); }); setCountdown(counts); }; update(); const t = setInterval(update, 30000); return () => clearInterval(t); }, [schedules]);
 
   const getConfig = (channelId: string): StreamConfig => streamConfigs[channelId] || defaultConfig();
-
-  const updateConfig = (channelId: string, patch: Partial<StreamConfig>) => {
-    setStreamConfigs(prev => ({ ...prev, [channelId]: { ...getConfig(channelId), ...patch } }));
-  };
+  const updateConfig = (channelId: string, patch: Partial<StreamConfig>) => { setStreamConfigs(prev => ({ ...prev, [channelId]: { ...getConfig(channelId), ...patch } })); };
 
   const startStream = async (channelId: string) => {
     const config = getConfig(channelId);
     setLoading(true);
     try {
-      const body: Record<string, unknown> = {
-        channelId, durationSecs: config.duration * 3600, folder: config.folder, auto: config.auto,
-      };
+      const body: Record<string, unknown> = { channelId, durationSecs: config.duration * 3600, folder: config.folder, auto: config.auto };
       if (!config.auto) {
         if (config.titleId) { const t = titles.find(x => x.id === config.titleId); if (t) body.title = t.value; }
         if (config.descriptionId) { const d = descriptions.find(x => x.id === config.descriptionId); if (d) body.description = d.value; }
-        if (config.thumbnailPath) { body.thumbnailPath = config.thumbnailPath; }
+        if (config.thumbnailPath) body.thumbnailPath = config.thumbnailPath;
+        if (config.videoPath) body.videoPath = config.videoPath;
+        if (config.songPath) body.songPath = config.songPath;
       }
       const res = await fetch('/api/streams/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!res.ok) { const err = await res.json(); alert('Gagal start: ' + err.error); }
@@ -257,18 +173,14 @@ export default function StreamsPage() {
     } finally { setLoading(false); }
   };
 
-  const stopStream = async (streamId: string) => {
-    setLoading(true);
-    try { await fetch('/api/streams/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ streamId }) }); await fetchChannels(); } finally { setLoading(false); }
-  };
+  const stopStream = async (streamId: string) => { setLoading(true); try { await fetch('/api/streams/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ streamId }) }); await fetchChannels(); } finally { setLoading(false); } };
 
   const addChannel = async () => {
     if (!newChannelName.trim() || !newRefreshToken.trim()) return;
     setLoading(true);
     try {
       const res = await fetch('/api/channels', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newChannelName.trim(), refresh_token: newRefreshToken.trim() }) });
-      if (!res.ok) { const err = await res.json(); alert('Gagal: ' + err.error); }
-      else { setNewChannelName(''); setNewRefreshToken(''); setShowAddForm(false); await fetchChannels(); }
+      if (!res.ok) { const err = await res.json(); alert('Gagal: ' + err.error); } else { setNewChannelName(''); setNewRefreshToken(''); setShowAddForm(false); await fetchChannels(); }
     } finally { setLoading(false); }
   };
 
@@ -276,16 +188,11 @@ export default function StreamsPage() {
     if (!editTokenValue.trim()) return;
     try {
       const res = await fetch(`/api/channels/${channelId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: editTokenValue.trim() }) });
-      if (!res.ok) { const err = await res.json(); alert('Gagal: ' + err.error); }
-      else { setEditingTokenFor(null); setEditTokenValue(''); await fetchChannels(); }
-    } catch (err) { console.error(err); }
+      if (!res.ok) { const err = await res.json(); alert('Gagal: ' + err.error); } else { setEditingTokenFor(null); setEditTokenValue(''); await fetchChannels(); }
+    } catch (err) {}
   };
 
-  const deleteChannel = async (channelId: string) => {
-    if (!confirm(`Hapus channel ${channelId}?`)) return;
-    await fetch(`/api/channels/${channelId}`, { method: 'DELETE' });
-    await fetchChannels();
-  };
+  const deleteChannel = async (channelId: string) => { if (!confirm(`Hapus channel ${channelId}?`)) return; await fetch(`/api/channels/${channelId}`, { method: 'DELETE' }); await fetchChannels(); };
 
   const scheduleStream = async (channelId: string) => {
     const form = scheduleForm[channelId];
@@ -296,23 +203,18 @@ export default function StreamsPage() {
     setLoading(true);
     try {
       const body: Record<string, unknown> = {
-        channelId, 
-        scheduledAt, 
-        durationSecs: (form.duration || 4) * 3600, 
-        folder: config.folder, 
-        auto: config.auto, 
-        title: 'Lofi Jazz Radio - Live Stream',
-        repeatType: form.repeat || 'none'
+        channelId, scheduledAt, durationSecs: (form.duration || 4) * 3600, 
+        folder: config.folder, auto: config.auto, title: 'Lofi Jazz Radio - Live Stream', repeatType: form.repeat || 'none',
+        videoPath: config.videoPath, songPath: config.songPath
       };
       if (!config.auto && config.titleId) { const t = titles.find(x => x.id === config.titleId); if (t) body.title = t.value; }
       const res = await fetch('/api/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      if (!res.ok) { const err = await res.json(); alert('Gagal schedule: ' + err.error); }
-      else { setShowScheduleFor(null); await fetchSchedules(); }
+      if (!res.ok) { const err = await res.json(); alert('Gagal schedule: ' + err.error); } else { setShowScheduleFor(null); await fetchSchedules(); }
     } finally { setLoading(false); }
   };
 
   const cancelSchedule = async (scheduleId: number) => {
-    if (!confirm('Cancel schedule ini?')) return;
+    if (!confirm('Yakin ingin membatalkan/menghapus schedule ini?')) return;
     await fetch(`/api/schedules/${scheduleId}`, { method: 'DELETE' });
     await fetchSchedules();
   };
@@ -325,12 +227,7 @@ export default function StreamsPage() {
 
   const deleteAsset = async (id: number) => { await fetch(`/api/assets/${id}`, { method: 'DELETE' }); await fetchAssets(); };
 
-  const initScheduleForm = (channelId: string) => {
-    if (!scheduleForm[channelId]) { 
-      setScheduleForm(prev => ({ ...prev, [channelId]: { datetime: getUTCDatetimeLocal(), duration: 4, repeat: 'none' } })); 
-    }
-    setShowScheduleFor(channelId);
-  };
+  const initScheduleForm = (channelId: string) => { if (!scheduleForm[channelId]) { setScheduleForm(prev => ({ ...prev, [channelId]: { datetime: getUTCDatetimeLocal(), duration: 4, repeat: 'none' } })); } setShowScheduleFor(channelId); };
 
   const pendingSchedules = schedules.filter(s => s.status === 'pending');
   const recentSchedules = schedules.filter(s => s.status !== 'pending');
@@ -356,25 +253,8 @@ export default function StreamsPage() {
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-[10px] font-mono text-[#f5c85a]">{countdown[s.id] || getCountdown(s.scheduled_at)}</span>
-                    <button onClick={() => cancelSchedule(s.id)} className="text-[10px] text-[#6b7280] hover:text-[#f5655a] font-mono transition-colors">✕ Cancel</button>
+                    <button onClick={() => cancelSchedule(s.id)} className="text-[10px] text-[#f5655a] border border-[#f5655a33] px-2 py-1 rounded hover:bg-[#1a0a0a] font-mono transition-colors">✕ Cancel Jadwal</button>
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {recentSchedules.length > 0 && (
-          <div className="bg-[#111318] border border-[#2a2e38] rounded-lg p-4 mb-5">
-            <div className="text-[10px] text-[#6b7280] uppercase tracking-widest font-mono mb-3">Riwayat Schedule (24 jam terakhir)</div>
-            <div className="flex flex-col gap-1">
-              {recentSchedules.map(s => (
-                <div key={s.id} className="flex items-center justify-between px-3 py-2 rounded hover:bg-[#0d0f12]">
-                  <div className="flex items-center gap-3">
-                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded ${s.status === 'done' ? 'bg-[#0a1a0a] text-[#5af5c8] border border-[#1a3a1a]' : s.status === 'failed' ? 'bg-[#1a0a0a] text-[#f5655a] border border-[#3a1a1a]' : 'bg-[#1a1500] text-[#f5c85a] border border-[#3a2a00]'}`}>{s.status}</span>
-                    <span className="text-xs font-mono text-[#6b7280]">{s.channel_name}</span>
-                  </div>
-                  <span className="text-[10px] font-mono text-[#3a3e48]">{formatScheduleTime(s.scheduled_at)}</span>
                 </div>
               ))}
             </div>
@@ -404,50 +284,16 @@ export default function StreamsPage() {
           )}
 
           {!showAddAsset && (
-            <div className="grid grid-cols-3 gap-3">
-              <div className="relative">
-                <div className="text-[10px] text-[#6b7280] font-mono mb-1">Thumbnails (Media Pool)</div>
-                <div className="text-xs font-mono text-[#6b7280] px-3 py-2 border border-[#2a2e38] rounded bg-[#0a0c0f] truncate">{thumbnails.length} files tersedia</div>
-              </div>
-              <AssetDropdown label={`Titles (${titles.length})`} options={titles} value={null} onChange={() => {}} onDelete={deleteAsset} placeholder="— lihat & kelola —" />
-              <AssetDropdown label={`Descriptions (${descriptions.length})`} options={descriptions} value={null} onChange={() => {}} onDelete={deleteAsset} placeholder="— lihat & kelola —" />
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="relative"><div className="text-[10px] text-[#6b7280] font-mono mb-1">Thumbnails</div><div className="text-xs font-mono text-[#6b7280] px-3 py-2 border border-[#2a2e38] rounded bg-[#0a0c0f] truncate">{thumbnails.length} files tersedia</div></div>
+              <div className="relative"><div className="text-[10px] text-[#6b7280] font-mono mb-1">Video / Musik</div><div className="text-xs font-mono text-[#6b7280] px-3 py-2 border border-[#2a2e38] rounded bg-[#0a0c0f] truncate">{videos.length} Vid / {songs.length} Lag</div></div>
+              <AssetDropdown label={`Titles (${titles.length})`} options={titles} value={null} onChange={() => {}} onDelete={deleteAsset} placeholder="— kelola —" />
+              <AssetDropdown label={`Descriptions (${descriptions.length})`} options={descriptions} value={null} onChange={() => {}} onDelete={deleteAsset} placeholder="— kelola —" />
             </div>
           )}
         </div>
 
-        <div className="flex items-center justify-between mb-5">
-          <div className="text-[10px] text-[#6b7280] uppercase tracking-widest font-mono">{channels.length} channel · {channels.filter(c => c.stream_status === 'live').length} live sekarang</div>
-          <button onClick={() => setShowAddForm(!showAddForm)} className="text-xs px-4 py-2 rounded border border-[#c8f55a] text-[#c8f55a] hover:bg-[#c8f55a] hover:text-[#0a0c0f] transition-colors font-mono">+ Tambah Channel</button>
-        </div>
-
-        {showAddForm && (
-          <div className="bg-[#111318] border border-[#2a2e38] rounded-lg p-5 mb-5">
-            <div className="text-[10px] text-[#6b7280] uppercase tracking-widest font-mono mb-4">Channel Baru</div>
-            <div className="flex flex-col gap-3">
-              <div>
-                <label className="text-[10px] text-[#6b7280] font-mono block mb-1">Nama Channel</label>
-                <input type="text" placeholder="contoh: Lofi Jazz Monet" value={newChannelName} onChange={e => setNewChannelName(e.target.value)} className="w-full bg-[#0a0c0f] border border-[#2a2e38] rounded px-3 py-2 text-sm font-mono focus:border-[#c8f55a] outline-none" />
-              </div>
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-[10px] text-[#6b7280] font-mono">Google Refresh Token <span className="text-[#f5655a]">*</span></label>
-                  <a href="/oauth-helper" target="_blank" className="text-[10px] text-[#c8f55a] font-mono hover:underline">Belum punya? Generate di sini →</a>
-                </div>
-                <div className="relative">
-                  <input type={showToken ? 'text' : 'password'} placeholder="1//0g..." value={newRefreshToken} onChange={e => setNewRefreshToken(e.target.value)} className="w-full bg-[#0a0c0f] border border-[#2a2e38] rounded px-3 py-2 text-sm font-mono focus:border-[#c8f55a] outline-none pr-20" />
-                  <button onClick={() => setShowToken(!showToken)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-[#6b7280] hover:text-[#e8e6e0] font-mono">{showToken ? 'sembunyikan' : 'tampilkan'}</button>
-                </div>
-              </div>
-            </div>
-            <div className="flex gap-3 mt-4">
-              <button onClick={addChannel} disabled={loading || !newChannelName.trim() || !newRefreshToken.trim()} className="flex-1 py-2 bg-[#c8f55a] text-[#0a0c0f] rounded text-xs font-bold font-mono disabled:opacity-40 hover:bg-[#b8e54a] transition-colors">Simpan Channel</button>
-              <button onClick={() => { setShowAddForm(false); setNewChannelName(''); setNewRefreshToken(''); }} className="px-4 py-2 border border-[#2a2e38] rounded text-xs font-mono text-[#6b7280] hover:text-[#e8e6e0]">Batal</button>
-            </div>
-          </div>
-        )}
-
         <div className="flex flex-col gap-4">
-          {channels.length === 0 && <div className="bg-[#111318] border border-[#2a2e38] rounded-lg p-8 text-center text-[#6b7280] text-sm font-mono">Belum ada channel.</div>}
           {channels.map(ch => {
             const config = getConfig(ch.channel_id);
             const schedForm = scheduleForm[ch.channel_id] || { datetime: getUTCDatetimeLocal(), duration: 4, repeat: 'none' };
@@ -506,30 +352,35 @@ export default function StreamsPage() {
 
                 {isShowingConfig && (
                   <div className="bg-[#0d0f12] border border-[#2a2e38] rounded-lg p-4 mb-3">
-                    <div className="text-[10px] text-[#6b7280] uppercase tracking-widest font-mono mb-3">Konfigurasi Stream</div>
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#2a2e38]">
                       <div>
                         <div className="text-xs font-mono text-[#e8e6e0]">Mode Auto</div>
-                        <div className="text-[10px] font-mono text-[#6b7280]">Backend pilih thumbnail/title/desc otomatis</div>
+                        <div className="text-[10px] font-mono text-[#6b7280]">Pilih otomatis dari Folder, atau pilih aset 1-per-1 (Manual)</div>
                       </div>
-                      <button onClick={() => updateConfig(ch.channel_id, { auto: !config.auto })} className={`px-3 py-1 rounded text-xs font-mono font-bold transition-colors ${config.auto ? 'bg-[#c8f55a] text-[#0a0c0f]' : 'border border-[#2a2e38] text-[#6b7280]'}`}>{config.auto ? 'AUTO ON' : 'AUTO OFF'}</button>
+                      <button onClick={() => updateConfig(ch.channel_id, { auto: !config.auto })} className={`px-3 py-1 rounded text-xs font-mono font-bold transition-colors ${config.auto ? 'bg-[#c8f55a] text-[#0a0c0f]' : 'border border-[#2a2e38] text-[#6b7280]'}`}>{config.auto ? 'AUTO ON' : 'MANUAL'}</button>
                     </div>
+                    
                     <div className="mb-4">
-                      <div className="text-[10px] text-[#6b7280] font-mono mb-1">Folder Lagu</div>
+                      <div className="text-[10px] text-[#6b7280] font-mono mb-1">Folder Filter (Diutamakan untuk lagu/musik)</div>
                       <div className="flex flex-wrap gap-1">
                         {folders.map(f => (
                           <button key={f.name} onClick={() => updateConfig(ch.channel_id, { folder: f.name })} className={`text-[10px] font-mono px-2 py-1 rounded transition-colors ${config.folder === f.name ? 'bg-[#c8f55a] text-[#0a0c0f] font-bold' : 'border border-[#2a2e38] text-[#6b7280] hover:border-[#c8f55a] hover:text-[#c8f55a]'}`}>{f.name} ({f.count})</button>
                         ))}
-                        {folders.length === 0 && <span className="text-[10px] text-[#3a3e48] font-mono">Tidak ada folder</span>}
                       </div>
                     </div>
+                    
                     {!config.auto && (
-                      <div className="grid grid-cols-1 gap-3">
-                        <ThumbDropdown label="Thumbnail" options={thumbnails} value={config.thumbnailPath} onChange={path => updateConfig(ch.channel_id, { thumbnailPath: path })} placeholder="— pilih thumbnail —" />
-                        <AssetDropdown label="Title" options={titles} value={config.titleId} onChange={id => updateConfig(ch.channel_id, { titleId: id })} onDelete={deleteAsset} placeholder="— pilih title —" />
-                        <AssetDropdown label="Description" options={descriptions} value={config.descriptionId} onChange={id => updateConfig(ch.channel_id, { descriptionId: id })} onDelete={deleteAsset} placeholder="— pilih description —" />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-[#111318] rounded-md border border-[#2a2e38]">
+                        <MediaDropdown label="🎥 Video Loop" options={videos} value={config.videoPath} onChange={path => updateConfig(ch.channel_id, { videoPath: path })} placeholder="— acak otomatis —" />
+                        <MediaDropdown label="🎵 Audio / Musik" options={songs} value={config.songPath} onChange={path => updateConfig(ch.channel_id, { songPath: path })} placeholder="— acak otomatis —" />
+                        <MediaDropdown label="🖼 Thumbnail" options={thumbnails} value={config.thumbnailPath} onChange={path => updateConfig(ch.channel_id, { thumbnailPath: path })} placeholder="— acak otomatis —" />
+                        <div className="flex flex-col gap-3">
+                          <AssetDropdown label="📝 Judul Live" options={titles} value={config.titleId} onChange={id => updateConfig(ch.channel_id, { titleId: id })} onDelete={deleteAsset} placeholder="— acak otomatis —" />
+                          <AssetDropdown label="📄 Deskripsi" options={descriptions} value={config.descriptionId} onChange={id => updateConfig(ch.channel_id, { descriptionId: id })} onDelete={deleteAsset} placeholder="— acak otomatis —" />
+                        </div>
                       </div>
                     )}
+                    
                     <div className="mt-4">
                       <div className="text-[10px] text-[#6b7280] font-mono mb-1">Durasi Stream</div>
                       <div className="flex flex-wrap gap-1">
@@ -543,14 +394,11 @@ export default function StreamsPage() {
 
                 <div className="flex gap-2">
                   {!isLive && (
-                    <button onClick={() => startStream(ch.channel_id)} disabled={loading || !hasToken} className="flex-1 py-2 rounded bg-[#c8f55a] text-[#0a0c0f] text-xs font-bold font-mono hover:bg-[#b8e54a] transition-colors disabled:opacity-40 disabled:cursor-not-allowed">▶ Start ({config.duration}j · {config.folder} · {config.auto ? 'auto' : 'manual'})</button>
+                    <button onClick={() => startStream(ch.channel_id)} disabled={loading || !hasToken} className="flex-1 py-2 rounded bg-[#c8f55a] text-[#0a0c0f] text-xs font-bold font-mono hover:bg-[#b8e54a] transition-colors disabled:opacity-40 disabled:cursor-not-allowed">▶ Start ({config.duration}j · {config.folder} · {config.auto ? 'Auto' : 'Manual'})</button>
                   )}
                   <button onClick={() => setShowConfigFor(isShowingConfig ? null : ch.channel_id)} className={`px-3 py-2 border rounded text-[10px] font-mono transition-colors ${isShowingConfig ? 'border-[#c8f55a] text-[#c8f55a]' : 'border-[#2a2e38] text-[#6b7280] hover:border-[#c8f55a] hover:text-[#c8f55a]'}`}>⚙ Config</button>
                   {!chSchedule && !isLive && (
                     <button onClick={() => initScheduleForm(ch.channel_id)} disabled={!hasToken} className="flex-1 py-2 rounded border border-[#f5c85a] text-[#f5c85a] text-xs font-mono hover:bg-[#1a1500] transition-colors disabled:opacity-40 disabled:cursor-not-allowed">⏰ Schedule</button>
-                  )}
-                  {hasToken && editingTokenFor !== ch.channel_id && (
-                    <button onClick={() => { setEditingTokenFor(ch.channel_id); setEditTokenValue(''); }} className="px-3 py-2 border border-[#2a2e38] rounded text-[10px] font-mono text-[#3a3e48] hover:text-[#6b7280] hover:border-[#3a3e48] transition-colors" title="Update refresh token">🔑</button>
                   )}
                 </div>
 
