@@ -2,14 +2,33 @@
 
 import { useEffect, useState, useCallback } from 'react';
 
+// --- INTERFACES ---
 interface Channel { id: number; channel_id: string; name: string; google_refresh_token?: string; stream_status?: string; activeStreams: { streamId: string; elapsedSeconds: number }[]; }
 interface Schedule { id: number; channel_id: string; channel_name: string; scheduled_at: string; duration_secs: number; title: string; status: string; repeat_type?: string; }
 interface Folder { name: string; count: number; }
 interface Asset { id: number; type: string; value: string; label: string; in_use?: boolean; }
 interface MediaFile { filename: string; path: string; category?: string; }
 interface SystemLog { id: number; channel_id: string; message: string; created_at: string; }
-
 interface StreamConfig { folders: string[]; videoPath: string | null; songPath: string | null; thumbnailPath: string | null; titleId: number | null; descriptionId: number | null; auto: boolean; duration: number; }
+
+// --- ICONS ---
+const Icon = {
+  TV: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="20" height="20"><rect x="2" y="7" width="20" height="15" rx="4" ry="4"/><polyline points="17 2 12 7 7 2"/></svg>,
+  Play: () => <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M5 3l14 9-14 9V3z"/></svg>,
+  Stop: () => <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>,
+  Settings: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
+  Clock: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+  Trash: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
+  ChevronDown: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><polyline points="6 9 12 15 18 9"/></svg>,
+  Plus: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+};
+
+const formatElapsed = (secs: number) => { const h = Math.floor(secs / 3600); const m = Math.floor((secs % 3600) / 60); const s = secs % 60; return `${h}h ${m}m ${s}s`; };
+const formatScheduleTime = (iso: string) => { const d = new Date(iso); const pad = (n: number) => String(n).padStart(2, '0'); return `${pad(d.getUTCDate())}/${pad(d.getUTCMonth()+1)} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`; };
+const getUTCDatetimeLocal = () => { const now = new Date(); now.setMinutes(now.getMinutes() + 5); const pad = (n: number) => String(n).padStart(2, '0'); return `${now.getUTCFullYear()}-${pad(now.getUTCMonth()+1)}-${pad(now.getUTCDate())}T${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}`; };
+const getCountdown = (iso: string) => { const diff = new Date(iso).getTime() - Date.now(); if (diff <= 0) return 'Sesaat lagi'; const h = Math.floor(diff / 3600000); const m = Math.floor((diff % 3600000) / 60000); return h > 0 ? `${h}j ${m}m` : `${m}m`; };
+
+const defaultConfig = (): StreamConfig => ({ folders: [], videoPath: null, songPath: null, thumbnailPath: null, titleId: null, descriptionId: null, auto: true, duration: 4 });
 
 function UTCClock() {
   const [time, setTime] = useState(''); const [date, setDate] = useState('');
@@ -18,47 +37,39 @@ function UTCClock() {
     update(); const t = setInterval(update, 1000); return () => clearInterval(t);
   }, []);
   return (
-    <div className="flex items-center gap-2 bg-[#0a0c0f] border border-[#2a2e38] rounded px-3 py-1.5">
-      <span className="text-[10px] text-[#6b7280] font-mono uppercase tracking-widest">UTC</span>
-      <span className="text-sm font-mono text-[#c8f55a] tabular-nums">{time}</span>
-      <span className="text-xs font-mono text-[#6b7280]">{date}</span>
+    <div className="glass-card-strong rounded-full pl-2 pr-4 py-1.5 flex items-center gap-2">
+      <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+      <span className="text-xs font-semibold tracking-wider text-white">{time}</span>
+      <span className="text-[10px] text-white/50 hidden sm:inline-block">{date}</span>
     </div>
   );
 }
-
-function formatElapsed(secs: number) { const h = Math.floor(secs / 3600); const m = Math.floor((secs % 3600) / 60); const s = secs % 60; return `${h}j ${m}m ${s}d`; }
-function formatScheduleTime(iso: string) { const d = new Date(iso); const pad = (n: number) => String(n).padStart(2, '0'); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`; }
-function getUTCDatetimeLocal() { const now = new Date(); now.setMinutes(now.getMinutes() + 5); const pad = (n: number) => String(n).padStart(2, '0'); return `${now.getUTCFullYear()}-${pad(now.getUTCMonth()+1)}-${pad(now.getUTCDate())}T${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}`; }
-function getCountdown(iso: string) { const diff = new Date(iso).getTime() - Date.now(); if (diff <= 0) return 'sebentar lagi...'; const h = Math.floor(diff / 3600000); const m = Math.floor((diff % 3600000) / 60000); if (h > 0) return `${h}j ${m}m lagi`; return `${m}m lagi`; }
-
-const repeatLabel: Record<string, string> = { daily: 'Harian', weekly: 'Mingguan', monthly: 'Bulanan' };
-const defaultConfig = (): StreamConfig => ({ folders: [], videoPath: null, songPath: null, thumbnailPath: null, titleId: null, descriptionId: null, auto: true, duration: 4 });
 
 function MediaDropdown({ label, options, value, onChange, placeholder, disabled }: { label: string; options: MediaFile[]; value: string | null; onChange: (path: string | null) => void; placeholder?: string; disabled?: boolean; }) {
   const [open, setOpen] = useState(false);
   const selected = options.find(o => o.path === value);
   return (
-    <div className="relative">
-      <div className="text-[10px] text-[#6b7280] font-mono mb-1">{label}</div>
+    <div className="relative flex flex-col gap-1.5">
+      <div className="text-[10px] font-semibold text-white/40 uppercase tracking-widest pl-1">{label}</div>
       <button type="button" onClick={() => !disabled && setOpen(!open)} disabled={disabled}
-        className={`w-full flex items-center justify-between px-3 py-2 rounded border text-xs font-mono transition-colors text-left
-          ${disabled ? 'border-[#1a1d24] text-[#3a3e48] cursor-not-allowed bg-transparent' : open ? 'border-[#c8f55a] text-[#c8f55a] bg-[#0a1500]' : selected ? 'border-[#2a4a1a] text-[#e8e6e0] bg-[#0d0f12]' : 'border-[#2a2e38] text-[#6b7280] bg-transparent hover:border-[#3a3e48]'}`}>
-        <span className="truncate">{selected ? selected.filename : (placeholder || '— pilih manual —')}</span>
-        <span className="ml-2 flex-shrink-0 text-[#6b7280]">{open ? '▲' : '▼'}</span>
+        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all duration-300 text-xs text-left backdrop-blur-md outline-none
+          ${disabled ? "glass-input opacity-40 cursor-not-allowed" : open ? "glass-card-strong text-white shadow-xl ring-1 ring-white/20" : selected ? "glass-card-strong text-white" : "glass-input text-white/70 hover:bg-white/[0.08]"}`}>
+        <span className="truncate pr-4">{selected ? selected.filename : (placeholder || '—')}</span>
+        <span className={`transition-transform duration-300 text-white/40 flex-shrink-0 ${open ? 'rotate-180' : ''}`}><Icon.ChevronDown /></span>
       </button>
       {open && (
-        <div className="absolute z-50 w-full mt-1 bg-[#111318] border border-[#2a2e38] rounded shadow-lg max-h-48 overflow-y-auto">
-          <button onClick={() => { onChange(null); setOpen(false); }} className="w-full text-left px-3 py-2 text-xs font-mono text-[#6b7280] hover:bg-[#1a1d24] border-b border-[#1a1d24]">— acak otomatis —</button>
-          {options.length === 0 && <div className="px-3 py-2 text-xs font-mono text-[#3a3e48]">Tidak ada file</div>}
+        <div className="absolute top-[calc(100%+6px)] left-0 w-full min-w-[220px] z-[99999] bg-[#111318] border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.8)] rounded-xl p-1.5 max-h-64 overflow-y-auto flex flex-col gap-0.5 origin-top animate-in fade-in zoom-in-95">
+          <button onClick={() => { onChange(null); setOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg text-[11px] font-medium text-white/50 hover:bg-white/10 hover:text-white transition-colors">— Acak Otomatis —</button>
+          {options.length === 0 && <div className="px-3 py-2 text-[11px] text-white/30">Kosong</div>}
           {options.map(opt => (
-            <button key={opt.path} className={`w-full flex items-center justify-between px-3 py-2 hover:bg-[#1a1d24] text-left text-xs font-mono truncate ${opt.path === value ? 'bg-[#0a1500] text-[#c8f55a]' : 'text-[#e8e6e0]'}`} onClick={() => { onChange(opt.path); setOpen(false); }}>
-              <span className="truncate">{opt.filename}</span>
-              {opt.category && opt.category !== 'Uncategorized' && <span className="ml-2 text-[9px] text-[#6b7280] bg-[#1a1d24] px-1.5 py-0.5 rounded">{opt.category}</span>}
+            <button key={opt.path} onClick={() => { onChange(opt.path); setOpen(false); }} className={`group w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors text-left text-[11px] font-medium ${opt.path === value ? 'bg-white text-black' : 'text-white/80 hover:bg-white/10'}`}>
+              <span className="truncate pr-3">{opt.filename}</span>
+              {opt.category && opt.category !== 'Uncategorized' && <span className={`flex-shrink-0 ml-2 text-[9px] px-1.5 py-0.5 rounded-md ${opt.path === value ? 'bg-black/10 text-black/60' : 'bg-white/10 text-white/50'}`}>{opt.category}</span>}
             </button>
           ))}
         </div>
       )}
-      {open && <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />}
+      {open && <div className="fixed inset-0 z-[99998]" onClick={() => setOpen(false)} />}
     </div>
   );
 }
@@ -67,29 +78,31 @@ function AssetDropdown({ label, options, value, onChange, onDelete, placeholder,
   const [open, setOpen] = useState(false);
   const selected = options.find(o => o.id === value);
   return (
-    <div className="relative">
-      <div className="text-[10px] text-[#6b7280] font-mono mb-1">{label}</div>
+    <div className="relative flex flex-col gap-1.5">
+      <div className="text-[10px] font-semibold text-white/40 uppercase tracking-widest pl-1">{label}</div>
       <button type="button" onClick={() => !disabled && setOpen(!open)} disabled={disabled}
-        className={`w-full flex items-center justify-between px-3 py-2 rounded border text-xs font-mono transition-colors text-left
-          ${disabled ? 'border-[#1a1d24] text-[#3a3e48] cursor-not-allowed bg-transparent' : open ? 'border-[#c8f55a] text-[#c8f55a] bg-[#0a1500]' : selected ? 'border-[#2a4a1a] text-[#e8e6e0] bg-[#0d0f12]' : 'border-[#2a2e38] text-[#6b7280] bg-transparent hover:border-[#3a3e48]'}`}>
-        <span className="truncate">{selected ? selected.label : (placeholder || '— pilih manual —')}</span>
-        <span className="ml-2 flex-shrink-0 text-[#6b7280]">{open ? '▲' : '▼'}</span>
+        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all duration-300 text-xs text-left backdrop-blur-md outline-none
+          ${disabled ? "glass-input opacity-40 cursor-not-allowed" : open ? "glass-card-strong text-white shadow-xl ring-1 ring-white/20" : selected ? "glass-card-strong text-white" : "glass-input text-white/70 hover:bg-white/[0.08]"}`}>
+        <span className="truncate pr-4">{selected ? selected.label : (placeholder || '—')}</span>
+        <span className={`transition-transform duration-300 text-white/40 flex-shrink-0 ${open ? 'rotate-180' : ''}`}><Icon.ChevronDown /></span>
       </button>
       {open && (
-        <div className="absolute z-50 w-full mt-1 bg-[#111318] border border-[#2a2e38] rounded shadow-lg max-h-48 overflow-y-auto">
-          <button onClick={() => { onChange(null); setOpen(false); }} className="w-full text-left px-3 py-2 text-xs font-mono text-[#6b7280] hover:bg-[#1a1d24] border-b border-[#1a1d24]">— tidak dipilih —</button>
-          {options.length === 0 && <div className="px-3 py-2 text-xs font-mono text-[#3a3e48]">Belum ada data</div>}
+        <div className="absolute top-[calc(100%+6px)] left-0 w-full min-w-[240px] z-[99999] bg-[#111318] border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.8)] rounded-xl p-1.5 max-h-64 overflow-y-auto flex flex-col gap-0.5 origin-top animate-in fade-in zoom-in-95">
+          <button onClick={() => { onChange(null); setOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg text-[11px] font-medium text-white/50 hover:bg-white/10 hover:text-white transition-colors">— Acak Otomatis —</button>
+          {options.length === 0 && <div className="px-3 py-2 text-[11px] text-white/30">Kosong</div>}
           {options.map(opt => (
-            <div key={opt.id} className={`flex items-center justify-between px-3 py-2 hover:bg-[#1a1d24] ${opt.id === value ? 'bg-[#0a1500]' : ''}`}>
-              <button className={`flex-1 text-left text-xs font-mono truncate ${opt.id === value ? 'text-[#c8f55a]' : 'text-[#e8e6e0]'}`} onClick={() => { onChange(opt.id); setOpen(false); }}>
-                {opt.in_use && <span className="text-[#5af5c8] mr-1">●</span>} {opt.label || opt.value}
+            <div key={opt.id} className={`group flex items-center justify-between px-2 py-1.5 rounded-lg transition-colors ${opt.id === value ? 'bg-white text-black' : 'hover:bg-white/10 text-white/80'}`}>
+              <button className="flex-1 text-left text-[11px] font-medium truncate pr-3" onClick={() => { onChange(opt.id); setOpen(false); }}>
+                {opt.in_use && <span className="text-emerald-500 mr-1.5">●</span>} {opt.label || opt.value}
               </button>
-              <button onClick={(e) => { e.stopPropagation(); onDelete(opt.id); }} className="ml-2 text-[#3a3e48] hover:text-[#f5655a] text-[10px] flex-shrink-0">✕</button>
+              <button onClick={(e) => { e.stopPropagation(); onDelete(opt.id); }} className={`w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-md transition-all ${opt.id === value ? 'text-black/40 hover:bg-black/10 hover:text-red-600' : 'text-white/30 opacity-0 group-hover:opacity-100 hover:bg-white/10 hover:text-red-400'}`}>
+                <Icon.Trash />
+              </button>
             </div>
           ))}
         </div>
       )}
-      {open && <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />}
+      {open && <div className="fixed inset-0 z-[99998]" onClick={() => setOpen(false)} />}
     </div>
   );
 }
@@ -107,7 +120,6 @@ export default function StreamsPage() {
   const [newChannelName, setNewChannelName] = useState('');
   const [newRefreshToken, setNewRefreshToken] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
-  const [showToken, setShowToken] = useState(false);
   const [loading, setLoading] = useState(false);
   
   const [scheduleForm, setScheduleForm] = useState<{ [key: string]: { datetime: string; duration: number; repeat: string } }>({});
@@ -196,296 +208,290 @@ export default function StreamsPage() {
     setLoading(true);
     try {
       const payloadFolder = config.folders.length > 0 ? config.folders.join(',') : 'Semua';
-      const body: Record<string, unknown> = { channelId, scheduledAt, durationSecs: (form.duration || 4) * 3600, folder: payloadFolder, auto: config.auto, title: 'Lofi Jazz Radio - Live Stream', repeatType: form.repeat || 'none', videoPath: config.videoPath, songPath: config.songPath };
+      const body: Record<string, unknown> = { channelId, scheduledAt, durationSecs: (form.duration || 4) * 3600, folder: payloadFolder, auto: config.auto, title: 'Lofi Jazz Radio', repeatType: form.repeat || 'none', videoPath: config.videoPath, songPath: config.songPath };
       if (!config.auto && config.titleId) { const t = titles.find(x => x.id === config.titleId); if (t) body.title = t.value; }
       const res = await fetch('/api/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!res.ok) { const err = await res.json(); alert('Gagal schedule: ' + err.error); } else { setShowScheduleFor(null); await fetchSchedulesAndLogs(); }
     } finally { setLoading(false); }
   };
-  const cancelSchedule = async (scheduleId: number) => { if (!confirm('Yakin membatalkan schedule ini?')) return; await fetch(`/api/schedules/${scheduleId}`, { method: 'DELETE' }); await fetchSchedulesAndLogs(); };
+  const cancelSchedule = async (scheduleId: number) => { if (!confirm('Batalkan jadwal ini?')) return; await fetch(`/api/schedules/${scheduleId}`, { method: 'DELETE' }); await fetchSchedulesAndLogs(); };
   const addAsset = async () => { if (!newAsset.value.trim()) return; const res = await fetch('/api/assets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: newAsset.type, value: newAsset.value.trim(), label: newAsset.label.trim() || newAsset.value.trim() }) }); if (res.ok) { setNewAsset({ type: 'title', value: '', label: '' }); setShowAddAsset(false); await fetchAssets(); } };
   const deleteAsset = async (id: number) => { await fetch(`/api/assets/${id}`, { method: 'DELETE' }); await fetchAssets(); };
-  const initScheduleForm = (channelId: string) => { if (!scheduleForm[channelId]) { setScheduleForm(prev => ({ ...prev, [channelId]: { datetime: getUTCDatetimeLocal(), duration: 4, repeat: 'none' } })); } setShowScheduleFor(channelId); };
-  const clearLogs = async () => { if(!confirm('Hapus semua log error?')) return; await fetch('/api/streams/logs', { method: 'DELETE' }); await fetchSchedulesAndLogs(); };
+  
+  // FIX: Sched button kini berfungsi sebagai Toggle (Buka/Tutup)
+  const initScheduleForm = (channelId: string) => { 
+    if (!scheduleForm[channelId]) { setScheduleForm(prev => ({ ...prev, [channelId]: { datetime: getUTCDatetimeLocal(), duration: 4, repeat: 'none' } })); } 
+    setShowScheduleFor(channelId); 
+  };
+  
+  const clearLogs = async () => { if(!confirm('Hapus log?')) return; await fetch('/api/streams/logs', { method: 'DELETE' }); await fetchSchedulesAndLogs(); };
 
   const pendingSchedules = schedules.filter(s => s.status === 'pending');
-  const recentSchedules = schedules.filter(s => s.status !== 'pending');
 
   return (
-    <>
-      <div className="p-6 max-w-5xl mx-auto">
-        
-        {/* PANEL JADWAL & ERROR LOG */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
-          {/* Kolom Kiri: Jadwal */}
-          <div className="flex flex-col gap-4">
-            <div className="bg-[#111318] border border-[#f5c85a33] rounded-lg flex flex-col min-h-[160px] max-h-[300px]">
-              <div className="p-3 bg-[#1a1500] rounded-t-lg border-b border-[#3a2a00] flex justify-between items-center">
-                <span className="text-[10px] text-[#f5c85a] uppercase font-mono tracking-widest">⏰ Antrean Jadwal Mendatang ({pendingSchedules.length})</span>
-              </div>
-              <div className="p-3 overflow-y-auto flex-1 flex flex-col gap-2">
-                {pendingSchedules.map(s => (
-                  <div key={s.id} className="flex flex-col sm:flex-row sm:items-center justify-between bg-[#0d0f12] rounded border border-[#2a2e38] p-2 gap-2">
-                    <div>
-                      <div className="text-xs font-mono text-[#e8e6e0] flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-[#f5c85a] animate-pulse" />{s.channel_name}</div>
-                      <div className="text-[10px] font-mono text-[#6b7280] ml-3">{formatScheduleTime(s.scheduled_at)} · {Math.round(s.duration_secs / 3600)}j {s.repeat_type && s.repeat_type !== 'none' && ` · 🔁 ${repeatLabel[s.repeat_type]}`}</div>
-                    </div>
-                    <div className="flex items-center gap-3 ml-3 sm:ml-0">
-                      <span className="text-[10px] font-mono text-[#f5c85a]">{countdown[s.id] || getCountdown(s.scheduled_at)}</span>
-                      <button onClick={() => cancelSchedule(s.id)} className="text-[10px] text-[#f5655a] border border-[#f5655a33] px-2 py-1 rounded hover:bg-[#1a0a0a] font-mono transition-colors">✕ Cancel</button>
-                    </div>
-                  </div>
-                ))}
-                {pendingSchedules.length === 0 && <div className="text-xs text-[#6b7280] font-mono text-center my-auto">Tidak ada antrean jadwal.</div>}
-              </div>
-            </div>
+    <div className="min-h-screen text-white apple-ui relative z-0 pb-16 overflow-x-hidden">
+      <style dangerouslySetInnerHTML={{__html: `
+        .apple-ui { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-weight: 400; letter-spacing: -0.01em; }
+        .glass-card { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px); border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 0 10px 40px -10px rgba(0,0,0,0.3); }
+        .glass-card-strong { background: rgba(255, 255, 255, 0.08); backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px); border: 1px solid rgba(255, 255, 255, 0.15); box-shadow: 0 20px 40px -10px rgba(0,0,0,0.5); }
+        .glass-input { background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.06); }
+        ::-webkit-scrollbar { width: 6px; height: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 10px; }
+      `}} />
 
-            {recentSchedules.length > 0 && (
-              <div className="bg-[#111318] border border-[#2a2e38] rounded-lg p-4">
-                <div className="text-[10px] text-[#6b7280] uppercase tracking-widest font-mono mb-2">Riwayat (24 jam terakhir)</div>
-                <div className="flex flex-col gap-1 max-h-[120px] overflow-y-auto">
-                  {recentSchedules.map(s => (
-                    <div key={s.id} className="flex items-center justify-between px-2 py-1.5 rounded hover:bg-[#0d0f12]">
-                      <div className="flex items-center gap-3">
-                        <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded ${s.status === 'done' ? 'bg-[#0a1a0a] text-[#5af5c8] border border-[#1a3a1a]' : s.status === 'failed' ? 'bg-[#1a0a0a] text-[#f5655a] border border-[#3a1a1a]' : 'bg-[#1a1500] text-[#f5c85a] border border-[#3a2a00]'}`}>{s.status}</span>
-                        <span className="text-[11px] font-mono text-[#6b7280]">{s.channel_name}</span>
-                      </div>
-                      <span className="text-[9px] font-mono text-[#3a3e48]">{formatScheduleTime(s.scheduled_at)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+      <div className="fixed inset-0 z-[-1] bg-[#050507]">
+        <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] bg-indigo-600/20 rounded-full blur-[140px] mix-blend-screen pointer-events-none" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] bg-orange-600/10 rounded-full blur-[140px] mix-blend-screen pointer-events-none" />
+        <div className="absolute top-[30%] right-[20%] w-[40vw] h-[40vw] bg-teal-600/10 rounded-full blur-[140px] mix-blend-screen pointer-events-none" />
+      </div>
+
+      <div className="max-w-5xl mx-auto px-4 lg:px-6">
+        <div className="pt-8 pb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-white mb-0.5">Streams</h1>
+            <p className="text-white/50 text-[11px] font-medium uppercase tracking-widest">Broadcast Engine</p>
           </div>
-
-          {/* Kolom Kanan: Error Log */}
-          <div className="bg-[#111318] border border-[#f5655a33] rounded-lg flex flex-col min-h-[200px] max-h-[450px]">
-             <div className="p-3 bg-[#1a0a0a] rounded-t-lg border-b border-[#3a1a1a] flex justify-between items-center">
-                 <span className="text-[10px] text-[#f5655a] uppercase font-mono tracking-widest flex items-center gap-2">⚠️ Error Logs System <span className="bg-[#f5655a] text-[#0a0a0a] px-1.5 rounded font-bold">{systemLogs.length}</span></span>
-                 <button onClick={clearLogs} className="text-[10px] text-[#6b7280] hover:text-[#f5655a] font-mono transition-colors">Bersihkan</button>
-             </div>
-             <div className="p-3 overflow-y-auto flex-1 flex flex-col gap-2">
-                {systemLogs.map(l => (
-                   <div key={l.id} className="text-[10px] font-mono border border-[#3a1a1a] bg-[#0d0f12] rounded p-2 relative">
-                      <div className="text-[#f5655a] font-bold mb-1">{l.channel_id || 'System'}</div>
-                      <div className="text-[#e8e6e0] leading-relaxed break-words pr-20">{l.message}</div>
-                      <div className="text-[#6b7280] absolute top-2 right-2">{new Date(l.created_at).toLocaleTimeString('id-ID', {hour: '2-digit', minute: '2-digit', second: '2-digit'})} UTC</div>
-                   </div>
-                ))}
-                {systemLogs.length === 0 && <div className="text-xs text-[#6b7280] font-mono text-center my-auto py-10">Bersih! Tidak ada pesan error sistem.</div>}
-             </div>
+          <div className="flex items-center gap-3">
+            <UTCClock />
+            <button onClick={() => setShowAddForm(!showAddForm)} className="bg-white text-black px-4 py-2 rounded-full text-xs font-semibold shadow-lg hover:scale-95 transition-transform duration-300 flex items-center gap-1.5">
+              <Icon.Plus /> Channel
+            </button>
           </div>
         </div>
 
-        <div className="bg-[#111318] border border-[#2a2e38] rounded-lg p-4 mb-5">
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-[10px] text-[#6b7280] uppercase tracking-widest font-mono">Asset Manager <span className="ml-2 text-[#3a3e48]">({titles.length} title · {descriptions.length} desc)</span></div>
-            <button onClick={() => setShowAddAsset(!showAddAsset)} className="text-[10px] font-mono text-[#c8f55a] border border-[#c8f55a33] px-2 py-1 rounded hover:bg-[#0a1a00]">+ Tambah</button>
+        {showAddForm && (
+          <div className="glass-card-strong rounded-2xl p-5 mb-6 animate-in fade-in slide-in-from-top-4 duration-500 relative z-[90]">
+            <h3 className="text-sm font-semibold mb-3 text-white">Tambah Channel</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <input type="text" placeholder="Nama Channel" value={newChannelName} onChange={e => setNewChannelName(e.target.value)} className="glass-input rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all" />
+              <input type="password" placeholder="Google Refresh Token" value={newRefreshToken} onChange={e => setNewRefreshToken(e.target.value)} className="glass-input rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all" />
+            </div>
+            <div className="flex gap-2 mt-4 justify-end">
+              <button onClick={() => setShowAddForm(false)} className="px-4 py-2 rounded-full text-[11px] font-medium text-white/60 hover:text-white transition-colors">Batal</button>
+              <button onClick={addChannel} disabled={loading || !newChannelName.trim() || !newRefreshToken.trim()} className="bg-white text-black px-5 py-2 rounded-full text-[11px] font-semibold disabled:opacity-50 hover:scale-95 transition-transform duration-300">Simpan</button>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 relative z-[90]">
+          <div className="glass-card rounded-[20px] p-4 flex flex-col max-h-[160px]">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-1.5 text-white/60 font-medium text-xs"><Icon.Clock /> Jadwal Mendatang</div>
+              <div className="bg-white/10 px-2 py-0.5 rounded-full text-[9px] font-bold text-white/80">{pendingSchedules.length}</div>
+            </div>
+            <div className="flex-1 overflow-y-auto pr-1 space-y-2">
+              {pendingSchedules.map(s => (
+                <div key={s.id} className="bg-white/[0.04] hover:bg-white/[0.08] transition-colors rounded-xl p-2.5 flex items-center justify-between gap-2">
+                  <div className="truncate">
+                    <div className="text-xs font-semibold text-white truncate"><span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 mr-1.5" />{s.channel_name}</div>
+                    <div className="text-[10px] text-white/50 mt-0.5 truncate">{formatScheduleTime(s.scheduled_at)}</div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="text-[10px] font-semibold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-md">{countdown[s.id] || getCountdown(s.scheduled_at)}</span>
+                    <button onClick={() => cancelSchedule(s.id)} className="w-6 h-6 rounded-md bg-red-500/10 text-red-400 flex items-center justify-center hover:bg-red-500/20"><Icon.Trash /></button>
+                  </div>
+                </div>
+              ))}
+              {pendingSchedules.length === 0 && <div className="h-full flex items-center justify-center text-white/30 text-xs">Kosong</div>}
+            </div>
           </div>
 
+          <div className="glass-card rounded-[20px] p-4 flex flex-col max-h-[160px]">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-1.5 text-white/60 font-medium text-xs"><span className="text-red-400"><Icon.Settings /></span> Terminal Log</div>
+              <button onClick={clearLogs} className="text-[10px] font-medium text-white/40 hover:text-white transition-colors">Clear</button>
+            </div>
+            <div className="flex-1 bg-black/30 rounded-xl p-3 overflow-y-auto border border-white/5 space-y-1.5">
+              {systemLogs.map(l => (
+                <div key={l.id} className="text-[10px] font-mono leading-tight flex gap-2">
+                  <span className="text-white/30 flex-shrink-0">{new Date(l.created_at).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}</span>
+                  <span className={`truncate ${l.message.includes('CRASH') || l.message.includes('Error') ? 'text-red-400' : l.message.includes('RESUME') ? 'text-amber-400' : 'text-white/60'}`}>{l.message}</span>
+                </div>
+              ))}
+              {systemLogs.length === 0 && <div className="h-full flex items-center justify-center text-white/20 text-[10px] font-mono">System Healthy</div>}
+            </div>
+          </div>
+        </div>
+
+        <div className="glass-card rounded-[20px] p-4 mb-6 relative z-[100]">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[11px] font-semibold text-white/50 uppercase tracking-widest">Global Assets</span>
+            <button onClick={() => setShowAddAsset(!showAddAsset)} className="text-[10px] font-medium bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-full transition-colors">Tambah Text</button>
+          </div>
+          
           {showAddAsset && (
-            <div className="bg-[#0d0f12] border border-[#2a2e38] rounded p-3 flex flex-col gap-2">
-              <div className="flex gap-2">
+            <div className="glass-card-strong rounded-xl p-4 mb-3 flex flex-col sm:flex-row gap-3 animate-in slide-in-from-top-2">
+              <div className="flex gap-1 bg-black/20 p-1 rounded-lg">
                 {['title','description'].map(t => (
-                  <button key={t} onClick={() => setNewAsset(p => ({...p, type: t}))} className={`text-[10px] font-mono px-2 py-1 rounded transition-colors ${newAsset.type === t ? 'bg-[#c8f55a] text-[#0a0c0f]' : 'border border-[#2a2e38] text-[#6b7280] hover:text-[#e8e6e0]'}`}>{t}</button>
+                  <button key={t} onClick={() => setNewAsset(p => ({...p, type: t}))} className={`px-3 py-1.5 rounded-md text-[11px] font-medium transition-all ${newAsset.type === t ? 'bg-white text-black' : 'text-white/50 hover:text-white'}`}>{t === 'title' ? 'Judul' : 'Desc'}</button>
                 ))}
               </div>
-              <input type="text" placeholder={newAsset.type === 'title' ? 'Lofi Jazz Radio ☕' : 'Deskripsi stream...'} value={newAsset.value} onChange={e => setNewAsset(p => ({...p, value: e.target.value}))} className="w-full bg-[#0a0c0f] border border-[#2a2e38] rounded px-3 py-2 text-xs font-mono focus:border-[#c8f55a] outline-none" />
-              <input type="text" placeholder="Label (opsional)" value={newAsset.label} onChange={e => setNewAsset(p => ({...p, label: e.target.value}))} className="w-full bg-[#0a0c0f] border border-[#2a2e38] rounded px-3 py-2 text-xs font-mono focus:border-[#c8f55a] outline-none" />
-              <div className="flex gap-2">
-                <button onClick={addAsset} className="flex-1 py-1.5 bg-[#c8f55a] text-[#0a0c0f] rounded text-xs font-bold font-mono">Simpan</button>
-                <button onClick={() => setShowAddAsset(false)} className="px-3 border border-[#2a2e38] rounded text-xs font-mono text-[#6b7280]">Batal</button>
-              </div>
+              <input type="text" placeholder="Value..." value={newAsset.value} onChange={e => setNewAsset(p => ({...p, value: e.target.value}))} className="flex-1 glass-input rounded-lg px-3 py-1.5 text-[11px] outline-none focus:ring-1 focus:ring-white/20" />
+              <input type="text" placeholder="Label" value={newAsset.label} onChange={e => setNewAsset(p => ({...p, label: e.target.value}))} className="w-24 glass-input rounded-lg px-3 py-1.5 text-[11px] outline-none focus:ring-1 focus:ring-white/20" />
+              <button onClick={addAsset} className="bg-white text-black px-4 py-1.5 rounded-lg text-[11px] font-semibold hover:scale-95 transition-transform">Save</button>
             </div>
           )}
 
           {!showAddAsset && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="relative"><div className="text-[10px] text-[#6b7280] font-mono mb-1">Thumbnails</div><div className="text-xs font-mono text-[#6b7280] px-3 py-2 border border-[#2a2e38] rounded bg-[#0a0c0f] truncate">{thumbnails.length} files tersedia</div></div>
-              <div className="relative"><div className="text-[10px] text-[#6b7280] font-mono mb-1">Video / Musik</div><div className="text-xs font-mono text-[#6b7280] px-3 py-2 border border-[#2a2e38] rounded bg-[#0a0c0f] truncate">{videos.length} Vid / {songs.length} Lag</div></div>
-              <AssetDropdown label={`Titles (${titles.length})`} options={titles} value={null} onChange={() => {}} onDelete={deleteAsset} placeholder="— kelola —" />
-              <AssetDropdown label={`Descriptions (${descriptions.length})`} options={descriptions} value={null} onChange={() => {}} onDelete={deleteAsset} placeholder="— kelola —" />
+              <div className="glass-input rounded-xl p-3 flex flex-col justify-center"><div className="text-[9px] text-white/40 uppercase mb-0.5 font-semibold">Video Loop</div><div className="text-sm font-medium text-white">{videos.length}</div></div>
+              <div className="glass-input rounded-xl p-3 flex flex-col justify-center"><div className="text-[9px] text-white/40 uppercase mb-0.5 font-semibold">Audio/Musik</div><div className="text-sm font-medium text-white">{songs.length}</div></div>
+              <AssetDropdown label="Judul" options={titles} value={null} onChange={()=>{}} onDelete={deleteAsset} placeholder="Kelola..." />
+              <AssetDropdown label="Deskripsi" options={descriptions} value={null} onChange={()=>{}} onDelete={deleteAsset} placeholder="Kelola..." />
             </div>
           )}
         </div>
 
-        <div className="flex items-center justify-between mb-5">
-          <div className="text-[10px] text-[#6b7280] uppercase tracking-widest font-mono">{channels.length} channel · {channels.filter(c => c.stream_status === 'live').length} live sekarang</div>
-          <button onClick={() => setShowAddForm(!showAddForm)} className="text-xs px-4 py-2 rounded border border-[#c8f55a] text-[#c8f55a] hover:bg-[#c8f55a] hover:text-[#0a0c0f] transition-colors font-mono">+ Tambah Channel</button>
-        </div>
-
-        {showAddForm && (
-          <div className="bg-[#111318] border border-[#2a2e38] rounded-lg p-5 mb-5">
-            <div className="text-[10px] text-[#6b7280] uppercase tracking-widest font-mono mb-4">Channel Baru</div>
-            <div className="flex flex-col gap-3">
-              <div>
-                <label className="text-[10px] text-[#6b7280] font-mono block mb-1">Nama Channel</label>
-                <input type="text" placeholder="contoh: Lofi Jazz Monet" value={newChannelName} onChange={e => setNewChannelName(e.target.value)} className="w-full bg-[#0a0c0f] border border-[#2a2e38] rounded px-3 py-2 text-sm font-mono focus:border-[#c8f55a] outline-none" />
-              </div>
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-[10px] text-[#6b7280] font-mono">Google Refresh Token <span className="text-[#f5655a]">*</span></label>
-                  <a href="/oauth-helper" target="_blank" className="text-[10px] text-[#c8f55a] font-mono hover:underline">Belum punya? Generate di sini →</a>
-                </div>
-                <div className="relative">
-                  <input type={showToken ? 'text' : 'password'} placeholder="1//0g..." value={newRefreshToken} onChange={e => setNewRefreshToken(e.target.value)} className="w-full bg-[#0a0c0f] border border-[#2a2e38] rounded px-3 py-2 text-sm font-mono focus:border-[#c8f55a] outline-none pr-20" />
-                  <button onClick={() => setShowToken(!showToken)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-[#6b7280] hover:text-[#e8e6e0] font-mono">{showToken ? 'sembunyikan' : 'tampilkan'}</button>
-                </div>
-              </div>
-            </div>
-            <div className="flex gap-3 mt-4">
-              <button onClick={addChannel} disabled={loading || !newChannelName.trim() || !newRefreshToken.trim()} className="flex-1 py-2 bg-[#c8f55a] text-[#0a0c0f] rounded text-xs font-bold font-mono disabled:opacity-40 hover:bg-[#b8e54a] transition-colors">Simpan Channel</button>
-              <button onClick={() => { setShowAddForm(false); setNewChannelName(''); setNewRefreshToken(''); }} className="px-4 py-2 border border-[#2a2e38] rounded text-xs font-mono text-[#6b7280]">Batal</button>
-            </div>
-          </div>
-        )}
-
-        <div className="flex flex-col gap-4">
-          {channels.length === 0 && <div className="bg-[#111318] border border-[#2a2e38] rounded-lg p-8 text-center text-[#6b7280] text-sm font-mono">Belum ada channel.</div>}
+        <div className="space-y-4 relative z-[10]">
           {channels.map(ch => {
             const config = getConfig(ch.channel_id);
             const schedForm = scheduleForm[ch.channel_id] || { datetime: getUTCDatetimeLocal(), duration: 4, repeat: 'none' };
-            const isShowingSchedule = showScheduleFor === ch.channel_id;
             const isShowingConfig = showConfigFor === ch.channel_id;
+            const isShowingSchedule = showScheduleFor === ch.channel_id;
             const hasToken = !!ch.google_refresh_token;
             const isLive = ch.stream_status === 'live';
-            const folderDisplay = config.folders.length > 0 ? (config.folders.length > 2 ? `${config.folders.length} folder` : config.folders.join(',')) : 'Semua';
 
             return (
-              <div key={ch.channel_id} className={`bg-[#111318] border rounded-lg p-5 transition-colors ${isLive ? 'border-[#c8f55a]' : 'border-[#2a2e38]'}`}>
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <div className="font-semibold">{ch.name}</div>
-                    <div className="text-xs text-[#6b7280] font-mono mt-0.5">{ch.channel_id}</div>
-                  </div>
+              <div key={ch.channel_id} className={`glass-card rounded-[24px] p-5 relative transition-all duration-700 ${isLive ? 'border-emerald-500/30 shadow-[0_0_20px_rgba(52,211,153,0.08)]' : ''}`}>
+                {isLive && <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 blur-[80px] rounded-full pointer-events-none" />}
+                
+                <div className="flex flex-wrap items-center justify-between gap-4 mb-4 relative z-[30]">
                   <div className="flex items-center gap-3">
-                    <div className={`text-[10px] font-mono px-2 py-0.5 rounded ${hasToken ? 'bg-[#0a1a0a] text-[#5af5c8] border border-[#1a3a1a]' : 'bg-[#1a0a0a] text-[#f5655a] border border-[#3a1a1a]'}`}>{hasToken ? '✓ token' : '✗ no token'}</div>
-                    {isLive && <div className="flex items-center gap-1.5 text-[#f5655a] text-xs font-mono"><span className="w-2 h-2 rounded-full bg-[#f5655a] animate-pulse" />LIVE</div>}
-                    <button onClick={() => deleteChannel(ch.channel_id)} className="text-[#6b7280] hover:text-[#f5655a] text-xs font-mono">Hapus</button>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-inner transition-colors duration-500 flex-shrink-0 ${isLive ? 'bg-emerald-500 text-black' : 'glass-card-strong text-white/50'}`}>
+                      <Icon.TV />
+                    </div>
+                    <div>
+                      <h2 className="text-sm font-bold text-white tracking-tight">{ch.name}</h2>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-[10px] font-mono text-white/40">{ch.channel_id.slice(0, 15)}...</span>
+                        {hasToken ? <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_5px_#34d399]"/> : <span className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_5px_#ef4444]"/>}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 relative z-[30]">
+                    {isLive && <div className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold tracking-widest uppercase animate-pulse flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> LIVE</div>}
+                    
+                    <div className="flex items-center gap-1.5 bg-black/20 p-1 rounded-full border border-white/5">
+                       {!isLive && (
+                         <button onClick={() => startStream(ch.channel_id)} disabled={loading || !hasToken} className="bg-white text-black px-4 py-1.5 rounded-full text-[11px] font-bold hover:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1">
+                           <Icon.Play /> Start
+                         </button>
+                       )}
+                       <button onClick={() => setShowConfigFor(isShowingConfig ? null : ch.channel_id)} className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all flex items-center gap-1 ${isShowingConfig ? 'bg-white/20 text-white' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}>
+                         <Icon.Settings /> Conf
+                       </button>
+                       {!isLive && (
+                         // FIX: Sched button kini toggle (Buka / Tutup)
+                         <button onClick={() => isShowingSchedule ? setShowScheduleFor(null) : initScheduleForm(ch.channel_id)} disabled={!hasToken} className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all flex items-center gap-1 ${isShowingSchedule ? 'bg-amber-400/20 text-amber-400' : 'text-amber-400/70 hover:bg-amber-400/10 hover:text-amber-400 disabled:opacity-30'}`}>
+                           <Icon.Clock /> Sched
+                         </button>
+                       )}
+                    </div>
+
+                    <button onClick={() => deleteChannel(ch.channel_id)} className="w-8 h-8 rounded-full glass-input flex items-center justify-center text-white/30 hover:text-red-400 hover:bg-white/10 transition-colors"><Icon.Trash /></button>
                   </div>
                 </div>
 
                 {!hasToken && (
-                  <div className="bg-[#1a0e00] border border-[#3a2a00] rounded p-3 mb-3 flex items-center justify-between">
-                    <span className="text-[11px] text-[#f5c85a] font-mono">Belum ada refresh token.</span>
-                    <button onClick={() => { setEditingTokenFor(ch.channel_id); setEditTokenValue(''); }} className="text-[10px] text-[#f5c85a] border border-[#f5c85a33] rounded px-2 py-1 font-mono hover:bg-[#2a1a00] ml-3 whitespace-nowrap">+ Tambah Token</button>
+                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 mb-4 flex items-center justify-between text-xs relative z-[20]">
+                    <span className="font-medium text-amber-400">Butuh Otorisasi YouTube.</span>
+                    <button onClick={() => { setEditingTokenFor(ch.channel_id); setEditTokenValue(''); }} className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 px-3 py-1.5 rounded-full font-bold transition-colors">Setup</button>
                   </div>
                 )}
-
                 {editingTokenFor === ch.channel_id && (
-                  <div className="bg-[#0d0f12] border border-[#2a2e38] rounded p-3 mb-3">
-                    <div className="text-[10px] text-[#6b7280] font-mono mb-2">Update Refresh Token <a href="/oauth-helper" target="_blank" className="text-[#c8f55a] ml-2 hover:underline">(generate baru →)</a></div>
-                    <div className="flex gap-2">
-                      <input type="password" value={editTokenValue} onChange={e => setEditTokenValue(e.target.value)} placeholder="1//0g..." className="flex-1 bg-[#0a0c0f] border border-[#2a2e38] rounded px-3 py-1.5 text-xs font-mono focus:border-[#c8f55a] outline-none" />
-                      <button onClick={() => updateRefreshToken(ch.channel_id)} disabled={!editTokenValue.trim()} className="px-3 py-1.5 bg-[#c8f55a] text-[#0a0c0f] rounded text-xs font-bold font-mono disabled:opacity-40">Simpan</button>
-                      <button onClick={() => setEditingTokenFor(null)} className="px-3 py-1.5 border border-[#2a2e38] rounded text-xs font-mono text-[#6b7280]">Batal</button>
-                    </div>
+                  <div className="glass-card-strong rounded-xl p-3 mb-4 flex items-center gap-2 animate-in fade-in zoom-in-95 relative z-[20]">
+                    <input type="password" value={editTokenValue} onChange={e => setEditTokenValue(e.target.value)} placeholder="Paste token..." className="flex-1 glass-input rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-white/30" />
+                    <button onClick={() => updateRefreshToken(ch.channel_id)} disabled={!editTokenValue.trim()} className="bg-white text-black px-4 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50">Save</button>
+                    <button onClick={() => setEditingTokenFor(null)} className="text-white/50 px-2 text-xs hover:text-white">Batal</button>
                   </div>
                 )}
 
                 {ch.activeStreams?.length > 0 && (
-                  <div className="mb-3 flex flex-col gap-2">
+                  <div className="mb-4 space-y-2 relative z-[20]">
                     {ch.activeStreams.map(s => (
-                      <div key={s.streamId} className="flex items-center justify-between bg-[#0d0f12] border border-[#1a2a1a] rounded px-3 py-2">
-                        <div>
-                          <span className="text-xs font-mono text-[#6b7280]">ID: {s.streamId.slice(0, 8)}...</span>
-                          <span className="text-xs font-mono text-[#c8f55a] ml-3">⏱ {formatElapsed(s.elapsedSeconds)}</span>
+                      <div key={s.streamId} className="glass-card-strong rounded-xl p-3 flex items-center justify-between bg-emerald-500/5 border border-emerald-500/10">
+                        <div className="flex items-center gap-3">
+                          <span className="text-emerald-400 text-xs font-semibold tabular-nums bg-emerald-400/10 px-2 py-1 rounded-md">{formatElapsed(s.elapsedSeconds)}</span>
+                          <span className="text-[10px] text-emerald-400/50 font-mono hidden sm:inline-block">({s.streamId.slice(0, 8)})</span>
                         </div>
-                        <button onClick={() => stopStream(s.streamId)} disabled={loading} className="text-xs px-3 py-1 rounded border border-[#3a1a1a] text-[#f5655a] hover:bg-[#1a0a0a] font-mono disabled:opacity-50">■ Stop</button>
+                        <button onClick={() => stopStream(s.streamId)} disabled={loading} className="bg-red-500/10 hover:bg-red-500/20 text-red-400 px-4 py-1.5 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-colors flex items-center gap-1.5">
+                          <Icon.Stop /> Stop
+                        </button>
                       </div>
                     ))}
                   </div>
                 )}
 
                 {isShowingConfig && (
-                  <div className="bg-[#0d0f12] border border-[#2a2e38] rounded-lg p-4 mb-3">
-                    <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#2a2e38]">
-                      <div>
-                        <div className="text-xs font-mono text-[#e8e6e0]">Mode Auto</div>
-                        <div className="text-[10px] font-mono text-[#6b7280]">Pilih otomatis dari Folder, atau pilih aset 1-per-1 (Manual)</div>
+                  <div className="glass-card-strong rounded-[20px] p-4 mb-2 relative z-[50] animate-in slide-in-from-top-2 duration-300 border-t border-white/10 mt-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="text-[11px] font-semibold text-white/50 uppercase tracking-widest">Engine Config ({config.duration} Jam)</div>
+                      <div className="bg-black/30 p-1 rounded-lg flex gap-1 border border-white/5">
+                        <button onClick={() => updateConfig(ch.channel_id, { auto: true })} className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${config.auto ? 'bg-white text-black' : 'text-white/50 hover:text-white'}`}>AUTO</button>
+                        <button onClick={() => updateConfig(ch.channel_id, { auto: false })} className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${!config.auto ? 'bg-white text-black' : 'text-white/50 hover:text-white'}`}>MANUAL</button>
                       </div>
-                      <button onClick={() => updateConfig(ch.channel_id, { auto: !config.auto })} className={`px-3 py-1 rounded text-xs font-mono font-bold transition-colors ${config.auto ? 'bg-[#c8f55a] text-[#0a0c0f]' : 'border border-[#2a2e38] text-[#6b7280]'}`}>{config.auto ? 'AUTO ON' : 'MANUAL'}</button>
                     </div>
                     
                     <div className="mb-4">
-                      <div className="text-[10px] text-[#6b7280] font-mono mb-1">Folder Filter Musik (Pilih lebih dari 1)</div>
-                      <div className="flex flex-wrap gap-1">
-                        <button onClick={() => updateConfig(ch.channel_id, { folders: [] })} className={`text-[10px] font-mono px-2 py-1 rounded transition-colors ${config.folders.length === 0 ? 'bg-[#c8f55a] text-[#0a0c0f] font-bold' : 'border border-[#2a2e38] text-[#6b7280] hover:border-[#c8f55a] hover:text-[#c8f55a]'}`}>Semua Folder</button>
+                      <div className="text-[10px] text-white/40 mb-1.5">Kategori Playlist (Multi):</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        <button onClick={() => updateConfig(ch.channel_id, { folders: [] })} className={`px-3 py-1 rounded-lg text-[10px] font-semibold transition-all ${config.folders.length === 0 ? 'bg-white text-black' : 'glass-input text-white/60 hover:bg-white/10'}`}>Semua</button>
                         {folders.map(f => {
                           const isSelected = config.folders.includes(f.name);
                           return (
                             <button key={f.name} onClick={() => {
                               const newFolders = isSelected ? config.folders.filter(x => x !== f.name) : [...config.folders, f.name];
                               updateConfig(ch.channel_id, { folders: newFolders });
-                            }} className={`text-[10px] font-mono px-2 py-1 rounded transition-colors ${isSelected ? 'bg-[#c8f55a] text-[#0a0c0f] font-bold' : 'border border-[#2a2e38] text-[#6b7280] hover:border-[#c8f55a] hover:text-[#c8f55a]'}`}>{f.name} ({f.count})</button>
+                            }} className={`px-3 py-1 rounded-lg text-[10px] font-semibold transition-all ${isSelected ? 'bg-white text-black' : 'glass-input text-white/60 hover:bg-white/10'}`}>{f.name}</button>
                           );
                         })}
                       </div>
                     </div>
                     
                     {!config.auto && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-[#111318] rounded-md border border-[#2a2e38]">
-                        <MediaDropdown label="🎥 Video Loop" options={videos} value={config.videoPath} onChange={path => updateConfig(ch.channel_id, { videoPath: path })} placeholder="— acak otomatis —" />
-                        <MediaDropdown label="🎵 Audio / Musik" options={config.folders.length > 0 ? songs.filter(s => s.category && config.folders.includes(s.category)) : songs} value={config.songPath} onChange={path => updateConfig(ch.channel_id, { songPath: path })} placeholder="— acak otomatis —" />
-                        <MediaDropdown label="🖼 Thumbnail" options={thumbnails} value={config.thumbnailPath} onChange={path => updateConfig(ch.channel_id, { thumbnailPath: path })} placeholder="— acak otomatis —" />
-                        <div className="flex flex-col gap-3">
-                          <AssetDropdown label="📝 Judul Live" options={titles} value={config.titleId} onChange={id => updateConfig(ch.channel_id, { titleId: id })} onDelete={deleteAsset} placeholder="— acak otomatis —" />
-                          <AssetDropdown label="📄 Deskripsi" options={descriptions} value={config.descriptionId} onChange={id => updateConfig(ch.channel_id, { descriptionId: id })} onDelete={deleteAsset} placeholder="— acak otomatis —" />
-                        </div>
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 bg-black/20 p-3 rounded-xl border border-white/5">
+                        <MediaDropdown label="Video" options={videos} value={config.videoPath} onChange={path => updateConfig(ch.channel_id, { videoPath: path })} />
+                        <MediaDropdown label="Lagu" options={config.folders.length > 0 ? songs.filter(s => s.category && config.folders.includes(s.category)) : songs} value={config.songPath} onChange={path => updateConfig(ch.channel_id, { songPath: path })} />
+                        <AssetDropdown label="Judul" options={titles} value={config.titleId} onChange={id => updateConfig(ch.channel_id, { titleId: id })} onDelete={deleteAsset} />
+                        <AssetDropdown label="Desc" options={descriptions} value={config.descriptionId} onChange={id => updateConfig(ch.channel_id, { descriptionId: id })} onDelete={deleteAsset} />
                       </div>
                     )}
-                    
-                    <div className="mt-4">
-                      <div className="text-[10px] text-[#6b7280] font-mono mb-1">Durasi Stream</div>
-                      <div className="flex flex-wrap gap-1">
-                        {[1,2,3,4,6,8,10,12].map(h => (
-                          <button key={h} onClick={() => updateConfig(ch.channel_id, { duration: h })} className={`text-[10px] font-mono px-2 py-1 rounded transition-colors ${config.duration === h ? 'bg-[#c8f55a] text-[#0a0c0f] font-bold' : 'border border-[#2a2e38] text-[#6b7280] hover:border-[#c8f55a] hover:text-[#c8f55a]'}`}>{h}j</button>
+
+                    <div className="mt-4 flex items-center gap-2">
+                       <span className="text-[10px] text-white/40">Durasi (Jam):</span>
+                       <div className="flex flex-wrap gap-1">
+                        {[4,8,12,24].map(h => (
+                          <button key={h} onClick={() => updateConfig(ch.channel_id, { duration: h })} className={`w-8 h-6 rounded-md text-[10px] font-bold transition-all ${config.duration === h ? 'bg-white text-black' : 'glass-input text-white/60 hover:bg-white/10'}`}>{h}</button>
                         ))}
                       </div>
                     </div>
                   </div>
                 )}
 
-                <div className="flex gap-2">
-                  {!isLive && (
-                    <button onClick={() => startStream(ch.channel_id)} disabled={loading || !hasToken} className="flex-1 py-2 rounded bg-[#c8f55a] text-[#0a0c0f] text-xs font-bold font-mono hover:bg-[#b8e54a] transition-colors disabled:opacity-40 disabled:cursor-not-allowed">▶ Start ({config.duration}j · {folderDisplay} · {config.auto ? 'Auto' : 'Manual'})</button>
-                  )}
-                  <button onClick={() => setShowConfigFor(isShowingConfig ? null : ch.channel_id)} className={`px-3 py-2 border rounded text-[10px] font-mono transition-colors ${isShowingConfig ? 'border-[#c8f55a] text-[#c8f55a]' : 'border-[#2a2e38] text-[#6b7280] hover:border-[#c8f55a] hover:text-[#c8f55a]'}`}>⚙ Config</button>
-                  {!isLive && (
-                    <button onClick={() => initScheduleForm(ch.channel_id)} disabled={!hasToken} className="flex-1 py-2 rounded border border-[#f5c85a] text-[#f5c85a] text-xs font-mono hover:bg-[#1a1500] transition-colors disabled:opacity-40 disabled:cursor-not-allowed">⏰ Jadwalkan</button>
-                  )}
-                </div>
-
-                {isShowingSchedule && (
-                  <div className="mt-3 bg-[#0d0f12] border border-[#f5c85a33] rounded-lg p-4">
-                    <div className="text-[10px] text-[#f5c85a] uppercase tracking-widest font-mono mb-3">Jadwalkan Stream — Waktu dalam UTC</div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-                      <div>
-                        <label className="text-[10px] text-[#6b7280] font-mono block mb-1">Tanggal & Jam (UTC)</label>
-                        <input type="datetime-local" value={schedForm.datetime} onChange={e => setScheduleForm(prev => ({ ...prev, [ch.channel_id]: { ...schedForm, datetime: e.target.value } }))} className="w-full bg-[#111318] border border-[#2a2e38] rounded px-3 py-2 text-xs font-mono focus:border-[#f5c85a] outline-none text-[#e8e6e0]" />
-                        <div className="text-[10px] text-[#6b7280] font-mono mt-1">UTC sekarang: {new Date().toUTCString().slice(17, 22)}</div>
+                {isShowingSchedule && !isLive && (
+                  <div className="glass-card-strong rounded-[20px] p-4 mb-2 border border-amber-500/20 mt-4 relative z-[40] animate-in slide-in-from-top-2">
+                    <div className="flex flex-col sm:flex-row gap-4">
+                      <div className="flex-1">
+                         <label className="text-[10px] text-white/40 mb-1 block">Waktu (UTC)</label>
+                         <input type="datetime-local" value={schedForm.datetime} onChange={e => setScheduleForm(prev => ({ ...prev, [ch.channel_id]: { ...schedForm, datetime: e.target.value } }))} className="w-full glass-input rounded-lg px-3 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-amber-400/50" />
                       </div>
-                      <div>
-                        <label className="text-[10px] text-[#6b7280] font-mono block mb-1">Durasi</label>
-                        <div className="grid grid-cols-4 gap-1">
-                          {[1,2,3,4,6,8,10,12].map(h => (
-                            <button key={h} onClick={() => setScheduleForm(prev => ({ ...prev, [ch.channel_id]: { ...schedForm, duration: h } }))} className={`py-2 rounded text-xs font-mono transition-colors ${schedForm.duration === h ? 'bg-[#f5c85a] text-[#0a0c0f] font-bold' : 'border border-[#2a2e38] text-[#6b7280] hover:border-[#f5c85a] hover:text-[#f5c85a]'}`}>{h}j</button>
-                          ))}
-                        </div>
+                      <div className="w-full sm:w-32">
+                         <label className="text-[10px] text-white/40 mb-1 block">Siklus</label>
+                         <select value={schedForm.repeat || 'none'} onChange={e => setScheduleForm(prev => ({ ...prev, [ch.channel_id]: { ...schedForm, repeat: e.target.value } }))} className="w-full glass-input rounded-lg px-3 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-amber-400/50">
+                           <option value="none">Satu Kali</option><option value="daily">Harian</option><option value="weekly">Mingguan</option>
+                         </select>
                       </div>
-                      <div>
-                        <label className="text-[10px] text-[#6b7280] font-mono block mb-1">Ulangi Jadwal</label>
-                        <select value={schedForm.repeat || 'none'} onChange={e => setScheduleForm(prev => ({ ...prev, [ch.channel_id]: { ...schedForm, repeat: e.target.value } }))} className="w-full bg-[#111318] border border-[#2a2e38] rounded px-3 py-2 text-xs font-mono focus:border-[#f5c85a] outline-none text-[#e8e6e0]">
-                          <option value="none">Tidak (Sekali saja)</option>
-                          <option value="daily">Setiap Hari</option>
-                          <option value="weekly">Setiap Minggu</option>
-                          <option value="monthly">Setiap Bulan</option>
-                        </select>
+                      <div className="w-full sm:w-20">
+                         <label className="text-[10px] text-white/40 mb-1 block">Durasi</label>
+                         <select value={schedForm.duration || 4} onChange={e => setScheduleForm(prev => ({ ...prev, [ch.channel_id]: { ...schedForm, duration: Number(e.target.value) } }))} className="w-full glass-input rounded-lg px-3 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-amber-400/50">
+                           <option value={4}>4 Jam</option><option value={8}>8 Jam</option><option value={12}>12 Jam</option><option value={24}>24 Jam</option>
+                         </select>
                       </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={() => scheduleStream(ch.channel_id)} disabled={loading} className="flex-1 py-2 rounded bg-[#f5c85a] text-[#0a0c0f] text-xs font-bold font-mono hover:bg-[#e5b84a] transition-colors disabled:opacity-50">✓ Buat Jadwal Baru</button>
-                      <button onClick={() => setShowScheduleFor(null)} className="px-4 py-2 rounded border border-[#2a2e38] text-xs font-mono text-[#6b7280]">Tutup</button>
+                      {/* FIX: Tombol Batal Dibalikkan Kembali */}
+                      <div className="flex items-end gap-2">
+                         <button onClick={() => setShowScheduleFor(null)} className="px-4 py-2 rounded-lg text-xs font-semibold text-white/50 hover:bg-white/10 hover:text-white transition-colors">Batal</button>
+                         <button onClick={() => scheduleStream(ch.channel_id)} disabled={loading} className="w-full sm:w-auto bg-amber-400 text-black px-4 py-2 rounded-lg text-xs font-bold hover:scale-95 transition-transform">Konfirmasi</button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -494,6 +500,6 @@ export default function StreamsPage() {
           })}
         </div>
       </div>
-    </>
+    </div>
   );
 }

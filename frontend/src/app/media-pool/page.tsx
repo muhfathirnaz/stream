@@ -10,21 +10,21 @@ interface UploadQueueItem { id: string; name: string; file: File; status: "pendi
 interface ThumbnailFile { filename: string; path: string; sizeBytes: number; createdAt: string; category?: string; }
 
 const Icon = {
-  Music: () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>),
-  Video: () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18"><rect x="2" y="3" width="15" height="15" rx="2" /><path d="m17 8 5-3v14l-5-3" /></svg>),
-  Image: () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>),
-  Upload: () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>),
-  Folder: () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>),
-  Plus: () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>),
-  Trash: () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4h6v2" /></svg>),
-  Cloud: () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" /></svg>),
-  Sync: () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M23 4v6h-6" /><path d="M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>),
-  Play: () => (<svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><polygon points="5 3 19 12 5 21 5 3" /></svg>),
-  Pause: () => (<svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>),
-  Check: () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14"><polyline points="20 6 9 17 4 12" /></svg>),
-  X: () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>),
-  ChevronRight: () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><polyline points="9 18 15 12 9 6" /></svg>),
-  File: () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="13 2 13 9 20 9" /></svg>),
+  Music: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>,
+  Video: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><rect x="2" y="3" width="15" height="15" rx="2" /><path d="m17 8 5-3v14l-5-3" /></svg>,
+  Image: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>,
+  Upload: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>,
+  Folder: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>,
+  Plus: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>,
+  Trash: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>,
+  Cloud: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" /></svg>,
+  Sync: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M23 4v6h-6" /><path d="M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>,
+  Play: () => <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><polygon points="5 3 19 12 5 21 5 3" /></svg>,
+  Pause: () => <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>,
+  Check: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12"><polyline points="20 6 9 17 4 12" /></svg>,
+  X: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>,
+  ChevronRight: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12"><polyline points="9 18 15 12 9 6" /></svg>,
+  File: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="13 2 13 9 20 9" /></svg>,
 };
 
 const fmtSize = (b: number) => !b ? "-" : b < 1048576 ? `${(b/1024).toFixed(1)} KB` : b < 1073741824 ? `${(b/1048576).toFixed(1)} MB` : `${(b/1073741824).toFixed(2)} GB`;
@@ -43,14 +43,12 @@ function useToast() {
 
 function Toast({ toasts, remove }: { toasts: ToastItem[]; remove: (id: number) => void }) {
   return (
-    <div style={{ position:"fixed", bottom:24, right:24, display:"flex", flexDirection:"column", gap:8, zIndex:9999 }}>
+    <div className="fixed bottom-6 right-6 flex flex-col gap-2 z-[9999]">
       {toasts.map(t => (
-        <div key={t.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 16px", background: t.type==="error"?"#2d1a1a":t.type==="success"?"#0f2a1f":"#1a1f2e", border:`1px solid ${t.type==="error"?"#7f2020":t.type==="success"?"#1a5c3a":"#2a3a5e"}`, borderRadius:8, color:"#e8e8ea", fontSize:13, minWidth:260, boxShadow:"0 4px 16px rgba(0,0,0,.5)" }}>
-          <span style={{ color: t.type==="error"?"#f87171":t.type==="success"?"#4ade80":"#93c5fd", flexShrink:0 }}>
-            {t.type==="success"?<Icon.Check />:<Icon.X />}
-          </span>
-          <span style={{ flex:1 }}>{t.msg}</span>
-          <button onClick={() => remove(t.id)} style={{ background:"none", border:"none", color:"#666", cursor:"pointer", padding:0 }}><Icon.X /></button>
+        <div key={t.id} className={`flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl backdrop-blur-xl border animate-in slide-in-from-right-8 duration-300 ${t.type==="error"?"bg-red-500/10 border-red-500/20 text-white":t.type==="success"?"bg-emerald-500/10 border-emerald-500/20 text-white":"bg-black/60 border-white/10 text-white"}`}>
+          <span className={t.type==="error"?"text-red-400":t.type==="success"?"text-emerald-400":"text-blue-400"}>{t.type==="success"?<Icon.Check />:<Icon.X />}</span>
+          <span className="text-xs font-medium pr-4">{t.msg}</span>
+          <button onClick={() => remove(t.id)} className="text-white/40 hover:text-white transition-colors"><Icon.X /></button>
         </div>
       ))}
     </div>
@@ -63,11 +61,11 @@ function DropZone({ onFiles, accept, label }: { onFiles:(f:File[])=>void; accept
   return (
     <div onClick={() => ref.current?.click()} onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)}
       onDrop={e=>{e.preventDefault();setDrag(false);const f=Array.from(e.dataTransfer.files).filter(f=>accept.some(a=>a.includes(f.name.split(".").pop()?.toLowerCase()??"")));if(f.length)onFiles(f)}}
-      style={{ border:`2px dashed ${drag?"#7c6fcd":"#2e2e3e"}`, borderRadius:12, padding:"28px 20px", textAlign:"center", cursor:"pointer", background:drag?"rgba(124,111,205,.08)":"transparent" }}>
-      <div style={{ color:drag?"#7c6fcd":"#555", marginBottom:8 }}><Icon.Upload /></div>
-      <div style={{ color:"#aaa", fontSize:13 }}><span style={{ color:"#7c6fcd", fontWeight:600 }}>Pilih file</span> atau drag and drop</div>
-      <div style={{ color:"#555", fontSize:11, marginTop:4 }}>{label}</div>
-      <input ref={ref} type="file" multiple accept={accept.join(",")} style={{ display:"none" }} onChange={e=>{if(e.target.files?.length)onFiles(Array.from(e.target.files));e.target.value="";}} />
+      className={`border-2 border-dashed rounded-3xl p-8 text-center cursor-pointer transition-all duration-300 ${drag ? 'border-white/40 bg-white/5' : 'border-white/10 hover:bg-white/[0.02]'}`}>
+      <div className={`mb-3 flex justify-center ${drag ? 'text-white' : 'text-white/40'}`}><Icon.Upload /></div>
+      <div className="text-xs text-white/60 mb-1"><span className="text-white font-semibold">Pilih file</span> atau drag and drop</div>
+      <div className="text-[10px] text-white/30">{label}</div>
+      <input ref={ref} type="file" multiple accept={accept.join(",")} className="hidden" onChange={e=>{if(e.target.files?.length)onFiles(Array.from(e.target.files));e.target.value="";}} />
     </div>
   );
 }
@@ -87,15 +85,13 @@ function SidebarItem({ icon, label, active, onClick, onDelete, onDropFile }: { i
           if (data) onDropFile(data);
         }
       }}
-      style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 16px", cursor:"pointer", borderRadius:"0 8px 8px 0", marginRight:8, 
-        background: dragOver?"rgba(74,222,128,.15)":active?"rgba(124,111,205,.18)":hover?"rgba(255,255,255,.04)":"transparent", 
-        color: dragOver?"#4ade80":active?"#a78bfa":"#aaa", 
-        border: dragOver?"1px dashed #4ade80":"1px solid transparent",
-        transition:"all .15s", fontSize:13, userSelect:"none" }}>
-      <span style={{ flexShrink:0, opacity:active||dragOver?1:.6 }}>{icon}</span>
-      <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{label === '__all__' ? 'Semua' : label}</span>
+      className={`group flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium cursor-pointer transition-all duration-300 ${dragOver ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : active ? 'bg-white text-black shadow-md' : 'text-white/60 hover:bg-white/10 hover:text-white border border-transparent'}`}>
+      <div className="flex items-center gap-2.5 truncate">
+        <span className={active ? 'text-black' : dragOver ? 'text-emerald-400' : 'opacity-50'}>{icon}</span>
+        <span className="truncate">{label === '__all__' ? 'Semua Kategori' : label}</span>
+      </div>
       {onDelete && hover && !active && !dragOver && (
-        <button onClick={e=>{e.stopPropagation();onDelete()}} style={{ background:"none", border:"none", color:"#f87171", cursor:"pointer", padding:0, display:"flex" }}><Icon.Trash /></button>
+        <button onClick={e=>{e.stopPropagation();onDelete()}} className="text-white/30 hover:text-red-500 transition-colors"><Icon.Trash /></button>
       )}
     </div>
   );
@@ -108,20 +104,20 @@ function CategorySidebar({ type, categories, selected, onSelect, onAdd, onDelete
   const submit = () => { const n=newName.trim(); if(n&&!categories.includes(n))onAdd(n); setAdding(false); setNewName(""); };
   
   return (
-    <div style={{ width:200, flexShrink:0 }}>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 16px 12px", marginBottom:4 }}>
-        <span style={{ fontSize:11, color:"#555", fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase" }}>{type==="music"?"Kategori Musik":"Kategori Video"}</span>
-        <button onClick={()=>{setAdding(true);setTimeout(()=>ref.current?.focus(),50)}} style={{ background:"none", border:"none", color:"#7c6fcd", cursor:"pointer", padding:2, display:"flex" }}><Icon.Plus /></button>
+    <div className="w-full md:w-56 flex-shrink-0 flex flex-col gap-1">
+      <div className="flex items-center justify-between px-2 mb-2">
+        <span className="text-[10px] font-semibold text-white/40 uppercase tracking-widest">{type==="music"?"Kategori Musik":"Kategori Video"}</span>
+        <button onClick={()=>{setAdding(true);setTimeout(()=>ref.current?.focus(),50)}} className="text-white/40 hover:text-white transition-colors p-1"><Icon.Plus /></button>
       </div>
       <SidebarItem icon={<Icon.Folder />} label="__all__" active={selected==="__all__"} onClick={()=>onSelect("__all__")} />
       {categories.map(cat => (
         <SidebarItem key={cat} icon={<Icon.Folder />} label={cat} active={selected===cat} onClick={()=>onSelect(cat)} onDelete={()=>onDelete(cat)} onDropFile={(data) => onMoveFile(data, cat)} />
       ))}
       {adding && (
-        <div style={{ padding:"6px 12px" }}>
+        <div className="px-2 mt-1 animate-in fade-in zoom-in-95">
           <input ref={ref} value={newName} onChange={e=>setNewName(e.target.value)}
             onKeyDown={e=>{if(e.key==="Enter")submit();if(e.key==="Escape"){setAdding(false);setNewName("");}}} onBlur={submit}
-            placeholder="Nama kategori..." style={{ width:"100%", background:"#16161f", border:"1px solid #7c6fcd", borderRadius:6, padding:"6px 10px", color:"#e8e8ea", fontSize:13, outline:"none", boxSizing:"border-box" }} />
+            placeholder="Nama..." className="w-full glass-input rounded-lg px-3 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-white/20" />
         </div>
       )}
     </div>
@@ -129,33 +125,33 @@ function CategorySidebar({ type, categories, selected, onSelect, onAdd, onDelete
 }
 
 function FileRow({ file, onDelete, onPlay, isPlaying }: { file:FileItem; onDelete:(id:string)=>void; onPlay:(f:FileItem)=>void; isPlaying:boolean }) {
-  const [hover, setHover] = useState(false);
   return (
     <div draggable onDragStart={e => e.dataTransfer.setData('text/plain', JSON.stringify({ filename: file.name, oldCategory: file.category, type: file.type }))}
-      onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)}
-      style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 12px", borderRadius:8, background:isPlaying?"rgba(124,111,205,.15)":hover?"rgba(255,255,255,.04)":"transparent", transition:"background .15s", cursor:"grab" }}>
-      <button onClick={()=>onPlay(file)} style={{ width:28, height:28, borderRadius:"50%", border:"none", background:isPlaying?"#7c6fcd":"rgba(255,255,255,.08)", color:"#e8e8ea", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><Icon.Play /></button>
-      <div style={{ flex:1, overflow:"hidden" }}>
-        <div style={{ fontSize:13, color:isPlaying?"#a78bfa":"#ddd", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{file.name}</div>
-        <div style={{ fontSize:11, color:"#555", display:"flex", gap:8, marginTop:2 }}>
+      className={`group flex items-center gap-3 p-2.5 rounded-2xl transition-all duration-300 cursor-grab border ${isPlaying ? 'bg-white/10 border-white/20' : 'bg-transparent hover:bg-white/5 border-transparent'}`}>
+      <button onClick={()=>onPlay(file)} className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all shadow-sm ${isPlaying ? 'bg-white text-black scale-95' : 'bg-white/10 text-white group-hover:bg-white/20'}`}>
+        {isPlaying ? <Icon.Pause /> : <Icon.Play />}
+      </button>
+      <div className="flex-1 overflow-hidden">
+        <div className={`text-xs font-semibold truncate ${isPlaying ? 'text-white' : 'text-white/80'}`}>{file.name}</div>
+        <div className="flex items-center gap-2 mt-1 text-[10px] text-white/40 font-medium">
           <span>{fmtSize(file.size)}</span>
-          {file.duration!==undefined && <span>{fmtDur(file.duration)}</span>}
-          <span style={{ color:"#3a3a5e", background:"#1a1a2e", borderRadius:4, padding:"0 5px" }}>{file.category}</span>
+          {file.duration!==undefined && <span>• {fmtDur(file.duration)}</span>}
+          <span className="px-1.5 py-0.5 rounded-md bg-white/5 text-white/60">{file.category}</span>
         </div>
       </div>
-      {hover && <button onClick={()=>onDelete(file.id)} style={{ background:"none", border:"none", color:"#f87171", cursor:"pointer", padding:4, display:"flex" }}><Icon.Trash /></button>}
+      <button onClick={()=>onDelete(file.id)} className="w-8 h-8 flex items-center justify-center rounded-xl text-white/30 hover:bg-red-500/20 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"><Icon.Trash /></button>
     </div>
   );
 }
 
 function FileList({ files, type, onDelete, onPlay, playing }: { files:FileItem[]; type:"music"|"video"; onDelete:(id:string)=>void; onPlay:(f:FileItem)=>void; playing:FileItem|null }) {
   if (!files.length) return (
-    <div style={{ textAlign:"center", padding:"48px 24px", color:"#444" }}>
-      <div style={{ marginBottom:8, opacity:.5 }}>{type==="music"?<Icon.Music />:<Icon.Video />}</div>
-      <div style={{ fontSize:13 }}>Belum ada file di kategori ini</div>
+    <div className="h-full flex flex-col items-center justify-center text-white/30 pb-10">
+      <div className="mb-3 opacity-50 scale-150">{type==="music"?<Icon.Music />:<Icon.Video />}</div>
+      <div className="text-xs font-medium">Belum ada file di kategori ini</div>
     </div>
   );
-  return <div style={{ display:"flex", flexDirection:"column", gap:4 }}>{files.map(f => <FileRow key={f.id} file={f} onDelete={onDelete} onPlay={onPlay} isPlaying={playing?.id===f.id} />)}</div>;
+  return <div className="flex flex-col gap-1">{files.map(f => <FileRow key={f.id} file={f} onDelete={onDelete} onPlay={onPlay} isPlaying={playing?.id===f.id} />)}</div>;
 }
 
 function UploadModal({ type, categories, onClose, onUpload }: { type:"music"|"video"; categories:string[]; onClose:()=>void; onUpload:(files:File[],cat:string)=>void }) {
@@ -163,35 +159,34 @@ function UploadModal({ type, categories, onClose, onUpload }: { type:"music"|"vi
   const [pending, setPending] = useState<File[]>([]);
   const accept = type==="music"?[".mp3",".wav",".flac",".ogg",".aac",".m4a"]:[".mp4",".webm",".mkv",".mov",".avi"];
   return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.7)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000, backdropFilter:"blur(4px)" }}>
-      <div style={{ background:"#0e0e16", border:"1px solid #1e1e2e", borderRadius:14, width:520, maxWidth:"90vw", padding:28 }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
-          <h3 style={{ margin:0, color:"#e8e8ea", fontSize:16, fontWeight:600 }}>Upload {type==="music"?"Musik":"Video"}</h3>
-          <button onClick={onClose} style={{ background:"none", border:"none", color:"#666", cursor:"pointer", display:"flex" }}><Icon.X /></button>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-[1000] p-4">
+      <div className="bg-[#111116] border border-white/10 rounded-[32px] w-full max-w-md p-6 sm:p-8 animate-in zoom-in-95 duration-300 shadow-2xl">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-base font-bold text-white">Upload {type==="music"?"Musik":"Video"}</h3>
+          <button onClick={onClose} className="text-white/40 hover:text-white transition-colors"><Icon.X /></button>
         </div>
-        <div style={{ marginBottom:16 }}>
-          <label style={{ fontSize:12, color:"#666", display:"block", marginBottom:6, fontWeight:600, textTransform:"uppercase" }}>Kategori</label>
-          <select value={cat} onChange={e=>setCat(e.target.value)} style={{ width:"100%", background:"#16161f", border:"1px solid #2a2a3e", borderRadius:8, padding:"9px 12px", color:"#e8e8ea", fontSize:13, outline:"none" }}>
+        <div className="mb-5">
+          <label className="text-[10px] font-semibold text-white/40 uppercase tracking-widest block mb-2">Pilih Kategori</label>
+          <select value={cat} onChange={e=>setCat(e.target.value)} className="w-full glass-input rounded-xl px-4 py-3 text-sm text-white outline-none focus:ring-1 focus:ring-white/20 appearance-none">
             {categories.length===0&&<option value="">-- Buat kategori dulu --</option>}
             {categories.map(c=><option key={c} value={c}>{c}</option>)}
           </select>
         </div>
         <DropZone onFiles={setPending} accept={accept} label={type==="music"?"MP3, WAV, FLAC, AAC, OGG":"MP4, MKV, WebM, MOV"} />
         {pending.length>0 && (
-          <div style={{ marginTop:12, maxHeight:140, overflowY:"auto" }}>
+          <div className="mt-4 max-h-32 overflow-y-auto space-y-1 pr-1">
             {pending.map((f,i)=>(
-              <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 8px", fontSize:12, color:"#aaa" }}>
-                <Icon.File /><span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.name}</span>
-                <span style={{ color:"#555" }}>{fmtSize(f.size)}</span>
+              <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 text-xs text-white/60">
+                <Icon.File /><span className="flex-1 truncate text-white/80">{f.name}</span><span className="text-[10px]">{fmtSize(f.size)}</span>
               </div>
             ))}
           </div>
         )}
-        <div style={{ display:"flex", gap:10, marginTop:20, justifyContent:"flex-end" }}>
-          <button onClick={onClose} style={{ padding:"9px 18px", borderRadius:8, border:"1px solid #2a2a3e", background:"transparent", color:"#aaa", cursor:"pointer", fontSize:13 }}>Batal</button>
+        <div className="flex gap-2 mt-6 justify-end">
+          <button onClick={onClose} className="px-5 py-2.5 rounded-full text-xs font-medium text-white/50 hover:text-white transition-colors">Batal</button>
           <button onClick={()=>{if(cat&&pending.length){onUpload(pending,cat);onClose()}}} disabled={!cat||!pending.length}
-            style={{ padding:"9px 20px", borderRadius:8, border:"none", background:cat&&pending.length?"#7c6fcd":"#2a2a3e", color:cat&&pending.length?"#fff":"#555", cursor:cat&&pending.length?"pointer":"not-allowed", fontSize:13, fontWeight:600, display:"flex", alignItems:"center", gap:6 }}>
-            <Icon.Upload /> Upload {pending.length>0?`(${pending.length})`:""}
+            className="bg-white text-black px-6 py-2.5 rounded-full text-xs font-bold disabled:opacity-30 hover:scale-95 transition-all flex items-center gap-2">
+            <Icon.Upload /> Upload
           </button>
         </div>
       </div>
@@ -212,23 +207,24 @@ function MiniPlayer({ playing, type, apiBase }: { playing:FileItem|null; type:"m
   return (
     <>
     {type==="video" && (
-      <div style={{ position:"fixed", bottom:74, right:24, width:340, background:"#000", border:"1px solid #1e1e2e", borderRadius:8, overflow:"hidden", boxShadow:"0 8px 24px rgba(0,0,0,.6)", zIndex:501 }}>
-        <video ref={mediaRef as React.RefObject<HTMLVideoElement>} src={url} autoPlay onTimeUpdate={onTime} onPlay={()=>setPaused(false)} onPause={()=>setPaused(true)} onClick={toggle} style={{ width:"100%", display:"block", cursor:"pointer" }} />
+      <div className="fixed bottom-24 right-6 w-80 glass-card-strong rounded-[24px] overflow-hidden shadow-2xl z-[501] animate-in slide-in-from-bottom-4">
+        <video ref={mediaRef as React.RefObject<HTMLVideoElement>} src={url} autoPlay onTimeUpdate={onTime} onPlay={()=>setPaused(false)} onPause={()=>setPaused(true)} onClick={toggle} className="w-full block cursor-pointer" />
       </div>
     )}
-    <div style={{ position:"fixed", bottom:0, left:0, right:0, background:"rgba(10,10,18,.96)", borderTop:"1px solid #1e1e2e", backdropFilter:"blur(12px)", padding:"10px 24px", display:"flex", alignItems:"center", gap:16, zIndex:500 }}>
-      {type==="music" &&
-        <audio ref={mediaRef as React.RefObject<HTMLAudioElement>} src={url} autoPlay onTimeUpdate={onTime} onPlay={()=>setPaused(false)} onPause={()=>setPaused(true)} />}
-      <button onClick={toggle} style={{ width:36, height:36, borderRadius:"50%", background:"#7c6fcd", border:"none", color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-        {paused?<Icon.Play />:<Icon.Pause />}
+    <div className="fixed bottom-0 left-0 right-0 bg-[#050508]/90 backdrop-blur-3xl border-t border-white/10 px-6 py-4 flex items-center gap-4 z-[500]">
+      {type==="music" && <audio ref={mediaRef as React.RefObject<HTMLAudioElement>} src={url} autoPlay onTimeUpdate={onTime} onPlay={()=>setPaused(false)} onPause={()=>setPaused(true)} />}
+      <button onClick={toggle} className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center hover:scale-95 transition-transform shadow-lg flex-shrink-0">
+        {paused ? <Icon.Play /> : <Icon.Pause />}
       </button>
-      <div style={{ flex:1 }}>
-        <div style={{ fontSize:13, color:"#ddd", marginBottom:4, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{playing.name}</div>
-        <div onClick={seek} style={{ height:3, background:"#1e1e2e", borderRadius:99, cursor:"pointer" }}>
-          <div style={{ height:"100%", background:"#7c6fcd", borderRadius:99, width:`${progress}%`, transition:"width .1s linear" }} />
+      <div className="flex-1 max-w-md">
+        <div className="text-xs font-semibold text-white mb-1.5 truncate">{playing.name}</div>
+        <div onClick={seek} className="h-1.5 bg-white/10 rounded-full cursor-pointer overflow-hidden group">
+          <div className="h-full bg-white rounded-full transition-all duration-100 relative" style={{ width:`${progress}%` }}>
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2 h-2 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+          </div>
         </div>
       </div>
-      <span style={{ fontSize:11, color:"#555", flexShrink:0 }}>{playing.category}</span>
+      <span className="text-[10px] font-medium text-white/40 px-2.5 py-1 rounded-md bg-white/5">{playing.category}</span>
     </div>
     </>
   );
@@ -238,24 +234,20 @@ function ThumbnailCategoryItem({ cat, count, selectedCat, onSelect, onDelete, on
   const [hover, setHover] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   return (
-    <div onClick={()=>onSelect(cat)}
-      onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)}
-      onDragOver={e=>{ e.preventDefault(); setDragOver(true); }}
-      onDragLeave={()=>setDragOver(false)}
+    <div onClick={()=>onSelect(cat)} onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)}
+      onDragOver={e=>{ e.preventDefault(); setDragOver(true); }} onDragLeave={()=>setDragOver(false)}
       onDrop={e=>{ e.preventDefault(); setDragOver(false); const data = e.dataTransfer.getData('text/plain'); if(data) onDropFile(data, cat); }}
-      style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', cursor:'pointer', borderRadius:'0 8px 8px 0', marginRight:8,
-        background:dragOver?'rgba(74,222,128,.15)':selectedCat===cat?'rgba(124,111,205,.18)':hover?'rgba(255,255,255,.04)':'transparent',
-        border:dragOver?'1px dashed #4ade80':'1px solid transparent',
-        color:dragOver?'#4ade80':selectedCat===cat?'#a78bfa':'#aaa', fontSize:13, transition:'all .15s' }}>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-      <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{cat}</span>
-      <span style={{ fontSize:10, color:'#555' }}>{count}</span>
-      {hover && selectedCat !== cat && !dragOver && (
-        <button onClick={e=>{e.stopPropagation();onDelete(cat)}}
-          style={{ background:'none', border:'none', color:'#f87171', cursor:'pointer', padding:0, display:'flex' }}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg>
-        </button>
-      )}
+      className={`group flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium cursor-pointer transition-all duration-300 ${dragOver ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : selectedCat===cat ? 'bg-white text-black shadow-md' : 'text-white/60 hover:bg-white/10 hover:text-white border border-transparent'}`}>
+      <div className="flex items-center gap-2.5 truncate">
+        <span className={selectedCat===cat ? 'text-black' : dragOver ? 'text-emerald-400' : 'opacity-50'}><Icon.Folder /></span>
+        <span className="truncate">{cat}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className={`text-[10px] ${selectedCat===cat ? 'text-black/50' : 'text-white/30'}`}>{count}</span>
+        {hover && selectedCat !== cat && !dragOver && (
+          <button onClick={e=>{e.stopPropagation();onDelete(cat)}} className="text-white/30 hover:text-red-500 transition-colors"><Icon.Trash /></button>
+        )}
+      </div>
     </div>
   );
 }
@@ -267,7 +259,7 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
   const [newCatName, setNewCatName] = useState('');
   const [addingCat, setAddingCat] = useState(false);
   const catInputRef = useRef<HTMLInputElement>(null);
-  const [uploadState, setUploadState] = useState<ThumbUploadState>('idle');
+  const [uploadState, setUploadState] = useState<'idle'|'uploading'|'done'|'error'>('idle');
   const [uploadMsg, setUploadMsg] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
@@ -277,182 +269,133 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
   const [uploadCategory, setUploadCategory] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const fetchThumbnails = useCallback(async () => {
-    try { const res = await fetch('/api/thumbnails'); if (res.ok) { const d = await res.json(); setThumbnails(d.files || []); } } catch {}
-  }, []);
-  const fetchCategories = useCallback(async () => {
-    try { const res = await fetch('/api/thumbnails/categories'); if (res.ok) { const d = await res.json(); setCategories(d.categories || []); } } catch {}
-  }, []);
-
+  const fetchThumbnails = useCallback(async () => { try { const res = await fetch('/api/thumbnails'); if (res.ok) { const d = await res.json(); setThumbnails(d.files || []); } } catch {} }, []);
+  const fetchCategories = useCallback(async () => { try { const res = await fetch('/api/thumbnails/categories'); if (res.ok) { const d = await res.json(); setCategories(d.categories || []); } } catch {} }, []);
   useEffect(() => { fetchThumbnails(); fetchCategories(); }, [fetchThumbnails, fetchCategories]);
   useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
 
   const handleFileSelect = (file: File) => {
-    if (!file.type.startsWith('image/')) { toast('Hanya JPG, PNG, WebP', 'error'); return; }
-    if (file.size > 5 * 1024 * 1024) { toast('File max 5MB', 'error'); return; }
+    if (!file.type.startsWith('image/')) return toast('Hanya JPG, PNG, WebP', 'error');
+    if (file.size > 5 * 1024 * 1024) return toast('File max 5MB', 'error');
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewFile(file); setPreviewUrl(URL.createObjectURL(file)); setUploadState('idle'); setUploadMsg('');
   };
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault(); setDragOver(false);
-    const file = e.dataTransfer.files[0];
-    if (file) handleFileSelect(file);
-  };
+  const handleDrop = (e: React.DragEvent) => { e.preventDefault(); setDragOver(false); const file = e.dataTransfer.files[0]; if (file) handleFileSelect(file); };
 
   const handleUpload = async () => {
     if (!previewFile) return;
-    setUploadState('uploading'); setUploadMsg('Mengupload ke VPS...');
+    setUploadState('uploading'); setUploadMsg('Mengupload...');
     try {
-      const formData = new FormData();
-      formData.append('file', previewFile);
-      if (uploadCategory) formData.append('category', uploadCategory);
+      const formData = new FormData(); formData.append('file', previewFile); if (uploadCategory) formData.append('category', uploadCategory);
       const res = await fetch('/api/thumbnails/upload', { method: 'POST', body: formData });
       const data = await res.json();
       if (!res.ok) { setUploadState('error'); setUploadMsg(data.error || 'Upload gagal'); return; }
       await fetchThumbnails(); await fetchCategories();
-      setUploadState('done'); setUploadMsg(`✓ ${data.filename} tersimpan`); toast(`${data.filename} diupload`, 'success');
+      setUploadState('done'); setUploadMsg(`✓ ${data.filename}`); toast(`${data.filename} diupload`, 'success');
       setTimeout(() => { setPreviewFile(null); if (previewUrl) URL.revokeObjectURL(previewUrl); setPreviewUrl(null); setUploadState('idle'); setUploadMsg(''); }, 2000);
-    } catch (err) { setUploadState('error'); setUploadMsg(err instanceof Error ? err.message : 'Error'); }
+    } catch (err) { setUploadState('error'); setUploadMsg('Error'); }
   };
 
   const handleMoveFile = async (dataString: string, targetCat: string) => {
     try {
-      const data = JSON.parse(dataString);
-      if (data.type !== 'thumbnail' || data.oldCategory === targetCat) return;
+      const data = JSON.parse(dataString); if (data.type !== 'thumbnail' || data.oldCategory === targetCat) return;
       const res = await fetch('/api/thumbnails/move', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filename: data.filename, oldCategory: data.oldCategory, newCategory: targetCat }) });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error);
-      toast(`Dipindah ke ${targetCat}`, 'success');
-      await fetchThumbnails();
-    } catch (err) { toast(`Gagal memindah: ${err instanceof Error?err.message:'error'}`, 'error'); }
+      const result = await res.json(); if (!res.ok) throw new Error(result.error);
+      toast(`Dipindah ke ${targetCat}`, 'success'); await fetchThumbnails();
+    } catch (err) { toast(`Gagal: ${err instanceof Error?err.message:'error'}`, 'error'); }
   };
 
-  const handleSync = async () => {
-    setSyncLoading(true);
-    try { const res = await fetch('/api/thumbnails/sync', { method: 'POST' }); const data = await res.json(); toast(`Sync selesai — ${data.total} file`, 'success'); } catch { toast('Sync gagal', 'error'); } finally { setSyncLoading(false); }
-  };
+  const handleSync = async () => { setSyncLoading(true); try { const res = await fetch('/api/thumbnails/sync', { method: 'POST' }); const data = await res.json(); toast(`Sync selesai — ${data.total} file`, 'success'); } catch { toast('Sync gagal', 'error'); } finally { setSyncLoading(false); } };
+  const handleDelete = async (filename: string) => { if (!confirm(`Hapus ${filename}?`)) return; await fetch(`/api/thumbnails/${encodeURIComponent(filename)}`, { method: 'DELETE' }); await fetchThumbnails(); toast(`Dihapus`, 'info'); };
+  const addCategory = async () => { const n = newCatName.trim(); if (!n) return; try { const res = await fetch('/api/thumbnails/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: n }), }); if (!res.ok) { const e = await res.json(); return toast(e.error, 'error'); } await fetchCategories(); setNewCatName(''); setAddingCat(false); toast(`Ditambahkan`, 'success'); } catch { toast('Gagal', 'error'); } };
+  const deleteCategory = async (name: string) => { try { const res = await fetch(`/api/thumbnails/categories/${encodeURIComponent(name)}`, { method: 'DELETE' }); if (!res.ok) { const e = await res.json(); return toast(e.error, 'error'); } await fetchCategories(); if (selectedCat === name) setSelectedCat('__all__'); toast(`Dihapus`, 'info'); } catch { toast('Gagal', 'error'); } };
 
-  const handleDelete = async (filename: string) => {
-    if (!confirm(`Hapus ${filename}?`)) return;
-    await fetch(`/api/thumbnails/${encodeURIComponent(filename)}`, { method: 'DELETE' }); await fetchThumbnails(); toast(`${filename} dihapus`, 'info');
-  };
-
-  const addCategory = async () => {
-    const n = newCatName.trim(); if (!n) return;
-    try {
-      const res = await fetch('/api/thumbnails/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: n }), });
-      if (!res.ok) { const e = await res.json(); toast(e.error, 'error'); return; }
-      await fetchCategories(); setNewCatName(''); setAddingCat(false); toast(`Kategori "${n}" ditambahkan`, 'success');
-    } catch { toast('Gagal tambah kategori', 'error'); }
-  };
-
-  const deleteCategory = async (name: string) => {
-    try {
-      const res = await fetch(`/api/thumbnails/categories/${encodeURIComponent(name)}`, { method: 'DELETE' });
-      if (!res.ok) { const e = await res.json(); toast(e.error, 'error'); return; }
-      await fetchCategories(); if (selectedCat === name) setSelectedCat('__all__'); toast(`Kategori "${name}" dihapus`, 'info');
-    } catch { toast('Gagal hapus kategori', 'error'); }
-  };
-
-  const stateColor = { idle:'', uploading:'#f5c85a', done:'#4ade80', error:'#f87171' }[uploadState];
   const visible = thumbnails.filter(t => selectedCat === '__all__' || (t.category || 'Uncategorized') === selectedCat);
 
   return (
-    <div style={{ display:'flex', gap:16 }}>
+    <div className="glass-card rounded-[32px] overflow-hidden flex flex-col md:flex-row min-h-[500px]">
       {lightbox && (
-        <div onClick={()=>setLightbox(null)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000, cursor:'zoom-out' }}>
-          <img src={lightbox} alt="preview" style={{ maxWidth:'90vw', maxHeight:'90vh', borderRadius:8, boxShadow:'0 8px 40px rgba(0,0,0,.8)' }} />
+        <div onClick={()=>setLightbox(null)} className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[2000] cursor-zoom-out p-4">
+          <img src={lightbox} alt="preview" className="max-w-full max-h-full rounded-2xl shadow-2xl" />
         </div>
       )}
-      <div style={{ width:200, flexShrink:0 }}>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 0 12px', marginBottom:4 }}>
-          <span style={{ fontSize:11, color:'#555', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>Kategori</span>
-          <button onClick={()=>{setAddingCat(true);setTimeout(()=>catInputRef.current?.focus(),50)}} style={{ background:'none', border:'none', color:'#7c6fcd', cursor:'pointer', padding:2, display:'flex' }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          </button>
+      <div className="w-full md:w-56 bg-white/[0.02] border-r border-white/5 p-4 flex flex-col gap-1">
+        <div className="flex items-center justify-between px-2 mb-2">
+          <span className="text-[10px] font-semibold text-white/40 uppercase tracking-widest">Kategori Thumbnail</span>
+          <button onClick={()=>{setAddingCat(true);setTimeout(()=>catInputRef.current?.focus(),50)}} className="text-white/40 hover:text-white transition-colors p-1"><Icon.Plus /></button>
         </div>
-        <div onClick={()=>setSelectedCat('__all__')} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', cursor:'pointer', borderRadius:'0 8px 8px 0', marginRight:8, background:selectedCat==='__all__'?'rgba(124,111,205,.18)':'transparent', color:selectedCat==='__all__'?'#a78bfa':'#aaa', fontSize:13 }}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-          <span style={{ flex:1 }}>Semua</span>
-          <span style={{ fontSize:10, color:'#555' }}>{thumbnails.length}</span>
+        <div onClick={()=>setSelectedCat('__all__')} className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium cursor-pointer transition-all duration-300 ${selectedCat==='__all__' ? 'bg-white text-black shadow-md' : 'text-white/60 hover:bg-white/10'}`}>
+          <div className="flex items-center gap-2.5 truncate"><span className={selectedCat==='__all__' ? 'text-black' : 'opacity-50'}><Icon.Folder /></span><span>Semua</span></div>
+          <span className={`text-[10px] ${selectedCat==='__all__' ? 'text-black/50' : 'text-white/30'}`}>{thumbnails.length}</span>
         </div>
         {thumbnails.some(t => !t.category || t.category === 'Uncategorized') && (
-          <div onClick={()=>setSelectedCat('Uncategorized')} onDragOver={e=>{e.preventDefault()}} onDrop={e=>{ e.preventDefault(); const data = e.dataTransfer.getData('text/plain'); if(data) handleMoveFile(data, 'Uncategorized'); }} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', cursor:'pointer', borderRadius:'0 8px 8px 0', marginRight:8, background:selectedCat==='Uncategorized'?'rgba(124,111,205,.18)':'transparent', color:selectedCat==='Uncategorized'?'#a78bfa':'#aaa', fontSize:13 }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-            <span style={{ flex:1 }}>Uncategorized</span>
+          <div onClick={()=>setSelectedCat('Uncategorized')} onDragOver={e=>{e.preventDefault()}} onDrop={e=>{ e.preventDefault(); const data = e.dataTransfer.getData('text/plain'); if(data) handleMoveFile(data, 'Uncategorized'); }} className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-medium cursor-pointer transition-all duration-300 ${selectedCat==='Uncategorized' ? 'bg-white text-black shadow-md' : 'text-white/60 hover:bg-white/10'}`}>
+            <span className={selectedCat==='Uncategorized' ? 'text-black' : 'opacity-50'}><Icon.Folder /></span><span>Uncategorized</span>
           </div>
         )}
-        {categories.map(cat => (
-           <ThumbnailCategoryItem key={cat} cat={cat} count={thumbnails.filter(t => t.category === cat).length} selectedCat={selectedCat} onSelect={setSelectedCat} onDelete={deleteCategory} onDropFile={handleMoveFile} />
-        ))}
+        {categories.map(cat => <ThumbnailCategoryItem key={cat} cat={cat} count={thumbnails.filter(t => t.category === cat).length} selectedCat={selectedCat} onSelect={setSelectedCat} onDelete={deleteCategory} onDropFile={handleMoveFile} />)}
         {addingCat && (
-          <div style={{ padding:'6px 10px' }}>
-            <input ref={catInputRef} value={newCatName} onChange={e=>setNewCatName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')addCategory();if(e.key==='Escape'){setAddingCat(false);setNewCatName('');}}} onBlur={()=>{if(!newCatName.trim()){setAddingCat(false);}}} placeholder="Nama kategori..." style={{ width:'100%', background:'#16161f', border:'1px solid #7c6fcd', borderRadius:6, padding:'6px 10px', color:'#e8e8ea', fontSize:13, outline:'none', boxSizing:'border-box' }} />
+          <div className="px-2 mt-1 animate-in fade-in zoom-in-95">
+            <input ref={catInputRef} value={newCatName} onChange={e=>setNewCatName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')addCategory();if(e.key==='Escape'){setAddingCat(false);setNewCatName('');}}} onBlur={()=>{if(!newCatName.trim()){setAddingCat(false);}}} placeholder="Nama..." className="w-full glass-input rounded-lg px-3 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-white/20" />
           </div>
         )}
       </div>
-      <div style={{ flex:1 }}>
-        <div style={{ background:'#111318', border:'1px solid #2a2e38', borderRadius:12, padding:20, marginBottom:16 }}>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
-            <span style={{ fontSize:11, color:'#555', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>Upload Thumbnail</span>
-            <button onClick={handleSync} disabled={syncLoading} style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 12px', borderRadius:6, border:'1px solid #2a2a3e', background:'transparent', color:syncLoading?'#7c6fcd':'#aaa', cursor:syncLoading?'not-allowed':'pointer', fontSize:12, fontWeight:600 }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ animation:syncLoading?'spin 1s linear infinite':'none' }}><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-              {syncLoading?'Syncing...':'Sync ke Drive'}
-            </button>
-          </div>
-          <div style={{ marginBottom:12 }}>
-            <label style={{ fontSize:11, color:'#555', fontWeight:600, textTransform:'uppercase', display:'block', marginBottom:6 }}>Kategori Upload</label>
-            <select value={uploadCategory} onChange={e=>setUploadCategory(e.target.value)} style={{ width:'100%', background:'#16161f', border:'1px solid #2a2a3e', borderRadius:8, padding:'8px 12px', color:'#e8e8ea', fontSize:13, outline:'none' }}>
+      <div className="flex-1 p-4 md:p-6 bg-transparent flex flex-col">
+        <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          <div className="glass-card-strong rounded-[24px] p-5 flex-1 relative">
+            <div className="flex justify-between items-center mb-4">
+              <span className="text-[10px] font-semibold text-white/50 uppercase tracking-widest">Upload Baru</span>
+              <button onClick={handleSync} disabled={syncLoading} className="text-[10px] font-bold px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-all flex items-center gap-1.5"><span className={syncLoading?"animate-spin":""}><Icon.Sync /></span> {syncLoading?'Syncing':'GDrive Sync'}</button>
+            </div>
+            <select value={uploadCategory} onChange={e=>setUploadCategory(e.target.value)} className="w-full mb-3 glass-input rounded-xl px-3 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-white/20 appearance-none">
               <option value="">— Uncategorized —</option>
               {categories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
-          </div>
-          <div onDragOver={e=>{e.preventDefault();setDragOver(true)}} onDragLeave={()=>setDragOver(false)} onDrop={handleDrop} onClick={()=>fileInputRef.current?.click()} style={{ border:`2px dashed ${dragOver?'#7c6fcd':previewFile?'#2a4a1a':'#2a2a3e'}`, borderRadius:10, padding:'20px', textAlign:'center', cursor:'pointer', background:dragOver?'rgba(124,111,205,.06)':previewFile?'#0a1200':'transparent', transition:'all .15s' }}>
-            <input ref={fileInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp" style={{ display:'none' }} onChange={e=>{ const f=e.target.files?.[0]; if(f)handleFileSelect(f); e.target.value=''; }} />
-            {previewUrl ? (
-              <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:10 }}>
-                <img src={previewUrl} alt="preview" style={{ maxHeight:120, maxWidth:280, objectFit:'contain', borderRadius:6, border:'1px solid #2a2a3e' }} />
-                <div style={{ fontSize:12, color:'#ccc' }}>{previewFile?.name} · {previewFile?fmtSize(previewFile.size):''}</div>
-                <div style={{ fontSize:11, color:'#555' }}>klik untuk ganti</div>
-              </div>
-            ) : (
-              <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:8 }}>
-                <span style={{ fontSize:28, opacity:.25 }}>🖼</span>
-                <div style={{ fontSize:13, color:'#666' }}>Drop gambar atau <span style={{ color:'#7c6fcd' }}>klik pilih</span></div>
-                <div style={{ fontSize:11, color:'#444' }}>JPG · PNG · WebP · max 5MB</div>
-              </div>
+            <div onDragOver={e=>{e.preventDefault();setDragOver(true)}} onDragLeave={()=>setDragOver(false)} onDrop={handleDrop} onClick={()=>fileInputRef.current?.click()} className={`border-2 border-dashed rounded-2xl p-4 text-center cursor-pointer transition-all ${dragOver?'border-white/40 bg-white/5':previewFile?'border-transparent bg-white/10':'border-white/10 hover:bg-white/[0.02]'}`}>
+              <input ref={fileInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp" className="hidden" onChange={e=>{ const f=e.target.files?.[0]; if(f)handleFileSelect(f); e.target.value=''; }} />
+              {previewUrl ? (
+                <div className="flex flex-col items-center gap-2">
+                  <img src={previewUrl} alt="preview" className="max-h-24 max-w-full rounded-lg object-contain" />
+                  <div className="text-[10px] text-white/50">{previewFile?.name}</div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-1">
+                  <div className="text-white/30 mb-1"><Icon.Image /></div>
+                  <div className="text-[11px] text-white/60">Drop file JPG/PNG/WebP</div>
+                </div>
+              )}
+            </div>
+            {previewFile && uploadState !== 'done' && (
+              <button onClick={handleUpload} disabled={uploadState==='uploading'} className="w-full mt-3 bg-white text-black py-2 rounded-xl text-xs font-bold hover:scale-95 transition-transform disabled:opacity-50">Upload ke VPS</button>
             )}
           </div>
-          {uploadMsg && <div style={{ marginTop:10, fontSize:12, color:stateColor }}>{uploadMsg}</div>}
-          {previewFile && uploadState !== 'done' && (
-            <button onClick={handleUpload} disabled={uploadState==='uploading'} style={{ width:'100%', marginTop:12, padding:'10px', borderRadius:8, border:'none', background:uploadState==='uploading'?'#3a3a5e':'#7c6fcd', color:'#fff', cursor:uploadState==='uploading'?'not-allowed':'pointer', fontWeight:600, fontSize:13 }}>
-              {uploadState==='uploading'?'⟳ Uploading...':'↑ Upload ke VPS'}
-            </button>
-          )}
         </div>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
-          <span style={{ fontSize:11, color:'#555', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>
-            /opt/thumbnails{selectedCat!=='__all__'?` / ${selectedCat}`:''} — {visible.length} file (Bisa di-Drag)
-          </span>
+
+        <div className="flex items-center justify-between mb-4 px-1">
+          <div className="flex items-center gap-2 text-xs font-semibold text-white/50">
+             <span>Thumbnails</span>{selectedCat!=="__all__" && <><Icon.ChevronRight /><span className="text-white">{selectedCat}</span></>}
+          </div>
+          <span className="text-[10px] text-white/40">{visible.length} File (Bisa di-Drag)</span>
         </div>
+        
         {visible.length === 0 ? (
-          <div style={{ background:'#111318', border:'1px solid #1e1e2e', borderRadius:10, padding:'32px', textAlign:'center', color:'#444', fontSize:13 }}>Belum ada thumbnail{selectedCat!=='__all__'?` di kategori "${selectedCat}"`:''}. </div>
+          <div className="flex-1 flex items-center justify-center text-white/30 text-xs">Belum ada thumbnail.</div>
         ) : (
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(160px, 1fr))', gap:10 }}>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 overflow-y-auto pr-1">
             {visible.map(t => (
-              <div key={t.filename} draggable onDragStart={e => e.dataTransfer.setData('text/plain', JSON.stringify({ filename: t.filename, oldCategory: t.category || 'Uncategorized', type: 'thumbnail' }))} style={{ background:'#111318', border:'1px solid #2a2e38', borderRadius:8, overflow:'hidden', position:'relative', cursor:'grab' }} onMouseEnter={e=>{const el=e.currentTarget.querySelector('.thumb-actions') as HTMLElement|null;if(el)el.style.opacity='1';}} onMouseLeave={e=>{const el=e.currentTarget.querySelector('.thumb-actions') as HTMLElement|null;if(el)el.style.opacity='0';}}>
-                <div style={{ aspectRatio:'16/9', background:'#0d0f12', cursor:'zoom-in', position:'relative', overflow:'hidden' }} onClick={()=>setLightbox(`/api/thumbnails/preview/${encodeURIComponent(t.filename)}`)}>
-                  <img src={`/api/thumbnails/preview/${encodeURIComponent(t.filename)}`} alt={t.filename} style={{ width:'100%', height:'100%', objectFit:'cover', position:'absolute', inset:0 }} onError={e=>{(e.target as HTMLImageElement).style.display='none';}} />
+              <div key={t.filename} draggable onDragStart={e => e.dataTransfer.setData('text/plain', JSON.stringify({ filename: t.filename, oldCategory: t.category || 'Uncategorized', type: 'thumbnail' }))} className="group glass-input rounded-2xl overflow-hidden cursor-grab hover:ring-1 hover:ring-white/20 transition-all">
+                <div className="aspect-video bg-black/40 relative cursor-zoom-in" onClick={()=>setLightbox(`/api/thumbnails/preview/${encodeURIComponent(t.filename)}`)}>
+                  <img src={`/api/thumbnails/preview/${encodeURIComponent(t.filename)}`} alt={t.filename} className="w-full h-full object-cover" onError={e=>{(e.target as HTMLImageElement).style.display='none';}} />
+                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={(e)=>{e.stopPropagation(); handleDelete(t.filename);}} className="w-7 h-7 bg-red-500/80 backdrop-blur-md rounded-lg flex items-center justify-center text-white hover:bg-red-500 transition-colors"><Icon.Trash /></button>
+                  </div>
                 </div>
-                <div className="thumb-actions" style={{ position:'absolute', top:4, right:4, display:'flex', gap:4, opacity:0, transition:'opacity .15s' }}>
-                  <button onClick={()=>handleDelete(t.filename)} style={{ width:22, height:22, borderRadius:4, background:'rgba(26,10,10,.9)', border:'1px solid #3a1a1a', color:'#f87171', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11 }}>✕</button>
-                </div>
-                <div style={{ padding:'6px 8px' }}>
-                  <div style={{ fontSize:10, color:'#ccc', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }} title={t.filename}>{t.filename}</div>
-                  <div style={{ fontSize:9, color:'#444', marginTop:2, display:'flex', justifyContent:'space-between' }}>
+                <div className="p-3">
+                  <div className="text-[10px] font-semibold text-white/80 truncate mb-1">{t.filename}</div>
+                  <div className="flex justify-between items-center text-[9px] text-white/40">
                     <span>{fmtSize(t.sizeBytes)}</span>
-                    {t.category && t.category !== 'Uncategorized' && (<span style={{ color:'#3a3a5e', background:'#1a1a2e', borderRadius:4, padding:'0 4px' }}>{t.category}</span>)}
+                    {t.category && t.category !== 'Uncategorized' && <span className="bg-white/10 px-1.5 py-0.5 rounded text-white/60">{t.category}</span>}
                   </div>
                 </div>
               </div>
@@ -464,33 +407,23 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
   );
 }
 
-type ActiveTab = "music" | "video" | "thumbnails";
-type ThumbUploadState = 'idle' | 'uploading' | 'done' | 'error';
-
 export default function MediaPool() {
   const { toasts, add: addToast, remove: removeToast } = useToast();
-  const [activeTab, setActiveTab] = useState<ActiveTab>("music");
-  const [musicCats, setMusicCats] = useState<string[]>(["Rainy","Jazz","Night","Chill","Hype"]);
-  const [videoCats, setVideoCats] = useState<string[]>(["Overlay","BRB","Starting","Ending"]);
+  const [activeTab, setActiveTab] = useState<"music"|"video"|"thumbnails">("music");
+  const [musicCats, setMusicCats] = useState<string[]>([]);
+  const [videoCats, setVideoCats] = useState<string[]>([]);
   const [musicCat, setMusicCat] = useState("__all__");
   const [videoCat, setVideoCat] = useState("__all__");
   const [files, setFiles] = useState<FileItem[]>([]);
-
-  const fetchFiles = useCallback(async () => {
-    try { const r = await fetch(`${API_BASE}/files`); if (!r.ok) throw new Error(`HTTP ${r.status}`); const data = await r.json(); setFiles(Array.isArray(data.files) ? data.files : []); } catch (err) { console.error("Gagal load files:", err); }
-  }, []);
-  useEffect(() => { fetchFiles(); }, [fetchFiles]);
-
-  const fetchCategories = useCallback(async () => {
-    try { const r = await fetch(`${API_BASE}/categories`); if (!r.ok) throw new Error(`HTTP ${r.status}`); const data = await r.json(); if (Array.isArray(data.music)) setMusicCats(data.music); if (Array.isArray(data.video)) setVideoCats(data.video); } catch (err) {}
-  }, []);
-  useEffect(() => { fetchCategories(); }, [fetchCategories]);
-
   const [queue, setQueue] = useState<UploadQueueItem[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [playing, setPlaying] = useState<FileItem|null>(null);
   const [syncing, setSyncing] = useState(false);
-  const [lastSync, setLastSync] = useState<string|null>(null);
+
+  const fetchFiles = useCallback(async () => { try { const r = await fetch(`${API_BASE}/files`); if (!r.ok) throw new Error(`HTTP ${r.status}`); const data = await r.json(); setFiles(Array.isArray(data.files) ? data.files : []); } catch (err) {} }, []);
+  const fetchCategories = useCallback(async () => { try { const r = await fetch(`${API_BASE}/categories`); if (!r.ok) throw new Error(`HTTP ${r.status}`); const data = await r.json(); if (Array.isArray(data.music)) setMusicCats(data.music); if (Array.isArray(data.video)) setVideoCats(data.video); } catch (err) {} }, []);
+  
+  useEffect(() => { fetchFiles(); fetchCategories(); }, [fetchFiles, fetchCategories]);
 
   const mediaType = activeTab === "thumbnails" ? "music" : activeTab;
   const cats = mediaType==="music"?musicCats:videoCats;
@@ -507,106 +440,94 @@ export default function MediaPool() {
         const fd = new FormData(); fd.append("type", mediaType); fd.append("category", category); fd.append("file", item.file);
         await new Promise<void>((resolve, reject) => {
           const xhr = new XMLHttpRequest();
-          xhr.upload.onprogress = e => { const p=Math.round((e.loaded/e.total)*100); setQueue(q=>q.map(i=>i.id===item.id?{...i,progress:p}:i)); };
-          xhr.onload = () => xhr.status===200?resolve():reject(new Error(`HTTP ${xhr.status}`));
-          xhr.onerror = () => reject(new Error("Network error"));
+          xhr.upload.onprogress = e => { setQueue(q=>q.map(i=>i.id===item.id?{...i,progress:Math.round((e.loaded/e.total)*100)}:i)); };
+          xhr.onload = () => xhr.status===200?resolve():reject(new Error(`HTTP`));
           xhr.open("POST", `${API_BASE}/upload`); xhr.send(fd);
         });
-        await fetchFiles(); setQueue(q => q.map(i => i.id===item.id?{...i,status:"done",progress:100}:i)); addToast(`${item.name} berhasil diupload`, "success");
-      } catch(err) { setQueue(q => q.map(i => i.id===item.id?{...i,status:"error"}:i)); addToast(`Gagal: ${err instanceof Error?err.message:"error"}`, "error"); }
+        await fetchFiles(); setQueue(q => q.map(i => i.id===item.id?{...i,status:"done",progress:100}:i)); addToast(`Berhasil`, "success");
+      } catch(err) { setQueue(q => q.map(i => i.id===item.id?{...i,status:"error"}:i)); addToast(`Gagal`, "error"); }
     }
     setTimeout(() => setQueue(q => q.filter(i => i.status!=="done")), 5000);
   };
 
   const handleMoveFile = async (dataString: string, targetCat: string) => {
     try {
-      const data = JSON.parse(dataString);
-      if (data.type !== mediaType || data.oldCategory === targetCat) return;
+      const data = JSON.parse(dataString); if (data.type !== mediaType || data.oldCategory === targetCat) return;
       const res = await fetch(`${API_BASE}/files/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: data.type, oldCategory: data.oldCategory, newCategory: targetCat, filename: data.filename }) });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error);
-      addToast(`File dipindah ke ${targetCat}`, 'success');
-      await fetchFiles();
-    } catch (err) { addToast(`Gagal memindah: ${err instanceof Error?err.message:'error'}`, 'error'); }
+      if (!res.ok) throw new Error(); addToast(`Dipindah ke ${targetCat}`, 'success'); await fetchFiles();
+    } catch (err) { addToast(`Gagal memindah`, 'error'); }
   };
 
-  const triggerSync = async (silent=false) => {
-    if (syncing) return; setSyncing(true);
-    try { const r = await fetch(`${API_BASE}/sync`, { method:"POST" }); if (!r.ok) throw new Error(`HTTP ${r.status}`); setLastSync(new Date().toLocaleTimeString("id-ID",{hour:"2-digit",minute:"2-digit"})); if (!silent) addToast("Sync ke GDrive berhasil", "success"); } catch(err) { addToast(`Sync gagal: ${err instanceof Error?err.message:"error"}`, "error"); } finally { setSyncing(false); }
-  };
-
-  const addCat = async (type:"music"|"video", name:string) => {
-    try { const res = await fetch(`${API_BASE}/categories`, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ type, name }) }); if (!res.ok) { const err = await res.json(); throw new Error(err.error || `HTTP ${res.status}`); } await fetchCategories(); addToast(`Kategori "${name}" ditambahkan`,"success"); } catch(err) { addToast(`Gagal: ${err instanceof Error?err.message:"error"}`, "error"); }
-  };
-
-  const delCat = async (type:"music"|"video", name:string) => {
-    if (files.some(f=>f.type===type&&f.category===name)) { addToast(`"${name}" masih ada filenya`,"error"); return; }
-    try { const res = await fetch(`${API_BASE}/categories/${type}/${encodeURIComponent(name)}`, { method:"DELETE" }); if (!res.ok) { const err = await res.json(); throw new Error(err.error || `HTTP ${res.status}`); } await fetchCategories(); if(selCat===name)setSelCat("__all__"); addToast(`Kategori "${name}" dihapus`,"info"); } catch(err) { addToast(`Gagal: ${err instanceof Error?err.message:"error"}`, "error"); }
-  };
-
-  const delFile = async (id:string) => {
-    const f = files.find(x=>x.id===id); if (!f) return;
-    try { const res = await fetch(`${API_BASE}/files/${f.type}/${encodeURIComponent(f.category)}/${encodeURIComponent(f.name)}`, { method:"DELETE" }); if (!res.ok) throw new Error(`HTTP ${res.status}`); if (playing?.id===id) setPlaying(null); await fetchFiles(); addToast("File dihapus","info"); } catch(err) { addToast(`Gagal hapus: ${err instanceof Error?err.message:"error"}`, "error"); }
-  };
-
-  const tabStyle = (tab: ActiveTab) => ({ display:"flex" as const, alignItems:"center" as const, gap:6, padding:"8px 16px", borderRadius:6, fontSize:12, fontWeight:600, cursor:"pointer" as const, border:"1px solid transparent", background: activeTab===tab ? "var(--accent)" : "transparent", color: activeTab===tab ? "#fff" : "var(--text-secondary)", borderColor: activeTab===tab ? "var(--accent)" : "var(--border)", transition:"all .15s" });
+  const triggerSync = async () => { if (syncing) return; setSyncing(true); try { await fetch(`${API_BASE}/sync`, { method:"POST" }); addToast("Sync GDrive berhasil", "success"); } catch(err) { addToast(`Sync gagal`, "error"); } finally { setSyncing(false); } };
+  const addCat = async (type:"music"|"video", name:string) => { try { await fetch(`${API_BASE}/categories`, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ type, name }) }); await fetchCategories(); addToast(`Kategori ditambah`,"success"); } catch(err) { addToast(`Gagal`, "error"); } };
+  const delCat = async (type:"music"|"video", name:string) => { if (files.some(f=>f.type===type&&f.category===name)) return addToast(`Masih ada file`,"error"); try { await fetch(`${API_BASE}/categories/${type}/${encodeURIComponent(name)}`, { method:"DELETE" }); await fetchCategories(); if(selCat===name)setSelCat("__all__"); addToast(`Kategori dihapus`,"info"); } catch(err) { addToast(`Gagal`, "error"); } };
+  const delFile = async (id:string) => { const f = files.find(x=>x.id===id); if (!f) return; try { await fetch(`${API_BASE}/files/${f.type}/${encodeURIComponent(f.category)}/${encodeURIComponent(f.name)}`, { method:"DELETE" }); if (playing?.id===id) setPlaying(null); await fetchFiles(); addToast("Dihapus","info"); } catch(err) { addToast(`Gagal hapus`, "error"); } };
 
   return (
-    <>
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Media Pool</h1>
-          <p className="page-subtitle">Manage music, video & thumbnails</p>
-        </div>
-        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-          <button style={tabStyle("music")} onClick={()=>setActiveTab("music")}><Icon.Music /> Musik <span style={{ background:"rgba(255,255,255,0.15)", borderRadius:99, padding:"1px 7px", fontSize:11 }}>{files.filter(f=>f.type==="music").length}</span></button>
-          <button style={tabStyle("video")} onClick={()=>setActiveTab("video")}><Icon.Video /> Video <span style={{ background:"rgba(255,255,255,0.15)", borderRadius:99, padding:"1px 7px", fontSize:11 }}>{files.filter(f=>f.type==="video").length}</span></button>
-          <button style={tabStyle("thumbnails")} onClick={()=>setActiveTab("thumbnails")}><Icon.Image /> Thumbnails</button>
-          {activeTab !== "thumbnails" && (<button onClick={()=>setShowModal(true)} className="btn btn-primary"><Icon.Upload /> Upload {activeTab==="music"?"Musik":"Video"}</button>)}
-        </div>
+    <div className="min-h-screen text-white apple-ui relative z-0 pb-20 overflow-x-hidden">
+      <style dangerouslySetInnerHTML={{__html: `
+        .apple-ui { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-weight: 400; letter-spacing: -0.01em; }
+        .glass-card { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(40px); border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 0 10px 40px -10px rgba(0,0,0,0.3); }
+        .glass-card-strong { background: rgba(255, 255, 255, 0.08); backdrop-filter: blur(40px); border: 1px solid rgba(255, 255, 255, 0.15); box-shadow: 0 20px 40px -10px rgba(0,0,0,0.5); }
+        .glass-input { background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.06); }
+        ::-webkit-scrollbar { width: 6px; height: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 10px; }
+      `}} />
+
+      <div className="fixed inset-0 z-[-1] bg-[#050507]">
+        <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] bg-indigo-600/20 rounded-full blur-[140px] mix-blend-screen pointer-events-none" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] bg-orange-600/10 rounded-full blur-[140px] mix-blend-screen pointer-events-none" />
+        <div className="absolute top-[30%] right-[20%] w-[40vw] h-[40vw] bg-teal-600/10 rounded-full blur-[140px] mix-blend-screen pointer-events-none" />
       </div>
 
-      {activeTab === "thumbnails" && (<ThumbnailTab toast={addToast} />)}
-
-      {activeTab !== "thumbnails" && (
-        <>
-          <div style={{ marginBottom:16, display:"flex", alignItems:"center", gap:10, padding:"8px 14px", background:"#0a0a12", border:"1px solid #1a1a28", borderRadius:8, fontSize:12, color:"#555" }}>
-            <Icon.Cloud /><span style={{ flex:1 }}>GDrive Sync {lastSync?`- Terakhir: ${lastSync}`:"- Belum pernah sync"}</span>
-            <button onClick={()=>triggerSync(false)} disabled={syncing} style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 12px", borderRadius:6, border:"1px solid #2a2a3e", background:syncing?"#1a1a2e":"transparent", color:syncing?"#7c6fcd":"#aaa", cursor:syncing?"not-allowed":"pointer", fontSize:12, fontWeight:600 }}><span style={{ display:"inline-flex", animation:syncing?"spin 1s linear infinite":"none" }}><Icon.Sync /></span>{syncing?"Syncing...":"Sync ke Drive"}</button>
+      <div className="max-w-6xl mx-auto px-4 lg:px-8 pt-8">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight text-white mb-1">Media Pool</h1>
+            <p className="text-white/50 text-[11px] font-semibold uppercase tracking-widest">Asset Manager</p>
           </div>
+          <div className="bg-black/30 p-1.5 rounded-full flex gap-1 border border-white/5 shadow-inner">
+            <button onClick={()=>setActiveTab("music")} className={`px-5 py-2.5 rounded-full text-xs font-bold transition-all duration-300 flex items-center gap-2 ${activeTab==="music" ? 'bg-white text-black shadow-lg' : 'text-white/50 hover:text-white hover:bg-white/5'}`}><Icon.Music /> Musik</button>
+            <button onClick={()=>setActiveTab("video")} className={`px-5 py-2.5 rounded-full text-xs font-bold transition-all duration-300 flex items-center gap-2 ${activeTab==="video" ? 'bg-white text-black shadow-lg' : 'text-white/50 hover:text-white hover:bg-white/5'}`}><Icon.Video /> Video</button>
+            <button onClick={()=>setActiveTab("thumbnails")} className={`px-5 py-2.5 rounded-full text-xs font-bold transition-all duration-300 flex items-center gap-2 ${activeTab==="thumbnails" ? 'bg-white text-black shadow-lg' : 'text-white/50 hover:text-white hover:bg-white/5'}`}><Icon.Image /> Thumbnails</button>
+          </div>
+        </div>
 
-          {queue.length>0 && (
-            <div style={{ margin:"12px 0", display:"flex", flexDirection:"column", gap:6 }}>
-              {queue.map(item => (
-                <div key={item.id} style={{ background:"#111118", border:"1px solid #1e1e2e", borderRadius:8, padding:"8px 12px" }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}><span style={{ fontSize:12, color:"#ccc", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"70%" }}>{item.name}</span><span style={{ fontSize:11, color:item.status==="done"?"#4ade80":item.status==="error"?"#f87171":"#7c6fcd" }}>{item.status==="uploading"?`${item.progress}%`:item.status==="done"?"selesai":item.status==="error"?"gagal":"menunggu..."}</span></div>
-                  <div style={{ height:3, background:"#1e1e2e", borderRadius:99, overflow:"hidden" }}><div style={{ height:"100%", borderRadius:99, width:`${item.progress}%`, background:item.status==="done"?"#4ade80":item.status==="error"?"#f87171":"#7c6fcd" }} /></div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div style={{ display:"flex", background:"#0e0e16", border:"1px solid #1e1e2e", borderRadius:12, overflow:"hidden", minHeight:420 }}>
-            <div style={{ paddingTop:16, paddingBottom:16, borderRight:"1px solid #1e1e2e" }}>
+        {activeTab === "thumbnails" ? <ThumbnailTab toast={addToast} /> : (
+          <div className="glass-card rounded-[32px] overflow-hidden flex flex-col md:flex-row min-h-[600px] mb-8">
+            <div className="bg-white/[0.02] border-r border-white/5 p-4 md:p-6 flex flex-col gap-2">
               <CategorySidebar type={activeTab} categories={cats} selected={selCat} onSelect={setSelCat} onAdd={n=>addCat(activeTab,n)} onDelete={n=>delCat(activeTab,n)} onMoveFile={handleMoveFile} />
             </div>
-            <div style={{ flex:1, padding:16, overflowY:"auto", maxHeight:560 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:12, fontSize:12, color:"#555" }}>
-                <span>{activeTab==="music"?"Musik":"Video"}</span>{selCat!=="__all__"&&<><Icon.ChevronRight /><span style={{ color:"#a78bfa" }}>{selCat}</span></>}<span style={{ marginLeft:"auto", color:"#444" }}>{visible.length} file (Bisa di-Drag)</span>
+            <div className="flex-1 p-4 md:p-6 bg-transparent flex flex-col">
+              <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+                <div className="flex items-center gap-3 text-xs font-semibold text-white/50">
+                  <span>{activeTab==="music"?"Musik":"Video"}</span>{selCat!=="__all__" && <><Icon.ChevronRight /><span className="text-white">{selCat}</span></>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={triggerSync} disabled={syncing} className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5"><span className={syncing?"animate-spin":""}><Icon.Sync /></span> Sync GDrive</button>
+                  <button onClick={()=>setShowModal(true)} className="bg-white text-black px-5 py-2 rounded-full text-xs font-bold shadow-lg hover:scale-95 transition-all flex items-center gap-1.5"><Icon.Upload /> Upload</button>
+                </div>
               </div>
-              <FileList files={visible} type={activeTab} onDelete={delFile} onPlay={setPlaying} playing={playing} />
+              
+              {queue.length>0 && (
+                <div className="mb-6 space-y-2">
+                  {queue.map(item => (
+                    <div key={item.id} className="glass-card-strong rounded-xl p-3 flex flex-col gap-2">
+                      <div className="flex justify-between items-center text-xs"><span className="text-white/80 font-medium truncate pr-4">{item.name}</span><span className={item.status==="done"?"text-emerald-400":item.status==="error"?"text-red-400":"text-white"}>{item.status==="uploading"?`${item.progress}%`:"Selesai"}</span></div>
+                      <div className="h-1 bg-white/10 rounded-full overflow-hidden"><div className={`h-full rounded-full transition-all ${item.status==="done"?"bg-emerald-400":item.status==="error"?"bg-red-400":"bg-white"}`} style={{width:`${item.progress}%`}} /></div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex-1 overflow-y-auto pr-2 -mr-2"><FileList files={visible} type={activeTab} onDelete={delFile} onPlay={setPlaying} playing={playing} /></div>
             </div>
           </div>
-
-          <div style={{ marginTop:12, padding:"10px 14px", background:"#0a0a12", border:"1px solid #1a1a28", borderRadius:8, fontSize:12, color:"#444", display:"flex", gap:8 }}>
-            <span>Info:</span><span>File disimpan di VPS: <code style={{ color:"#666" }}>/opt/media/{activeTab}/[kategori]/</code></span>
-          </div>
-        </>
-      )}
+        )}
+      </div>
 
       {showModal && <UploadModal type={activeTab as "music"|"video"} categories={cats} onClose={()=>setShowModal(false)} onUpload={handleUpload} />}
       {activeTab !== "thumbnails" && <MiniPlayer playing={playing} type={activeTab as "music"|"video"} apiBase={API_BASE} />}
       <Toast toasts={toasts} remove={removeToast} />
-    </>
+    </div>
   );
 }
