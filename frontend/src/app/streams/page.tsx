@@ -7,8 +7,9 @@ interface Schedule { id: number; channel_id: string; channel_name: string; sched
 interface Folder { name: string; count: number; }
 interface Asset { id: number; type: string; value: string; label: string; in_use?: boolean; }
 interface MediaFile { filename: string; path: string; category?: string; }
+interface SystemLog { id: number; channel_id: string; message: string; created_at: string; }
 
-interface StreamConfig { folder: string; videoPath: string | null; songPath: string | null; thumbnailPath: string | null; titleId: number | null; descriptionId: number | null; auto: boolean; duration: number; }
+interface StreamConfig { folders: string[]; videoPath: string | null; songPath: string | null; thumbnailPath: string | null; titleId: number | null; descriptionId: number | null; auto: boolean; duration: number; }
 
 function UTCClock() {
   const [time, setTime] = useState(''); const [date, setDate] = useState('');
@@ -26,12 +27,12 @@ function UTCClock() {
 }
 
 function formatElapsed(secs: number) { const h = Math.floor(secs / 3600); const m = Math.floor((secs % 3600) / 60); const s = secs % 60; return `${h}j ${m}m ${s}d`; }
-function formatScheduleTime(iso: string) { const d = new Date(iso); const pad = (n: number) => String(n).padStart(2, '0'); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`; }
+function formatScheduleTime(iso: string) { const d = new Date(iso); const pad = (n: number) => String(n).padStart(2, '0'); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`; }
 function getUTCDatetimeLocal() { const now = new Date(); now.setMinutes(now.getMinutes() + 5); const pad = (n: number) => String(n).padStart(2, '0'); return `${now.getUTCFullYear()}-${pad(now.getUTCMonth()+1)}-${pad(now.getUTCDate())}T${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}`; }
 function getCountdown(iso: string) { const diff = new Date(iso).getTime() - Date.now(); if (diff <= 0) return 'sebentar lagi...'; const h = Math.floor(diff / 3600000); const m = Math.floor((diff % 3600000) / 60000); if (h > 0) return `${h}j ${m}m lagi`; return `${m}m lagi`; }
 
 const repeatLabel: Record<string, string> = { daily: 'Harian', weekly: 'Mingguan', monthly: 'Bulanan' };
-const defaultConfig = (): StreamConfig => ({ folder: 'default', videoPath: null, songPath: null, thumbnailPath: null, titleId: null, descriptionId: null, auto: true, duration: 4 });
+const defaultConfig = (): StreamConfig => ({ folders: [], videoPath: null, songPath: null, thumbnailPath: null, titleId: null, descriptionId: null, auto: true, duration: 4 });
 
 function MediaDropdown({ label, options, value, onChange, placeholder, disabled }: { label: string; options: MediaFile[]; value: string | null; onChange: (path: string | null) => void; placeholder?: string; disabled?: boolean; }) {
   const [open, setOpen] = useState(false);
@@ -96,6 +97,7 @@ function AssetDropdown({ label, options, value, onChange, onDelete, placeholder,
 export default function StreamsPage() {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [thumbnails, setThumbnails] = useState<MediaFile[]>([]);
   const [videos, setVideos] = useState<MediaFile[]>([]);
@@ -134,7 +136,13 @@ export default function StreamsPage() {
     } catch (err) {}
   }, []);
 
-  const fetchSchedules = useCallback(async () => { try { const res = await fetch('/api/schedules'); if (res.ok) setSchedules(await res.json()); } catch (err) {} }, []);
+  const fetchSchedulesAndLogs = useCallback(async () => { 
+    try { 
+      const [resS, resL] = await Promise.all([fetch('/api/schedules'), fetch('/api/streams/logs')]);
+      if (resS.ok) setSchedules(await resS.json()); 
+      if (resL.ok) setSystemLogs(await resL.json());
+    } catch (err) {} 
+  }, []);
 
   const fetchAssets = useCallback(async () => {
     try {
@@ -142,18 +150,14 @@ export default function StreamsPage() {
         fetch('/api/assets/folders'), fetch('/api/thumbnails'), fetch('/api/assets/titles'), fetch('/api/assets/descriptions'), fetch('/api/assets/mediaFiles')
       ]);
       if (fRes.ok) { const d = await fRes.json(); setFolders(d.folders || []); }
-      if (thRes.ok) { 
-        const d = await thRes.json(); 
-        // FIX: Pastikan "path" selalu terkirim ke dropdown
-        setThumbnails((d.files || []).map((f: any) => ({ ...f, path: f.path || f.filename }))); 
-      }
+      if (thRes.ok) { const d = await thRes.json(); setThumbnails((d.files || []).map((f: any) => ({ ...f, path: f.path || f.filename }))); }
       if (tiRes.ok) setTitles(await tiRes.json());
       if (dRes.ok) setDescriptions(await dRes.json());
       if (mfRes.ok) { const d = await mfRes.json(); setVideos(d.videos || []); setSongs(d.songs || []); }
     } catch (err) {}
   }, []);
 
-  useEffect(() => { fetchChannels(); fetchSchedules(); fetchAssets(); const interval = setInterval(() => { fetchChannels(); fetchSchedules(); }, 10000); return () => clearInterval(interval); }, [fetchChannels, fetchSchedules, fetchAssets]);
+  useEffect(() => { fetchChannels(); fetchSchedulesAndLogs(); fetchAssets(); const interval = setInterval(() => { fetchChannels(); fetchSchedulesAndLogs(); }, 10000); return () => clearInterval(interval); }, [fetchChannels, fetchSchedulesAndLogs, fetchAssets]);
   useEffect(() => { const update = () => { const counts: { [key: number]: string } = {}; schedules.filter(s => s.status === 'pending').forEach(s => { counts[s.id] = getCountdown(s.scheduled_at); }); setCountdown(counts); }; update(); const t = setInterval(update, 30000); return () => clearInterval(t); }, [schedules]);
 
   const getConfig = (channelId: string): StreamConfig => streamConfigs[channelId] || defaultConfig();
@@ -163,7 +167,8 @@ export default function StreamsPage() {
     const config = getConfig(channelId);
     setLoading(true);
     try {
-      const body: Record<string, unknown> = { channelId, durationSecs: config.duration * 3600, folder: config.folder, auto: config.auto };
+      const payloadFolder = config.folders.length > 0 ? config.folders.join(',') : 'Semua';
+      const body: Record<string, unknown> = { channelId, durationSecs: config.duration * 3600, folder: payloadFolder, auto: config.auto };
       if (!config.auto) {
         if (config.titleId) { const t = titles.find(x => x.id === config.titleId); if (t) body.title = t.value; }
         if (config.descriptionId) { const d = descriptions.find(x => x.id === config.descriptionId); if (d) body.description = d.value; }
@@ -173,31 +178,15 @@ export default function StreamsPage() {
       }
       const res = await fetch('/api/streams/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!res.ok) { const err = await res.json(); alert('Gagal start: ' + err.error); }
-      await fetchChannels();
+      await fetchChannels(); await fetchSchedulesAndLogs();
     } finally { setLoading(false); }
   };
 
   const stopStream = async (streamId: string) => { setLoading(true); try { await fetch('/api/streams/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ streamId }) }); await fetchChannels(); } finally { setLoading(false); } };
-
-  const addChannel = async () => {
-    if (!newChannelName.trim() || !newRefreshToken.trim()) return;
-    setLoading(true);
-    try {
-      const res = await fetch('/api/channels', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newChannelName.trim(), refresh_token: newRefreshToken.trim() }) });
-      if (!res.ok) { const err = await res.json(); alert('Gagal: ' + err.error); } else { setNewChannelName(''); setNewRefreshToken(''); setShowAddForm(false); await fetchChannels(); }
-    } finally { setLoading(false); }
-  };
-
-  const updateRefreshToken = async (channelId: string) => {
-    if (!editTokenValue.trim()) return;
-    try {
-      const res = await fetch(`/api/channels/${channelId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: editTokenValue.trim() }) });
-      if (!res.ok) { const err = await res.json(); alert('Gagal: ' + err.error); } else { setEditingTokenFor(null); setEditTokenValue(''); await fetchChannels(); }
-    } catch (err) {}
-  };
-
+  const addChannel = async () => { if (!newChannelName.trim() || !newRefreshToken.trim()) return; setLoading(true); try { const res = await fetch('/api/channels', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newChannelName.trim(), refresh_token: newRefreshToken.trim() }) }); if (!res.ok) { const err = await res.json(); alert('Gagal: ' + err.error); } else { setNewChannelName(''); setNewRefreshToken(''); setShowAddForm(false); await fetchChannels(); } } finally { setLoading(false); } };
+  const updateRefreshToken = async (channelId: string) => { if (!editTokenValue.trim()) return; try { const res = await fetch(`/api/channels/${channelId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: editTokenValue.trim() }) }); if (!res.ok) { const err = await res.json(); alert('Gagal: ' + err.error); } else { setEditingTokenFor(null); setEditTokenValue(''); await fetchChannels(); } } catch (err) {} };
   const deleteChannel = async (channelId: string) => { if (!confirm(`Hapus channel ${channelId}?`)) return; await fetch(`/api/channels/${channelId}`, { method: 'DELETE' }); await fetchChannels(); };
-
+  
   const scheduleStream = async (channelId: string) => {
     const form = scheduleForm[channelId];
     if (!form?.datetime) return alert('Pilih tanggal & jam dulu!');
@@ -206,64 +195,87 @@ export default function StreamsPage() {
     const config = getConfig(channelId);
     setLoading(true);
     try {
-      const body: Record<string, unknown> = {
-        channelId, scheduledAt, durationSecs: (form.duration || 4) * 3600, 
-        folder: config.folder, auto: config.auto, title: 'Lofi Jazz Radio - Live Stream', repeatType: form.repeat || 'none',
-        videoPath: config.videoPath, songPath: config.songPath
-      };
+      const payloadFolder = config.folders.length > 0 ? config.folders.join(',') : 'Semua';
+      const body: Record<string, unknown> = { channelId, scheduledAt, durationSecs: (form.duration || 4) * 3600, folder: payloadFolder, auto: config.auto, title: 'Lofi Jazz Radio - Live Stream', repeatType: form.repeat || 'none', videoPath: config.videoPath, songPath: config.songPath };
       if (!config.auto && config.titleId) { const t = titles.find(x => x.id === config.titleId); if (t) body.title = t.value; }
       const res = await fetch('/api/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      if (!res.ok) { const err = await res.json(); alert('Gagal schedule: ' + err.error); } else { setShowScheduleFor(null); await fetchSchedules(); }
+      if (!res.ok) { const err = await res.json(); alert('Gagal schedule: ' + err.error); } else { setShowScheduleFor(null); await fetchSchedulesAndLogs(); }
     } finally { setLoading(false); }
   };
-
-  const cancelSchedule = async (scheduleId: number) => {
-    if (!confirm('Yakin ingin membatalkan/menghapus schedule ini?')) return;
-    await fetch(`/api/schedules/${scheduleId}`, { method: 'DELETE' });
-    await fetchSchedules();
-  };
-
-  const addAsset = async () => {
-    if (!newAsset.value.trim()) return;
-    const res = await fetch('/api/assets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: newAsset.type, value: newAsset.value.trim(), label: newAsset.label.trim() || newAsset.value.trim() }) });
-    if (res.ok) { setNewAsset({ type: 'title', value: '', label: '' }); setShowAddAsset(false); await fetchAssets(); }
-  };
-
+  const cancelSchedule = async (scheduleId: number) => { if (!confirm('Yakin membatalkan schedule ini?')) return; await fetch(`/api/schedules/${scheduleId}`, { method: 'DELETE' }); await fetchSchedulesAndLogs(); };
+  const addAsset = async () => { if (!newAsset.value.trim()) return; const res = await fetch('/api/assets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: newAsset.type, value: newAsset.value.trim(), label: newAsset.label.trim() || newAsset.value.trim() }) }); if (res.ok) { setNewAsset({ type: 'title', value: '', label: '' }); setShowAddAsset(false); await fetchAssets(); } };
   const deleteAsset = async (id: number) => { await fetch(`/api/assets/${id}`, { method: 'DELETE' }); await fetchAssets(); };
-
   const initScheduleForm = (channelId: string) => { if (!scheduleForm[channelId]) { setScheduleForm(prev => ({ ...prev, [channelId]: { datetime: getUTCDatetimeLocal(), duration: 4, repeat: 'none' } })); } setShowScheduleFor(channelId); };
+  const clearLogs = async () => { if(!confirm('Hapus semua log error?')) return; await fetch('/api/streams/logs', { method: 'DELETE' }); await fetchSchedulesAndLogs(); };
 
   const pendingSchedules = schedules.filter(s => s.status === 'pending');
   const recentSchedules = schedules.filter(s => s.status !== 'pending');
 
   return (
     <>
-      <div className="p-6 max-w-4xl mx-auto">
-        {pendingSchedules.length > 0 && (
-          <div className="bg-[#111318] border border-[#f5c85a33] rounded-lg p-4 mb-5">
-            <div className="text-[10px] text-[#f5c85a] uppercase tracking-widest font-mono mb-3">⏰ Scheduled Streams ({pendingSchedules.length})</div>
-            <div className="flex flex-col gap-2">
-              {pendingSchedules.map(s => (
-                <div key={s.id} className="flex items-center justify-between bg-[#0d0f12] rounded px-3 py-2.5">
-                  <div className="flex items-center gap-3">
-                    <div className="w-1.5 h-1.5 rounded-full bg-[#f5c85a] animate-pulse" />
+      <div className="p-6 max-w-5xl mx-auto">
+        
+        {/* PANEL JADWAL & ERROR LOG */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
+          {/* Kolom Kiri: Jadwal */}
+          <div className="flex flex-col gap-4">
+            <div className="bg-[#111318] border border-[#f5c85a33] rounded-lg flex flex-col min-h-[160px] max-h-[300px]">
+              <div className="p-3 bg-[#1a1500] rounded-t-lg border-b border-[#3a2a00] flex justify-between items-center">
+                <span className="text-[10px] text-[#f5c85a] uppercase font-mono tracking-widest">⏰ Antrean Jadwal Mendatang ({pendingSchedules.length})</span>
+              </div>
+              <div className="p-3 overflow-y-auto flex-1 flex flex-col gap-2">
+                {pendingSchedules.map(s => (
+                  <div key={s.id} className="flex flex-col sm:flex-row sm:items-center justify-between bg-[#0d0f12] rounded border border-[#2a2e38] p-2 gap-2">
                     <div>
-                      <div className="text-xs font-mono text-[#e8e6e0]">{s.channel_name}</div>
-                      <div className="text-[10px] font-mono text-[#6b7280]">
-                        {formatScheduleTime(s.scheduled_at)} · {Math.round(s.duration_secs / 3600)}j
-                        {s.repeat_type && s.repeat_type !== 'none' && ` · 🔁 ${repeatLabel[s.repeat_type]}`}
-                      </div>
+                      <div className="text-xs font-mono text-[#e8e6e0] flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-[#f5c85a] animate-pulse" />{s.channel_name}</div>
+                      <div className="text-[10px] font-mono text-[#6b7280] ml-3">{formatScheduleTime(s.scheduled_at)} · {Math.round(s.duration_secs / 3600)}j {s.repeat_type && s.repeat_type !== 'none' && ` · 🔁 ${repeatLabel[s.repeat_type]}`}</div>
+                    </div>
+                    <div className="flex items-center gap-3 ml-3 sm:ml-0">
+                      <span className="text-[10px] font-mono text-[#f5c85a]">{countdown[s.id] || getCountdown(s.scheduled_at)}</span>
+                      <button onClick={() => cancelSchedule(s.id)} className="text-[10px] text-[#f5655a] border border-[#f5655a33] px-2 py-1 rounded hover:bg-[#1a0a0a] font-mono transition-colors">✕ Cancel</button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-[10px] font-mono text-[#f5c85a]">{countdown[s.id] || getCountdown(s.scheduled_at)}</span>
-                    <button onClick={() => cancelSchedule(s.id)} className="text-[10px] text-[#f5655a] border border-[#f5655a33] px-2 py-1 rounded hover:bg-[#1a0a0a] font-mono transition-colors">✕ Cancel Jadwal</button>
-                  </div>
-                </div>
-              ))}
+                ))}
+                {pendingSchedules.length === 0 && <div className="text-xs text-[#6b7280] font-mono text-center my-auto">Tidak ada antrean jadwal.</div>}
+              </div>
             </div>
+
+            {recentSchedules.length > 0 && (
+              <div className="bg-[#111318] border border-[#2a2e38] rounded-lg p-4">
+                <div className="text-[10px] text-[#6b7280] uppercase tracking-widest font-mono mb-2">Riwayat (24 jam terakhir)</div>
+                <div className="flex flex-col gap-1 max-h-[120px] overflow-y-auto">
+                  {recentSchedules.map(s => (
+                    <div key={s.id} className="flex items-center justify-between px-2 py-1.5 rounded hover:bg-[#0d0f12]">
+                      <div className="flex items-center gap-3">
+                        <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded ${s.status === 'done' ? 'bg-[#0a1a0a] text-[#5af5c8] border border-[#1a3a1a]' : s.status === 'failed' ? 'bg-[#1a0a0a] text-[#f5655a] border border-[#3a1a1a]' : 'bg-[#1a1500] text-[#f5c85a] border border-[#3a2a00]'}`}>{s.status}</span>
+                        <span className="text-[11px] font-mono text-[#6b7280]">{s.channel_name}</span>
+                      </div>
+                      <span className="text-[9px] font-mono text-[#3a3e48]">{formatScheduleTime(s.scheduled_at)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-        )}
+
+          {/* Kolom Kanan: Error Log */}
+          <div className="bg-[#111318] border border-[#f5655a33] rounded-lg flex flex-col min-h-[200px] max-h-[450px]">
+             <div className="p-3 bg-[#1a0a0a] rounded-t-lg border-b border-[#3a1a1a] flex justify-between items-center">
+                 <span className="text-[10px] text-[#f5655a] uppercase font-mono tracking-widest flex items-center gap-2">⚠️ Error Logs System <span className="bg-[#f5655a] text-[#0a0a0a] px-1.5 rounded font-bold">{systemLogs.length}</span></span>
+                 <button onClick={clearLogs} className="text-[10px] text-[#6b7280] hover:text-[#f5655a] font-mono transition-colors">Bersihkan</button>
+             </div>
+             <div className="p-3 overflow-y-auto flex-1 flex flex-col gap-2">
+                {systemLogs.map(l => (
+                   <div key={l.id} className="text-[10px] font-mono border border-[#3a1a1a] bg-[#0d0f12] rounded p-2 relative">
+                      <div className="text-[#f5655a] font-bold mb-1">{l.channel_id || 'System'}</div>
+                      <div className="text-[#e8e6e0] leading-relaxed break-words pr-20">{l.message}</div>
+                      <div className="text-[#6b7280] absolute top-2 right-2">{new Date(l.created_at).toLocaleTimeString('id-ID', {hour: '2-digit', minute: '2-digit', second: '2-digit'})} UTC</div>
+                   </div>
+                ))}
+                {systemLogs.length === 0 && <div className="text-xs text-[#6b7280] font-mono text-center my-auto py-10">Bersih! Tidak ada pesan error sistem.</div>}
+             </div>
+          </div>
+        </div>
 
         <div className="bg-[#111318] border border-[#2a2e38] rounded-lg p-4 mb-5">
           <div className="flex items-center justify-between mb-3">
@@ -337,7 +349,7 @@ export default function StreamsPage() {
             const isShowingConfig = showConfigFor === ch.channel_id;
             const hasToken = !!ch.google_refresh_token;
             const isLive = ch.stream_status === 'live';
-            const chSchedule = pendingSchedules.find(s => s.channel_id === ch.channel_id);
+            const folderDisplay = config.folders.length > 0 ? (config.folders.length > 2 ? `${config.folders.length} folder` : config.folders.join(',')) : 'Semua';
 
             return (
               <div key={ch.channel_id} className={`bg-[#111318] border rounded-lg p-5 transition-colors ${isLive ? 'border-[#c8f55a]' : 'border-[#2a2e38]'}`}>
@@ -349,7 +361,6 @@ export default function StreamsPage() {
                   <div className="flex items-center gap-3">
                     <div className={`text-[10px] font-mono px-2 py-0.5 rounded ${hasToken ? 'bg-[#0a1a0a] text-[#5af5c8] border border-[#1a3a1a]' : 'bg-[#1a0a0a] text-[#f5655a] border border-[#3a1a1a]'}`}>{hasToken ? '✓ token' : '✗ no token'}</div>
                     {isLive && <div className="flex items-center gap-1.5 text-[#f5655a] text-xs font-mono"><span className="w-2 h-2 rounded-full bg-[#f5655a] animate-pulse" />LIVE</div>}
-                    {chSchedule && !isLive && <div className="flex items-center gap-1.5 text-[#f5c85a] text-xs font-mono"><span className="w-2 h-2 rounded-full bg-[#f5c85a] animate-pulse" />SCHEDULED</div>}
                     <button onClick={() => deleteChannel(ch.channel_id)} className="text-[#6b7280] hover:text-[#f5655a] text-xs font-mono">Hapus</button>
                   </div>
                 </div>
@@ -397,37 +408,26 @@ export default function StreamsPage() {
                     </div>
                     
                     <div className="mb-4">
-                      <div className="text-[10px] text-[#6b7280] font-mono mb-1">Folder Filter (Diutamakan untuk lagu/musik)</div>
+                      <div className="text-[10px] text-[#6b7280] font-mono mb-1">Folder Filter Musik (Pilih lebih dari 1)</div>
                       <div className="flex flex-wrap gap-1">
-                        {folders.map(f => (
-                          <button key={f.name} onClick={() => updateConfig(ch.channel_id, { folder: f.name })} className={`text-[10px] font-mono px-2 py-1 rounded transition-colors ${config.folder === f.name ? 'bg-[#c8f55a] text-[#0a0c0f] font-bold' : 'border border-[#2a2e38] text-[#6b7280] hover:border-[#c8f55a] hover:text-[#c8f55a]'}`}>{f.name} ({f.count})</button>
-                        ))}
+                        <button onClick={() => updateConfig(ch.channel_id, { folders: [] })} className={`text-[10px] font-mono px-2 py-1 rounded transition-colors ${config.folders.length === 0 ? 'bg-[#c8f55a] text-[#0a0c0f] font-bold' : 'border border-[#2a2e38] text-[#6b7280] hover:border-[#c8f55a] hover:text-[#c8f55a]'}`}>Semua Folder</button>
+                        {folders.map(f => {
+                          const isSelected = config.folders.includes(f.name);
+                          return (
+                            <button key={f.name} onClick={() => {
+                              const newFolders = isSelected ? config.folders.filter(x => x !== f.name) : [...config.folders, f.name];
+                              updateConfig(ch.channel_id, { folders: newFolders });
+                            }} className={`text-[10px] font-mono px-2 py-1 rounded transition-colors ${isSelected ? 'bg-[#c8f55a] text-[#0a0c0f] font-bold' : 'border border-[#2a2e38] text-[#6b7280] hover:border-[#c8f55a] hover:text-[#c8f55a]'}`}>{f.name} ({f.count})</button>
+                          );
+                        })}
                       </div>
                     </div>
                     
                     {!config.auto && (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-[#111318] rounded-md border border-[#2a2e38]">
-                        <MediaDropdown 
-                          label="🎥 Video Loop" 
-                          options={videos} 
-                          value={config.videoPath} 
-                          onChange={path => updateConfig(ch.channel_id, { videoPath: path })} 
-                          placeholder="— acak otomatis —" 
-                        />
-                        <MediaDropdown 
-                          label="🎵 Audio / Musik" 
-                          options={config.folder && config.folder !== 'Semua' && config.folder !== 'default' ? songs.filter(s => s.category === config.folder) : songs} 
-                          value={config.songPath} 
-                          onChange={path => updateConfig(ch.channel_id, { songPath: path })} 
-                          placeholder="— acak otomatis —" 
-                        />
-                        <MediaDropdown 
-                          label="🖼 Thumbnail" 
-                          options={thumbnails} 
-                          value={config.thumbnailPath} 
-                          onChange={path => updateConfig(ch.channel_id, { thumbnailPath: path })} 
-                          placeholder="— acak otomatis —" 
-                        />
+                        <MediaDropdown label="🎥 Video Loop" options={videos} value={config.videoPath} onChange={path => updateConfig(ch.channel_id, { videoPath: path })} placeholder="— acak otomatis —" />
+                        <MediaDropdown label="🎵 Audio / Musik" options={config.folders.length > 0 ? songs.filter(s => s.category && config.folders.includes(s.category)) : songs} value={config.songPath} onChange={path => updateConfig(ch.channel_id, { songPath: path })} placeholder="— acak otomatis —" />
+                        <MediaDropdown label="🖼 Thumbnail" options={thumbnails} value={config.thumbnailPath} onChange={path => updateConfig(ch.channel_id, { thumbnailPath: path })} placeholder="— acak otomatis —" />
                         <div className="flex flex-col gap-3">
                           <AssetDropdown label="📝 Judul Live" options={titles} value={config.titleId} onChange={id => updateConfig(ch.channel_id, { titleId: id })} onDelete={deleteAsset} placeholder="— acak otomatis —" />
                           <AssetDropdown label="📄 Deskripsi" options={descriptions} value={config.descriptionId} onChange={id => updateConfig(ch.channel_id, { descriptionId: id })} onDelete={deleteAsset} placeholder="— acak otomatis —" />
@@ -448,15 +448,15 @@ export default function StreamsPage() {
 
                 <div className="flex gap-2">
                   {!isLive && (
-                    <button onClick={() => startStream(ch.channel_id)} disabled={loading || !hasToken} className="flex-1 py-2 rounded bg-[#c8f55a] text-[#0a0c0f] text-xs font-bold font-mono hover:bg-[#b8e54a] transition-colors disabled:opacity-40 disabled:cursor-not-allowed">▶ Start ({config.duration}j · {config.folder} · {config.auto ? 'Auto' : 'Manual'})</button>
+                    <button onClick={() => startStream(ch.channel_id)} disabled={loading || !hasToken} className="flex-1 py-2 rounded bg-[#c8f55a] text-[#0a0c0f] text-xs font-bold font-mono hover:bg-[#b8e54a] transition-colors disabled:opacity-40 disabled:cursor-not-allowed">▶ Start ({config.duration}j · {folderDisplay} · {config.auto ? 'Auto' : 'Manual'})</button>
                   )}
                   <button onClick={() => setShowConfigFor(isShowingConfig ? null : ch.channel_id)} className={`px-3 py-2 border rounded text-[10px] font-mono transition-colors ${isShowingConfig ? 'border-[#c8f55a] text-[#c8f55a]' : 'border-[#2a2e38] text-[#6b7280] hover:border-[#c8f55a] hover:text-[#c8f55a]'}`}>⚙ Config</button>
-                  {!chSchedule && !isLive && (
-                    <button onClick={() => initScheduleForm(ch.channel_id)} disabled={!hasToken} className="flex-1 py-2 rounded border border-[#f5c85a] text-[#f5c85a] text-xs font-mono hover:bg-[#1a1500] transition-colors disabled:opacity-40 disabled:cursor-not-allowed">⏰ Schedule</button>
+                  {!isLive && (
+                    <button onClick={() => initScheduleForm(ch.channel_id)} disabled={!hasToken} className="flex-1 py-2 rounded border border-[#f5c85a] text-[#f5c85a] text-xs font-mono hover:bg-[#1a1500] transition-colors disabled:opacity-40 disabled:cursor-not-allowed">⏰ Jadwalkan</button>
                   )}
                 </div>
 
-                {isShowingSchedule && !chSchedule && (
+                {isShowingSchedule && (
                   <div className="mt-3 bg-[#0d0f12] border border-[#f5c85a33] rounded-lg p-4">
                     <div className="text-[10px] text-[#f5c85a] uppercase tracking-widest font-mono mb-3">Jadwalkan Stream — Waktu dalam UTC</div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
@@ -484,8 +484,8 @@ export default function StreamsPage() {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={() => scheduleStream(ch.channel_id)} disabled={loading} className="flex-1 py-2 rounded bg-[#f5c85a] text-[#0a0c0f] text-xs font-bold font-mono hover:bg-[#e5b84a] transition-colors disabled:opacity-50">✓ Konfirmasi Schedule</button>
-                      <button onClick={() => setShowScheduleFor(null)} className="px-4 py-2 rounded border border-[#2a2e38] text-xs font-mono text-[#6b7280]">Batal</button>
+                      <button onClick={() => scheduleStream(ch.channel_id)} disabled={loading} className="flex-1 py-2 rounded bg-[#f5c85a] text-[#0a0c0f] text-xs font-bold font-mono hover:bg-[#e5b84a] transition-colors disabled:opacity-50">✓ Buat Jadwal Baru</button>
+                      <button onClick={() => setShowScheduleFor(null)} className="px-4 py-2 rounded border border-[#2a2e38] text-xs font-mono text-[#6b7280]">Tutup</button>
                     </div>
                   </div>
                 )}
