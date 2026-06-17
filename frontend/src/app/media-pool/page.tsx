@@ -72,33 +72,51 @@ function DropZone({ onFiles, accept, label }: { onFiles:(f:File[])=>void; accept
   );
 }
 
-function SidebarItem({ icon, label, active, onClick, onDelete }: { icon:React.ReactNode; label:string; active:boolean; onClick:()=>void; onDelete?:()=>void }) {
+function SidebarItem({ icon, label, active, onClick, onDelete, onDropFile }: { icon:React.ReactNode; label:string; active:boolean; onClick:()=>void; onDelete?:()=>void; onDropFile?:(data:string)=>void }) {
   const [hover, setHover] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+
   return (
     <div onClick={onClick} onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)}
-      style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 16px", cursor:"pointer", borderRadius:"0 8px 8px 0", marginRight:8, background:active?"rgba(124,111,205,.18)":hover?"rgba(255,255,255,.04)":"transparent", color:active?"#a78bfa":"#aaa", transition:"all .15s", fontSize:13, userSelect:"none" }}>
-      <span style={{ flexShrink:0, opacity:active?1:.6 }}>{icon}</span>
-      <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{label}</span>
-      {onDelete && hover && !active && (
+      onDragOver={e=>{ if (onDropFile && label !== '__all__') { e.preventDefault(); setDragOver(true); } }}
+      onDragLeave={()=>setDragOver(false)}
+      onDrop={e=>{
+        e.preventDefault(); setDragOver(false);
+        if (onDropFile && label !== '__all__') {
+          const data = e.dataTransfer.getData('text/plain');
+          if (data) onDropFile(data);
+        }
+      }}
+      style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 16px", cursor:"pointer", borderRadius:"0 8px 8px 0", marginRight:8, 
+        background: dragOver?"rgba(74,222,128,.15)":active?"rgba(124,111,205,.18)":hover?"rgba(255,255,255,.04)":"transparent", 
+        color: dragOver?"#4ade80":active?"#a78bfa":"#aaa", 
+        border: dragOver?"1px dashed #4ade80":"1px solid transparent",
+        transition:"all .15s", fontSize:13, userSelect:"none" }}>
+      <span style={{ flexShrink:0, opacity:active||dragOver?1:.6 }}>{icon}</span>
+      <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{label === '__all__' ? 'Semua' : label}</span>
+      {onDelete && hover && !active && !dragOver && (
         <button onClick={e=>{e.stopPropagation();onDelete()}} style={{ background:"none", border:"none", color:"#f87171", cursor:"pointer", padding:0, display:"flex" }}><Icon.Trash /></button>
       )}
     </div>
   );
 }
 
-function CategorySidebar({ type, categories, selected, onSelect, onAdd, onDelete }: { type:"music"|"video"; categories:string[]; selected:string; onSelect:(c:string)=>void; onAdd:(n:string)=>void; onDelete:(n:string)=>void }) {
+function CategorySidebar({ type, categories, selected, onSelect, onAdd, onDelete, onMoveFile }: { type:"music"|"video"; categories:string[]; selected:string; onSelect:(c:string)=>void; onAdd:(n:string)=>void; onDelete:(n:string)=>void; onMoveFile:(fileData:string, newCat:string)=>void }) {
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const ref = useRef<HTMLInputElement>(null);
   const submit = () => { const n=newName.trim(); if(n&&!categories.includes(n))onAdd(n); setAdding(false); setNewName(""); };
+  
   return (
     <div style={{ width:200, flexShrink:0 }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 16px 12px", marginBottom:4 }}>
         <span style={{ fontSize:11, color:"#555", fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase" }}>{type==="music"?"Kategori Musik":"Kategori Video"}</span>
         <button onClick={()=>{setAdding(true);setTimeout(()=>ref.current?.focus(),50)}} style={{ background:"none", border:"none", color:"#7c6fcd", cursor:"pointer", padding:2, display:"flex" }}><Icon.Plus /></button>
       </div>
-      <SidebarItem icon={<Icon.Folder />} label="Semua" active={selected==="__all__"} onClick={()=>onSelect("__all__")} />
-      {categories.map(cat => <SidebarItem key={cat} icon={<Icon.Folder />} label={cat} active={selected===cat} onClick={()=>onSelect(cat)} onDelete={()=>onDelete(cat)} />)}
+      <SidebarItem icon={<Icon.Folder />} label="__all__" active={selected==="__all__"} onClick={()=>onSelect("__all__")} />
+      {categories.map(cat => (
+        <SidebarItem key={cat} icon={<Icon.Folder />} label={cat} active={selected===cat} onClick={()=>onSelect(cat)} onDelete={()=>onDelete(cat)} onDropFile={(data) => onMoveFile(data, cat)} />
+      ))}
       {adding && (
         <div style={{ padding:"6px 12px" }}>
           <input ref={ref} value={newName} onChange={e=>setNewName(e.target.value)}
@@ -113,8 +131,9 @@ function CategorySidebar({ type, categories, selected, onSelect, onAdd, onDelete
 function FileRow({ file, onDelete, onPlay, isPlaying }: { file:FileItem; onDelete:(id:string)=>void; onPlay:(f:FileItem)=>void; isPlaying:boolean }) {
   const [hover, setHover] = useState(false);
   return (
-    <div onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)}
-      style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 12px", borderRadius:8, background:isPlaying?"rgba(124,111,205,.15)":hover?"rgba(255,255,255,.04)":"transparent", transition:"background .15s" }}>
+    <div draggable onDragStart={e => e.dataTransfer.setData('text/plain', JSON.stringify({ filename: file.name, oldCategory: file.category, type: file.type }))}
+      onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)}
+      style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 12px", borderRadius:8, background:isPlaying?"rgba(124,111,205,.15)":hover?"rgba(255,255,255,.04)":"transparent", transition:"background .15s", cursor:"grab" }}>
       <button onClick={()=>onPlay(file)} style={{ width:28, height:28, borderRadius:"50%", border:"none", background:isPlaying?"#7c6fcd":"rgba(255,255,255,.08)", color:"#e8e8ea", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><Icon.Play /></button>
       <div style={{ flex:1, overflow:"hidden" }}>
         <div style={{ fontSize:13, color:isPlaying?"#a78bfa":"#ddd", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{file.name}</div>
@@ -215,18 +234,23 @@ function MiniPlayer({ playing, type, apiBase }: { playing:FileItem|null; type:"m
   );
 }
 
-function ThumbnailCategoryItem({ cat, count, selectedCat, onSelect, onDelete }: { cat: string, count: number, selectedCat: string, onSelect: (c: string) => void, onDelete: (c: string) => void }) {
+function ThumbnailCategoryItem({ cat, count, selectedCat, onSelect, onDelete, onDropFile }: { cat: string, count: number, selectedCat: string, onSelect: (c: string) => void, onDelete: (c: string) => void, onDropFile: (data:string, cat:string) => void }) {
   const [hover, setHover] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   return (
     <div onClick={()=>onSelect(cat)}
       onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)}
+      onDragOver={e=>{ e.preventDefault(); setDragOver(true); }}
+      onDragLeave={()=>setDragOver(false)}
+      onDrop={e=>{ e.preventDefault(); setDragOver(false); const data = e.dataTransfer.getData('text/plain'); if(data) onDropFile(data, cat); }}
       style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', cursor:'pointer', borderRadius:'0 8px 8px 0', marginRight:8,
-        background:selectedCat===cat?'rgba(124,111,205,.18)':hover?'rgba(255,255,255,.04)':'transparent',
-        color:selectedCat===cat?'#a78bfa':'#aaa', fontSize:13 }}>
+        background:dragOver?'rgba(74,222,128,.15)':selectedCat===cat?'rgba(124,111,205,.18)':hover?'rgba(255,255,255,.04)':'transparent',
+        border:dragOver?'1px dashed #4ade80':'1px solid transparent',
+        color:dragOver?'#4ade80':selectedCat===cat?'#a78bfa':'#aaa', fontSize:13, transition:'all .15s' }}>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
       <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{cat}</span>
       <span style={{ fontSize:10, color:'#555' }}>{count}</span>
-      {hover && selectedCat !== cat && (
+      {hover && selectedCat !== cat && !dragOver && (
         <button onClick={e=>{e.stopPropagation();onDelete(cat)}}
           style={{ background:'none', border:'none', color:'#f87171', cursor:'pointer', padding:0, display:'flex' }}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg>
@@ -254,17 +278,10 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchThumbnails = useCallback(async () => {
-    try {
-      const res = await fetch('/api/thumbnails');
-      if (res.ok) { const d = await res.json(); setThumbnails(d.files || []); }
-    } catch {}
+    try { const res = await fetch('/api/thumbnails'); if (res.ok) { const d = await res.json(); setThumbnails(d.files || []); } } catch {}
   }, []);
-
   const fetchCategories = useCallback(async () => {
-    try {
-      const res = await fetch('/api/thumbnails/categories');
-      if (res.ok) { const d = await res.json(); setCategories(d.categories || []); }
-    } catch {}
+    try { const res = await fetch('/api/thumbnails/categories'); if (res.ok) { const d = await res.json(); setCategories(d.categories || []); } } catch {}
   }, []);
 
   useEffect(() => { fetchThumbnails(); fetchCategories(); }, [fetchThumbnails, fetchCategories]);
@@ -274,10 +291,7 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
     if (!file.type.startsWith('image/')) { toast('Hanya JPG, PNG, WebP', 'error'); return; }
     if (file.size > 5 * 1024 * 1024) { toast('File max 5MB', 'error'); return; }
     if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPreviewFile(file);
-    setPreviewUrl(URL.createObjectURL(file));
-    setUploadState('idle');
-    setUploadMsg('');
+    setPreviewFile(file); setPreviewUrl(URL.createObjectURL(file)); setUploadState('idle'); setUploadMsg('');
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -296,48 +310,40 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
       const res = await fetch('/api/thumbnails/upload', { method: 'POST', body: formData });
       const data = await res.json();
       if (!res.ok) { setUploadState('error'); setUploadMsg(data.error || 'Upload gagal'); return; }
-      await fetchThumbnails();
-      await fetchCategories();
-      setUploadState('done'); setUploadMsg(`✓ ${data.filename} tersimpan`);
-      toast(`${data.filename} berhasil diupload`, 'success');
-      setTimeout(() => {
-        setPreviewFile(null);
-        if (previewUrl) URL.revokeObjectURL(previewUrl);
-        setPreviewUrl(null); setUploadState('idle'); setUploadMsg('');
-      }, 2000);
+      await fetchThumbnails(); await fetchCategories();
+      setUploadState('done'); setUploadMsg(`✓ ${data.filename} tersimpan`); toast(`${data.filename} diupload`, 'success');
+      setTimeout(() => { setPreviewFile(null); if (previewUrl) URL.revokeObjectURL(previewUrl); setPreviewUrl(null); setUploadState('idle'); setUploadMsg(''); }, 2000);
     } catch (err) { setUploadState('error'); setUploadMsg(err instanceof Error ? err.message : 'Error'); }
+  };
+
+  const handleMoveFile = async (dataString: string, targetCat: string) => {
+    try {
+      const data = JSON.parse(dataString);
+      if (data.type !== 'thumbnail' || data.oldCategory === targetCat) return;
+      const res = await fetch('/api/thumbnails/move', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filename: data.filename, oldCategory: data.oldCategory, newCategory: targetCat }) });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error);
+      toast(`Dipindah ke ${targetCat}`, 'success');
+      await fetchThumbnails();
+    } catch (err) { toast(`Gagal memindah: ${err instanceof Error?err.message:'error'}`, 'error'); }
   };
 
   const handleSync = async () => {
     setSyncLoading(true);
-    try {
-      const res = await fetch('/api/thumbnails/sync', { method: 'POST' });
-      const data = await res.json();
-      toast(`Sync selesai — ${data.total} file`, 'success');
-    } catch { toast('Sync gagal', 'error'); }
-    finally { setSyncLoading(false); }
+    try { const res = await fetch('/api/thumbnails/sync', { method: 'POST' }); const data = await res.json(); toast(`Sync selesai — ${data.total} file`, 'success'); } catch { toast('Sync gagal', 'error'); } finally { setSyncLoading(false); }
   };
 
   const handleDelete = async (filename: string) => {
     if (!confirm(`Hapus ${filename}?`)) return;
-    await fetch(`/api/thumbnails/${encodeURIComponent(filename)}`, { method: 'DELETE' });
-    await fetchThumbnails();
-    toast(`${filename} dihapus`, 'info');
+    await fetch(`/api/thumbnails/${encodeURIComponent(filename)}`, { method: 'DELETE' }); await fetchThumbnails(); toast(`${filename} dihapus`, 'info');
   };
 
   const addCategory = async () => {
-    const n = newCatName.trim();
-    if (!n) return;
+    const n = newCatName.trim(); if (!n) return;
     try {
-      const res = await fetch('/api/thumbnails/categories', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: n }),
-      });
+      const res = await fetch('/api/thumbnails/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: n }), });
       if (!res.ok) { const e = await res.json(); toast(e.error, 'error'); return; }
-      await fetchCategories();
-      setNewCatName(''); setAddingCat(false);
-      toast(`Kategori "${n}" ditambahkan`, 'success');
+      await fetchCategories(); setNewCatName(''); setAddingCat(false); toast(`Kategori "${n}" ditambahkan`, 'success');
     } catch { toast('Gagal tambah kategori', 'error'); }
   };
 
@@ -345,9 +351,7 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
     try {
       const res = await fetch(`/api/thumbnails/categories/${encodeURIComponent(name)}`, { method: 'DELETE' });
       if (!res.ok) { const e = await res.json(); toast(e.error, 'error'); return; }
-      await fetchCategories();
-      if (selectedCat === name) setSelectedCat('__all__');
-      toast(`Kategori "${name}" dihapus`, 'info');
+      await fetchCategories(); if (selectedCat === name) setSelectedCat('__all__'); toast(`Kategori "${name}" dihapus`, 'info');
     } catch { toast('Gagal hapus kategori', 'error'); }
   };
 
@@ -361,83 +365,51 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
           <img src={lightbox} alt="preview" style={{ maxWidth:'90vw', maxHeight:'90vh', borderRadius:8, boxShadow:'0 8px 40px rgba(0,0,0,.8)' }} />
         </div>
       )}
-
       <div style={{ width:200, flexShrink:0 }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 0 12px', marginBottom:4 }}>
           <span style={{ fontSize:11, color:'#555', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>Kategori</span>
-          <button onClick={()=>{setAddingCat(true);setTimeout(()=>catInputRef.current?.focus(),50)}}
-            style={{ background:'none', border:'none', color:'#7c6fcd', cursor:'pointer', padding:2, display:'flex' }}>
+          <button onClick={()=>{setAddingCat(true);setTimeout(()=>catInputRef.current?.focus(),50)}} style={{ background:'none', border:'none', color:'#7c6fcd', cursor:'pointer', padding:2, display:'flex' }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
         </div>
-
-        <div onClick={()=>setSelectedCat('__all__')}
-          style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', cursor:'pointer', borderRadius:'0 8px 8px 0', marginRight:8,
-            background:selectedCat==='__all__'?'rgba(124,111,205,.18)':'transparent',
-            color:selectedCat==='__all__'?'#a78bfa':'#aaa', fontSize:13 }}>
+        <div onClick={()=>setSelectedCat('__all__')} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', cursor:'pointer', borderRadius:'0 8px 8px 0', marginRight:8, background:selectedCat==='__all__'?'rgba(124,111,205,.18)':'transparent', color:selectedCat==='__all__'?'#a78bfa':'#aaa', fontSize:13 }}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
           <span style={{ flex:1 }}>Semua</span>
           <span style={{ fontSize:10, color:'#555' }}>{thumbnails.length}</span>
         </div>
-
         {thumbnails.some(t => !t.category || t.category === 'Uncategorized') && (
-          <div onClick={()=>setSelectedCat('Uncategorized')}
-            style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', cursor:'pointer', borderRadius:'0 8px 8px 0', marginRight:8,
-              background:selectedCat==='Uncategorized'?'rgba(124,111,205,.18)':'transparent',
-              color:selectedCat==='Uncategorized'?'#a78bfa':'#aaa', fontSize:13 }}>
+          <div onClick={()=>setSelectedCat('Uncategorized')} onDragOver={e=>{e.preventDefault()}} onDrop={e=>{ e.preventDefault(); const data = e.dataTransfer.getData('text/plain'); if(data) handleMoveFile(data, 'Uncategorized'); }} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', cursor:'pointer', borderRadius:'0 8px 8px 0', marginRight:8, background:selectedCat==='Uncategorized'?'rgba(124,111,205,.18)':'transparent', color:selectedCat==='Uncategorized'?'#a78bfa':'#aaa', fontSize:13 }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
             <span style={{ flex:1 }}>Uncategorized</span>
           </div>
         )}
-
         {categories.map(cat => (
-           <ThumbnailCategoryItem
-             key={cat}
-             cat={cat}
-             count={thumbnails.filter(t => t.category === cat).length}
-             selectedCat={selectedCat}
-             onSelect={setSelectedCat}
-             onDelete={deleteCategory}
-           />
+           <ThumbnailCategoryItem key={cat} cat={cat} count={thumbnails.filter(t => t.category === cat).length} selectedCat={selectedCat} onSelect={setSelectedCat} onDelete={deleteCategory} onDropFile={handleMoveFile} />
         ))}
-
         {addingCat && (
           <div style={{ padding:'6px 10px' }}>
-            <input ref={catInputRef} value={newCatName} onChange={e=>setNewCatName(e.target.value)}
-              onKeyDown={e=>{if(e.key==='Enter')addCategory();if(e.key==='Escape'){setAddingCat(false);setNewCatName('');}}}
-              onBlur={()=>{if(!newCatName.trim()){setAddingCat(false);}}}
-              placeholder="Nama kategori..."
-              style={{ width:'100%', background:'#16161f', border:'1px solid #7c6fcd', borderRadius:6, padding:'6px 10px', color:'#e8e8ea', fontSize:13, outline:'none', boxSizing:'border-box' }} />
+            <input ref={catInputRef} value={newCatName} onChange={e=>setNewCatName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')addCategory();if(e.key==='Escape'){setAddingCat(false);setNewCatName('');}}} onBlur={()=>{if(!newCatName.trim()){setAddingCat(false);}}} placeholder="Nama kategori..." style={{ width:'100%', background:'#16161f', border:'1px solid #7c6fcd', borderRadius:6, padding:'6px 10px', color:'#e8e8ea', fontSize:13, outline:'none', boxSizing:'border-box' }} />
           </div>
         )}
       </div>
-
       <div style={{ flex:1 }}>
         <div style={{ background:'#111318', border:'1px solid #2a2e38', borderRadius:12, padding:20, marginBottom:16 }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
             <span style={{ fontSize:11, color:'#555', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>Upload Thumbnail</span>
-            <button onClick={handleSync} disabled={syncLoading}
-              style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 12px', borderRadius:6, border:'1px solid #2a2a3e', background:'transparent', color:syncLoading?'#7c6fcd':'#aaa', cursor:syncLoading?'not-allowed':'pointer', fontSize:12, fontWeight:600 }}>
+            <button onClick={handleSync} disabled={syncLoading} style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 12px', borderRadius:6, border:'1px solid #2a2a3e', background:'transparent', color:syncLoading?'#7c6fcd':'#aaa', cursor:syncLoading?'not-allowed':'pointer', fontSize:12, fontWeight:600 }}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ animation:syncLoading?'spin 1s linear infinite':'none' }}><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
               {syncLoading?'Syncing...':'Sync ke Drive'}
             </button>
           </div>
-
           <div style={{ marginBottom:12 }}>
             <label style={{ fontSize:11, color:'#555', fontWeight:600, textTransform:'uppercase', display:'block', marginBottom:6 }}>Kategori Upload</label>
-            <select value={uploadCategory} onChange={e=>setUploadCategory(e.target.value)}
-              style={{ width:'100%', background:'#16161f', border:'1px solid #2a2a3e', borderRadius:8, padding:'8px 12px', color:'#e8e8ea', fontSize:13, outline:'none' }}>
+            <select value={uploadCategory} onChange={e=>setUploadCategory(e.target.value)} style={{ width:'100%', background:'#16161f', border:'1px solid #2a2a3e', borderRadius:8, padding:'8px 12px', color:'#e8e8ea', fontSize:13, outline:'none' }}>
               <option value="">— Uncategorized —</option>
               {categories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
-
-          <div onDragOver={e=>{e.preventDefault();setDragOver(true)}} onDragLeave={()=>setDragOver(false)} onDrop={handleDrop}
-            onClick={()=>fileInputRef.current?.click()}
-            style={{ border:`2px dashed ${dragOver?'#7c6fcd':previewFile?'#2a4a1a':'#2a2a3e'}`, borderRadius:10, padding:'20px', textAlign:'center', cursor:'pointer',
-              background:dragOver?'rgba(124,111,205,.06)':previewFile?'#0a1200':'transparent', transition:'all .15s' }}>
-            <input ref={fileInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp" style={{ display:'none' }}
-              onChange={e=>{ const f=e.target.files?.[0]; if(f)handleFileSelect(f); e.target.value=''; }} />
+          <div onDragOver={e=>{e.preventDefault();setDragOver(true)}} onDragLeave={()=>setDragOver(false)} onDrop={handleDrop} onClick={()=>fileInputRef.current?.click()} style={{ border:`2px dashed ${dragOver?'#7c6fcd':previewFile?'#2a4a1a':'#2a2a3e'}`, borderRadius:10, padding:'20px', textAlign:'center', cursor:'pointer', background:dragOver?'rgba(124,111,205,.06)':previewFile?'#0a1200':'transparent', transition:'all .15s' }}>
+            <input ref={fileInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp" style={{ display:'none' }} onChange={e=>{ const f=e.target.files?.[0]; if(f)handleFileSelect(f); e.target.value=''; }} />
             {previewUrl ? (
               <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:10 }}>
                 <img src={previewUrl} alt="preview" style={{ maxHeight:120, maxWidth:280, objectFit:'contain', borderRadius:6, border:'1px solid #2a2a3e' }} />
@@ -452,50 +424,35 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
               </div>
             )}
           </div>
-
           {uploadMsg && <div style={{ marginTop:10, fontSize:12, color:stateColor }}>{uploadMsg}</div>}
-
           {previewFile && uploadState !== 'done' && (
-            <button onClick={handleUpload} disabled={uploadState==='uploading'}
-              style={{ width:'100%', marginTop:12, padding:'10px', borderRadius:8, border:'none', background:uploadState==='uploading'?'#3a3a5e':'#7c6fcd', color:'#fff', cursor:uploadState==='uploading'?'not-allowed':'pointer', fontWeight:600, fontSize:13 }}>
+            <button onClick={handleUpload} disabled={uploadState==='uploading'} style={{ width:'100%', marginTop:12, padding:'10px', borderRadius:8, border:'none', background:uploadState==='uploading'?'#3a3a5e':'#7c6fcd', color:'#fff', cursor:uploadState==='uploading'?'not-allowed':'pointer', fontWeight:600, fontSize:13 }}>
               {uploadState==='uploading'?'⟳ Uploading...':'↑ Upload ke VPS'}
             </button>
           )}
         </div>
-
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
           <span style={{ fontSize:11, color:'#555', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>
-            /opt/thumbnails{selectedCat!=='__all__'?` / ${selectedCat}`:''} — {visible.length} file
+            /opt/thumbnails{selectedCat!=='__all__'?` / ${selectedCat}`:''} — {visible.length} file (Bisa di-Drag)
           </span>
         </div>
-
         {visible.length === 0 ? (
-          <div style={{ background:'#111318', border:'1px solid #1e1e2e', borderRadius:10, padding:'32px', textAlign:'center', color:'#444', fontSize:13 }}>
-            Belum ada thumbnail{selectedCat!=='__all__'?` di kategori "${selectedCat}"`:''}. 
-          </div>
+          <div style={{ background:'#111318', border:'1px solid #1e1e2e', borderRadius:10, padding:'32px', textAlign:'center', color:'#444', fontSize:13 }}>Belum ada thumbnail{selectedCat!=='__all__'?` di kategori "${selectedCat}"`:''}. </div>
         ) : (
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(160px, 1fr))', gap:10 }}>
             {visible.map(t => (
-              <div key={t.filename} style={{ background:'#111318', border:'1px solid #2a2e38', borderRadius:8, overflow:'hidden', position:'relative' }}
-                onMouseEnter={e=>{const el=e.currentTarget.querySelector('.thumb-actions') as HTMLElement|null;if(el)el.style.opacity='1';}}
-                onMouseLeave={e=>{const el=e.currentTarget.querySelector('.thumb-actions') as HTMLElement|null;if(el)el.style.opacity='0';}}>
-                <div style={{ aspectRatio:'16/9', background:'#0d0f12', cursor:'zoom-in', position:'relative', overflow:'hidden' }}
-                  onClick={()=>setLightbox(`/api/thumbnails/preview/${encodeURIComponent(t.filename)}`)}>
-                  <img src={`/api/thumbnails/preview/${encodeURIComponent(t.filename)}`} alt={t.filename}
-                    style={{ width:'100%', height:'100%', objectFit:'cover', position:'absolute', inset:0 }}
-                    onError={e=>{(e.target as HTMLImageElement).style.display='none';}} />
+              <div key={t.filename} draggable onDragStart={e => e.dataTransfer.setData('text/plain', JSON.stringify({ filename: t.filename, oldCategory: t.category || 'Uncategorized', type: 'thumbnail' }))} style={{ background:'#111318', border:'1px solid #2a2e38', borderRadius:8, overflow:'hidden', position:'relative', cursor:'grab' }} onMouseEnter={e=>{const el=e.currentTarget.querySelector('.thumb-actions') as HTMLElement|null;if(el)el.style.opacity='1';}} onMouseLeave={e=>{const el=e.currentTarget.querySelector('.thumb-actions') as HTMLElement|null;if(el)el.style.opacity='0';}}>
+                <div style={{ aspectRatio:'16/9', background:'#0d0f12', cursor:'zoom-in', position:'relative', overflow:'hidden' }} onClick={()=>setLightbox(`/api/thumbnails/preview/${encodeURIComponent(t.filename)}`)}>
+                  <img src={`/api/thumbnails/preview/${encodeURIComponent(t.filename)}`} alt={t.filename} style={{ width:'100%', height:'100%', objectFit:'cover', position:'absolute', inset:0 }} onError={e=>{(e.target as HTMLImageElement).style.display='none';}} />
                 </div>
                 <div className="thumb-actions" style={{ position:'absolute', top:4, right:4, display:'flex', gap:4, opacity:0, transition:'opacity .15s' }}>
-                  <button onClick={()=>handleDelete(t.filename)}
-                    style={{ width:22, height:22, borderRadius:4, background:'rgba(26,10,10,.9)', border:'1px solid #3a1a1a', color:'#f87171', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11 }}>✕</button>
+                  <button onClick={()=>handleDelete(t.filename)} style={{ width:22, height:22, borderRadius:4, background:'rgba(26,10,10,.9)', border:'1px solid #3a1a1a', color:'#f87171', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11 }}>✕</button>
                 </div>
                 <div style={{ padding:'6px 8px' }}>
                   <div style={{ fontSize:10, color:'#ccc', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }} title={t.filename}>{t.filename}</div>
                   <div style={{ fontSize:9, color:'#444', marginTop:2, display:'flex', justifyContent:'space-between' }}>
                     <span>{fmtSize(t.sizeBytes)}</span>
-                    {t.category && t.category !== 'Uncategorized' && (
-                      <span style={{ color:'#3a3a5e', background:'#1a1a2e', borderRadius:4, padding:'0 4px' }}>{t.category}</span>
-                    )}
+                    {t.category && t.category !== 'Uncategorized' && (<span style={{ color:'#3a3a5e', background:'#1a1a2e', borderRadius:4, padding:'0 4px' }}>{t.category}</span>)}
                   </div>
                 </div>
               </div>
@@ -520,26 +477,13 @@ export default function MediaPool() {
   const [files, setFiles] = useState<FileItem[]>([]);
 
   const fetchFiles = useCallback(async () => {
-    try {
-      const r = await fetch(`${API_BASE}/files`);
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const data = await r.json();
-      setFiles(Array.isArray(data.files) ? data.files : []);
-    } catch (err) { console.error("Gagal load files:", err); }
+    try { const r = await fetch(`${API_BASE}/files`); if (!r.ok) throw new Error(`HTTP ${r.status}`); const data = await r.json(); setFiles(Array.isArray(data.files) ? data.files : []); } catch (err) { console.error("Gagal load files:", err); }
   }, []);
-
   useEffect(() => { fetchFiles(); }, [fetchFiles]);
 
   const fetchCategories = useCallback(async () => {
-    try {
-      const r = await fetch(`${API_BASE}/categories`);
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const data = await r.json();
-      if (Array.isArray(data.music)) setMusicCats(data.music);
-      if (Array.isArray(data.video)) setVideoCats(data.video);
-    } catch (err) { console.error("Gagal load categories:", err); }
+    try { const r = await fetch(`${API_BASE}/categories`); if (!r.ok) throw new Error(`HTTP ${r.status}`); const data = await r.json(); if (Array.isArray(data.music)) setMusicCats(data.music); if (Array.isArray(data.video)) setVideoCats(data.video); } catch (err) {}
   }, []);
-
   useEffect(() => { fetchCategories(); }, [fetchCategories]);
 
   const [queue, setQueue] = useState<UploadQueueItem[]>([]);
@@ -560,83 +504,52 @@ export default function MediaPool() {
     for (const item of items) {
       try {
         setQueue(q => q.map(i => i.id===item.id?{...i,status:"uploading"}:i));
-        const fd = new FormData();
-        fd.append("type", mediaType);
-        fd.append("category", category);
-        fd.append("file", item.file);
+        const fd = new FormData(); fd.append("type", mediaType); fd.append("category", category); fd.append("file", item.file);
         await new Promise<void>((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           xhr.upload.onprogress = e => { const p=Math.round((e.loaded/e.total)*100); setQueue(q=>q.map(i=>i.id===item.id?{...i,progress:p}:i)); };
           xhr.onload = () => xhr.status===200?resolve():reject(new Error(`HTTP ${xhr.status}`));
           xhr.onerror = () => reject(new Error("Network error"));
-          xhr.open("POST", `${API_BASE}/upload`);
-          xhr.send(fd);
+          xhr.open("POST", `${API_BASE}/upload`); xhr.send(fd);
         });
-        await fetchFiles();
-        setQueue(q => q.map(i => i.id===item.id?{...i,status:"done",progress:100}:i));
-        addToast(`${item.name} berhasil diupload`, "success");
-      } catch(err) {
-        setQueue(q => q.map(i => i.id===item.id?{...i,status:"error"}:i));
-        addToast(`Gagal: ${err instanceof Error?err.message:"error"}`, "error");
-      }
+        await fetchFiles(); setQueue(q => q.map(i => i.id===item.id?{...i,status:"done",progress:100}:i)); addToast(`${item.name} berhasil diupload`, "success");
+      } catch(err) { setQueue(q => q.map(i => i.id===item.id?{...i,status:"error"}:i)); addToast(`Gagal: ${err instanceof Error?err.message:"error"}`, "error"); }
     }
     setTimeout(() => setQueue(q => q.filter(i => i.status!=="done")), 5000);
   };
 
-  const triggerSync = async (silent=false) => {
-    if (syncing) return;
-    setSyncing(true);
+  const handleMoveFile = async (dataString: string, targetCat: string) => {
     try {
-      const r = await fetch(`${API_BASE}/sync`, { method:"POST" });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      setLastSync(new Date().toLocaleTimeString("id-ID",{hour:"2-digit",minute:"2-digit"}));
-      if (!silent) addToast("Sync ke GDrive berhasil", "success");
-    } catch(err) {
-      addToast(`Sync gagal: ${err instanceof Error?err.message:"error"}`, "error");
-    } finally { setSyncing(false); }
+      const data = JSON.parse(dataString);
+      if (data.type !== mediaType || data.oldCategory === targetCat) return;
+      const res = await fetch(`${API_BASE}/files/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: data.type, oldCategory: data.oldCategory, newCategory: targetCat, filename: data.filename }) });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error);
+      addToast(`File dipindah ke ${targetCat}`, 'success');
+      await fetchFiles();
+    } catch (err) { addToast(`Gagal memindah: ${err instanceof Error?err.message:'error'}`, 'error'); }
+  };
+
+  const triggerSync = async (silent=false) => {
+    if (syncing) return; setSyncing(true);
+    try { const r = await fetch(`${API_BASE}/sync`, { method:"POST" }); if (!r.ok) throw new Error(`HTTP ${r.status}`); setLastSync(new Date().toLocaleTimeString("id-ID",{hour:"2-digit",minute:"2-digit"})); if (!silent) addToast("Sync ke GDrive berhasil", "success"); } catch(err) { addToast(`Sync gagal: ${err instanceof Error?err.message:"error"}`, "error"); } finally { setSyncing(false); }
   };
 
   const addCat = async (type:"music"|"video", name:string) => {
-    try {
-      const res = await fetch(`${API_BASE}/categories`, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ type, name }) });
-      if (!res.ok) { const err = await res.json(); throw new Error(err.error || `HTTP ${res.status}`); }
-      await fetchCategories();
-      addToast(`Kategori "${name}" ditambahkan`,"success");
-    } catch(err) { addToast(`Gagal: ${err instanceof Error?err.message:"error"}`, "error"); }
+    try { const res = await fetch(`${API_BASE}/categories`, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ type, name }) }); if (!res.ok) { const err = await res.json(); throw new Error(err.error || `HTTP ${res.status}`); } await fetchCategories(); addToast(`Kategori "${name}" ditambahkan`,"success"); } catch(err) { addToast(`Gagal: ${err instanceof Error?err.message:"error"}`, "error"); }
   };
 
   const delCat = async (type:"music"|"video", name:string) => {
     if (files.some(f=>f.type===type&&f.category===name)) { addToast(`"${name}" masih ada filenya`,"error"); return; }
-    try {
-      const res = await fetch(`${API_BASE}/categories/${type}/${encodeURIComponent(name)}`, { method:"DELETE" });
-      if (!res.ok) { const err = await res.json(); throw new Error(err.error || `HTTP ${res.status}`); }
-      await fetchCategories();
-      if(selCat===name)setSelCat("__all__");
-      addToast(`Kategori "${name}" dihapus`,"info");
-    } catch(err) { addToast(`Gagal: ${err instanceof Error?err.message:"error"}`, "error"); }
+    try { const res = await fetch(`${API_BASE}/categories/${type}/${encodeURIComponent(name)}`, { method:"DELETE" }); if (!res.ok) { const err = await res.json(); throw new Error(err.error || `HTTP ${res.status}`); } await fetchCategories(); if(selCat===name)setSelCat("__all__"); addToast(`Kategori "${name}" dihapus`,"info"); } catch(err) { addToast(`Gagal: ${err instanceof Error?err.message:"error"}`, "error"); }
   };
 
   const delFile = async (id:string) => {
-    const f = files.find(x=>x.id===id);
-    if (!f) return;
-    try {
-      const res = await fetch(`${API_BASE}/files/${f.type}/${encodeURIComponent(f.category)}/${encodeURIComponent(f.name)}`, { method:"DELETE" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      if (playing?.id===id) setPlaying(null);
-      await fetchFiles();
-      addToast("File dihapus","info");
-    } catch(err) { addToast(`Gagal hapus: ${err instanceof Error?err.message:"error"}`, "error"); }
+    const f = files.find(x=>x.id===id); if (!f) return;
+    try { const res = await fetch(`${API_BASE}/files/${f.type}/${encodeURIComponent(f.category)}/${encodeURIComponent(f.name)}`, { method:"DELETE" }); if (!res.ok) throw new Error(`HTTP ${res.status}`); if (playing?.id===id) setPlaying(null); await fetchFiles(); addToast("File dihapus","info"); } catch(err) { addToast(`Gagal hapus: ${err instanceof Error?err.message:"error"}`, "error"); }
   };
 
-  const tabStyle = (tab: ActiveTab) => ({
-    display:"flex" as const, alignItems:"center" as const, gap:6,
-    padding:"8px 16px", borderRadius:6, fontSize:12, fontWeight:600,
-    cursor:"pointer" as const, border:"1px solid transparent",
-    background: activeTab===tab ? "var(--accent)" : "transparent",
-    color: activeTab===tab ? "#fff" : "var(--text-secondary)",
-    borderColor: activeTab===tab ? "var(--accent)" : "var(--border)",
-    transition:"all .15s",
-  });
+  const tabStyle = (tab: ActiveTab) => ({ display:"flex" as const, alignItems:"center" as const, gap:6, padding:"8px 16px", borderRadius:6, fontSize:12, fontWeight:600, cursor:"pointer" as const, border:"1px solid transparent", background: activeTab===tab ? "var(--accent)" : "transparent", color: activeTab===tab ? "#fff" : "var(--text-secondary)", borderColor: activeTab===tab ? "var(--accent)" : "var(--border)", transition:"all .15s" });
 
   return (
     <>
@@ -646,53 +559,28 @@ export default function MediaPool() {
           <p className="page-subtitle">Manage music, video & thumbnails</p>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-          <button style={tabStyle("music")} onClick={()=>setActiveTab("music")}>
-            <Icon.Music /> Musik
-            <span style={{ background:"rgba(255,255,255,0.15)", borderRadius:99, padding:"1px 7px", fontSize:11 }}>{files.filter(f=>f.type==="music").length}</span>
-          </button>
-          <button style={tabStyle("video")} onClick={()=>setActiveTab("video")}>
-            <Icon.Video /> Video
-            <span style={{ background:"rgba(255,255,255,0.15)", borderRadius:99, padding:"1px 7px", fontSize:11 }}>{files.filter(f=>f.type==="video").length}</span>
-          </button>
-          <button style={tabStyle("thumbnails")} onClick={()=>setActiveTab("thumbnails")}>
-            <Icon.Image /> Thumbnails
-          </button>
-          {activeTab !== "thumbnails" && (
-            <button onClick={()=>setShowModal(true)} className="btn btn-primary">
-              <Icon.Upload /> Upload {activeTab==="music"?"Musik":"Video"}
-            </button>
-          )}
+          <button style={tabStyle("music")} onClick={()=>setActiveTab("music")}><Icon.Music /> Musik <span style={{ background:"rgba(255,255,255,0.15)", borderRadius:99, padding:"1px 7px", fontSize:11 }}>{files.filter(f=>f.type==="music").length}</span></button>
+          <button style={tabStyle("video")} onClick={()=>setActiveTab("video")}><Icon.Video /> Video <span style={{ background:"rgba(255,255,255,0.15)", borderRadius:99, padding:"1px 7px", fontSize:11 }}>{files.filter(f=>f.type==="video").length}</span></button>
+          <button style={tabStyle("thumbnails")} onClick={()=>setActiveTab("thumbnails")}><Icon.Image /> Thumbnails</button>
+          {activeTab !== "thumbnails" && (<button onClick={()=>setShowModal(true)} className="btn btn-primary"><Icon.Upload /> Upload {activeTab==="music"?"Musik":"Video"}</button>)}
         </div>
       </div>
 
-      {activeTab === "thumbnails" && (
-        <ThumbnailTab toast={addToast} />
-      )}
+      {activeTab === "thumbnails" && (<ThumbnailTab toast={addToast} />)}
 
       {activeTab !== "thumbnails" && (
         <>
           <div style={{ marginBottom:16, display:"flex", alignItems:"center", gap:10, padding:"8px 14px", background:"#0a0a12", border:"1px solid #1a1a28", borderRadius:8, fontSize:12, color:"#555" }}>
-            <Icon.Cloud />
-            <span style={{ flex:1 }}>GDrive Sync {lastSync?`- Terakhir: ${lastSync}`:"- Belum pernah sync"}</span>
-            <button onClick={()=>triggerSync(false)} disabled={syncing} style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 12px", borderRadius:6, border:"1px solid #2a2a3e", background:syncing?"#1a1a2e":"transparent", color:syncing?"#7c6fcd":"#aaa", cursor:syncing?"not-allowed":"pointer", fontSize:12, fontWeight:600 }}>
-              <span style={{ display:"inline-flex", animation:syncing?"spin 1s linear infinite":"none" }}><Icon.Sync /></span>
-              {syncing?"Syncing...":"Sync ke Drive"}
-            </button>
+            <Icon.Cloud /><span style={{ flex:1 }}>GDrive Sync {lastSync?`- Terakhir: ${lastSync}`:"- Belum pernah sync"}</span>
+            <button onClick={()=>triggerSync(false)} disabled={syncing} style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 12px", borderRadius:6, border:"1px solid #2a2a3e", background:syncing?"#1a1a2e":"transparent", color:syncing?"#7c6fcd":"#aaa", cursor:syncing?"not-allowed":"pointer", fontSize:12, fontWeight:600 }}><span style={{ display:"inline-flex", animation:syncing?"spin 1s linear infinite":"none" }}><Icon.Sync /></span>{syncing?"Syncing...":"Sync ke Drive"}</button>
           </div>
 
           {queue.length>0 && (
             <div style={{ margin:"12px 0", display:"flex", flexDirection:"column", gap:6 }}>
               {queue.map(item => (
                 <div key={item.id} style={{ background:"#111118", border:"1px solid #1e1e2e", borderRadius:8, padding:"8px 12px" }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
-                    <span style={{ fontSize:12, color:"#ccc", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"70%" }}>{item.name}</span>
-                    <span style={{ fontSize:11, color:item.status==="done"?"#4ade80":item.status==="error"?"#f87171":"#7c6fcd" }}>
-                      {item.status==="uploading"?`${item.progress}%`:item.status==="done"?"selesai":item.status==="error"?"gagal":"menunggu..."}
-                    </span>
-                  </div>
-                  <div style={{ height:3, background:"#1e1e2e", borderRadius:99, overflow:"hidden" }}>
-                    <div style={{ height:"100%", borderRadius:99, width:`${item.progress}%`, background:item.status==="done"?"#4ade80":item.status==="error"?"#f87171":"#7c6fcd" }} />
-                  </div>
+                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}><span style={{ fontSize:12, color:"#ccc", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"70%" }}>{item.name}</span><span style={{ fontSize:11, color:item.status==="done"?"#4ade80":item.status==="error"?"#f87171":"#7c6fcd" }}>{item.status==="uploading"?`${item.progress}%`:item.status==="done"?"selesai":item.status==="error"?"gagal":"menunggu..."}</span></div>
+                  <div style={{ height:3, background:"#1e1e2e", borderRadius:99, overflow:"hidden" }}><div style={{ height:"100%", borderRadius:99, width:`${item.progress}%`, background:item.status==="done"?"#4ade80":item.status==="error"?"#f87171":"#7c6fcd" }} /></div>
                 </div>
               ))}
             </div>
@@ -700,21 +588,18 @@ export default function MediaPool() {
 
           <div style={{ display:"flex", background:"#0e0e16", border:"1px solid #1e1e2e", borderRadius:12, overflow:"hidden", minHeight:420 }}>
             <div style={{ paddingTop:16, paddingBottom:16, borderRight:"1px solid #1e1e2e" }}>
-              <CategorySidebar type={activeTab} categories={cats} selected={selCat} onSelect={setSelCat} onAdd={n=>addCat(activeTab,n)} onDelete={n=>delCat(activeTab,n)} />
+              <CategorySidebar type={activeTab} categories={cats} selected={selCat} onSelect={setSelCat} onAdd={n=>addCat(activeTab,n)} onDelete={n=>delCat(activeTab,n)} onMoveFile={handleMoveFile} />
             </div>
             <div style={{ flex:1, padding:16, overflowY:"auto", maxHeight:560 }}>
               <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:12, fontSize:12, color:"#555" }}>
-                <span>{activeTab==="music"?"Musik":"Video"}</span>
-                {selCat!=="__all__"&&<><Icon.ChevronRight /><span style={{ color:"#a78bfa" }}>{selCat}</span></>}
-                <span style={{ marginLeft:"auto", color:"#444" }}>{visible.length} file</span>
+                <span>{activeTab==="music"?"Musik":"Video"}</span>{selCat!=="__all__"&&<><Icon.ChevronRight /><span style={{ color:"#a78bfa" }}>{selCat}</span></>}<span style={{ marginLeft:"auto", color:"#444" }}>{visible.length} file (Bisa di-Drag)</span>
               </div>
               <FileList files={visible} type={activeTab} onDelete={delFile} onPlay={setPlaying} playing={playing} />
             </div>
           </div>
 
           <div style={{ marginTop:12, padding:"10px 14px", background:"#0a0a12", border:"1px solid #1a1a28", borderRadius:8, fontSize:12, color:"#444", display:"flex", gap:8 }}>
-            <span>Info:</span>
-            <span>File disimpan di VPS: <code style={{ color:"#666" }}>/opt/media/{activeTab}/[kategori]/</code></span>
+            <span>Info:</span><span>File disimpan di VPS: <code style={{ color:"#666" }}>/opt/media/{activeTab}/[kategori]/</code></span>
           </div>
         </>
       )}
