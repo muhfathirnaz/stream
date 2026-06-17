@@ -122,7 +122,8 @@ export default function StreamsPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [loading, setLoading] = useState(false);
   
-  const [scheduleForm, setScheduleForm] = useState<{ [key: string]: { datetime: string; duration: number; repeat: string } }>({});
+  // FIX: Form jadwal sekarang tidak punya duration state sendiri. Dia akan merujuk ke Engine Config.
+  const [scheduleForm, setScheduleForm] = useState<{ [key: string]: { datetime: string; repeat: string } }>({});
   const [showScheduleFor, setShowScheduleFor] = useState<string | null>(null);
   const [showConfigFor, setShowConfigFor] = useState<string | null>(null);
   const [streamConfigs, setStreamConfigs] = useState<{ [channelId: string]: StreamConfig }>({});
@@ -208,19 +209,20 @@ export default function StreamsPage() {
     setLoading(true);
     try {
       const payloadFolder = config.folders.length > 0 ? config.folders.join(',') : 'Semua';
-      const body: Record<string, unknown> = { channelId, scheduledAt, durationSecs: (form.duration || 4) * 3600, folder: payloadFolder, auto: config.auto, title: 'Lofi Jazz Radio', repeatType: form.repeat || 'none', videoPath: config.videoPath, songPath: config.songPath };
+      // FIX: Durasi sekarang 100% mengambil dari config.duration yang ada di "Engine Config"
+      const body: Record<string, unknown> = { channelId, scheduledAt, durationSecs: config.duration * 3600, folder: payloadFolder, auto: config.auto, title: 'Lofi Jazz Radio', repeatType: form.repeat || 'none', videoPath: config.videoPath, songPath: config.songPath };
       if (!config.auto && config.titleId) { const t = titles.find(x => x.id === config.titleId); if (t) body.title = t.value; }
       const res = await fetch('/api/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!res.ok) { const err = await res.json(); alert('Gagal schedule: ' + err.error); } else { setShowScheduleFor(null); await fetchSchedulesAndLogs(); }
     } finally { setLoading(false); }
   };
+  
   const cancelSchedule = async (scheduleId: number) => { if (!confirm('Batalkan jadwal ini?')) return; await fetch(`/api/schedules/${scheduleId}`, { method: 'DELETE' }); await fetchSchedulesAndLogs(); };
   const addAsset = async () => { if (!newAsset.value.trim()) return; const res = await fetch('/api/assets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: newAsset.type, value: newAsset.value.trim(), label: newAsset.label.trim() || newAsset.value.trim() }) }); if (res.ok) { setNewAsset({ type: 'title', value: '', label: '' }); setShowAddAsset(false); await fetchAssets(); } };
   const deleteAsset = async (id: number) => { await fetch(`/api/assets/${id}`, { method: 'DELETE' }); await fetchAssets(); };
   
-  // FIX: Sched button kini berfungsi sebagai Toggle (Buka/Tutup)
   const initScheduleForm = (channelId: string) => { 
-    if (!scheduleForm[channelId]) { setScheduleForm(prev => ({ ...prev, [channelId]: { datetime: getUTCDatetimeLocal(), duration: 4, repeat: 'none' } })); } 
+    if (!scheduleForm[channelId]) { setScheduleForm(prev => ({ ...prev, [channelId]: { datetime: getUTCDatetimeLocal(), repeat: 'none' } })); } 
     setShowScheduleFor(channelId); 
   };
   
@@ -344,7 +346,7 @@ export default function StreamsPage() {
         <div className="space-y-4 relative z-[10]">
           {channels.map(ch => {
             const config = getConfig(ch.channel_id);
-            const schedForm = scheduleForm[ch.channel_id] || { datetime: getUTCDatetimeLocal(), duration: 4, repeat: 'none' };
+            const schedForm = scheduleForm[ch.channel_id] || { datetime: getUTCDatetimeLocal(), repeat: 'none' };
             const isShowingConfig = showConfigFor === ch.channel_id;
             const isShowingSchedule = showScheduleFor === ch.channel_id;
             const hasToken = !!ch.google_refresh_token;
@@ -381,7 +383,6 @@ export default function StreamsPage() {
                          <Icon.Settings /> Conf
                        </button>
                        {!isLive && (
-                         // FIX: Sched button kini toggle (Buka / Tutup)
                          <button onClick={() => isShowingSchedule ? setShowScheduleFor(null) : initScheduleForm(ch.channel_id)} disabled={!hasToken} className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all flex items-center gap-1 ${isShowingSchedule ? 'bg-amber-400/20 text-amber-400' : 'text-amber-400/70 hover:bg-amber-400/10 hover:text-amber-400 disabled:opacity-30'}`}>
                            <Icon.Clock /> Sched
                          </button>
@@ -425,7 +426,7 @@ export default function StreamsPage() {
                 {isShowingConfig && (
                   <div className="glass-card-strong rounded-[20px] p-4 mb-2 relative z-[50] animate-in slide-in-from-top-2 duration-300 border-t border-white/10 mt-4">
                     <div className="flex items-center justify-between mb-4">
-                      <div className="text-[11px] font-semibold text-white/50 uppercase tracking-widest">Engine Config ({config.duration} Jam)</div>
+                      <div className="text-[11px] font-semibold text-white/50 uppercase tracking-widest">Engine Config</div>
                       <div className="bg-black/30 p-1 rounded-lg flex gap-1 border border-white/5">
                         <button onClick={() => updateConfig(ch.channel_id, { auto: true })} className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${config.auto ? 'bg-white text-black' : 'text-white/50 hover:text-white'}`}>AUTO</button>
                         <button onClick={() => updateConfig(ch.channel_id, { auto: false })} className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${!config.auto ? 'bg-white text-black' : 'text-white/50 hover:text-white'}`}>MANUAL</button>
@@ -460,7 +461,7 @@ export default function StreamsPage() {
                     <div className="mt-4 flex items-center gap-2">
                        <span className="text-[10px] text-white/40">Durasi (Jam):</span>
                        <div className="flex flex-wrap gap-1">
-                        {[4,8,12,24].map(h => (
+                        {[1,2,3,4].map(h => (
                           <button key={h} onClick={() => updateConfig(ch.channel_id, { duration: h })} className={`w-8 h-6 rounded-md text-[10px] font-bold transition-all ${config.duration === h ? 'bg-white text-black' : 'glass-input text-white/60 hover:bg-white/10'}`}>{h}</button>
                         ))}
                       </div>
@@ -468,6 +469,7 @@ export default function StreamsPage() {
                   </div>
                 )}
 
+                {/* SCHEDULE PANEL: HANYA ADA WAKTU & SIKLUS (DURASI IKUT CONFIG) */}
                 {isShowingSchedule && !isLive && (
                   <div className="glass-card-strong rounded-[20px] p-4 mb-2 border border-amber-500/20 mt-4 relative z-[40] animate-in slide-in-from-top-2">
                     <div className="flex flex-col sm:flex-row gap-4">
@@ -475,22 +477,17 @@ export default function StreamsPage() {
                          <label className="text-[10px] text-white/40 mb-1 block">Waktu (UTC)</label>
                          <input type="datetime-local" value={schedForm.datetime} onChange={e => setScheduleForm(prev => ({ ...prev, [ch.channel_id]: { ...schedForm, datetime: e.target.value } }))} className="w-full glass-input rounded-lg px-3 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-amber-400/50" />
                       </div>
-                      <div className="w-full sm:w-32">
+                      <div className="w-full sm:w-40">
                          <label className="text-[10px] text-white/40 mb-1 block">Siklus</label>
                          <select value={schedForm.repeat || 'none'} onChange={e => setScheduleForm(prev => ({ ...prev, [ch.channel_id]: { ...schedForm, repeat: e.target.value } }))} className="w-full glass-input rounded-lg px-3 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-amber-400/50">
                            <option value="none">Satu Kali</option><option value="daily">Harian</option><option value="weekly">Mingguan</option>
                          </select>
                       </div>
-                      <div className="w-full sm:w-20">
-                         <label className="text-[10px] text-white/40 mb-1 block">Durasi</label>
-                         <select value={schedForm.duration || 4} onChange={e => setScheduleForm(prev => ({ ...prev, [ch.channel_id]: { ...schedForm, duration: Number(e.target.value) } }))} className="w-full glass-input rounded-lg px-3 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-amber-400/50">
-                           <option value={4}>4 Jam</option><option value={8}>8 Jam</option><option value={12}>12 Jam</option><option value={24}>24 Jam</option>
-                         </select>
-                      </div>
-                      {/* FIX: Tombol Batal Dibalikkan Kembali */}
                       <div className="flex items-end gap-2">
                          <button onClick={() => setShowScheduleFor(null)} className="px-4 py-2 rounded-lg text-xs font-semibold text-white/50 hover:bg-white/10 hover:text-white transition-colors">Batal</button>
-                         <button onClick={() => scheduleStream(ch.channel_id)} disabled={loading} className="w-full sm:w-auto bg-amber-400 text-black px-4 py-2 rounded-lg text-xs font-bold hover:scale-95 transition-transform">Konfirmasi</button>
+                         <button onClick={() => scheduleStream(ch.channel_id)} disabled={loading} className="w-full sm:w-auto bg-amber-400 text-black px-4 py-2 rounded-lg text-xs font-bold hover:scale-95 transition-transform whitespace-nowrap">
+                           Konfirmasi ({config.duration} Jam)
+                         </button>
                       </div>
                     </div>
                   </div>
