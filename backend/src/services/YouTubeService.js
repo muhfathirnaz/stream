@@ -40,17 +40,19 @@ class YouTubeService {
           scheduledStartTime: new Date().toISOString(),
         },
         status: { privacyStatus: 'public', selfDeclaredMadeForKids: false },
-        contentDetails: { enableAutoStart: true, enableAutoStop: true, latencyPreference: 'normal' },
+        contentDetails: { enableAutoStart: true, enableAutoStop: false, latencyPreference: 'normal' },
       },
     });
     const broadcastId = broadcastRes.data.id;
 
     console.log('📡 [YouTube] Creating Live Stream (RTMP)...');
     const streamRes = await this.youtube.liveStreams.insert({
-      part: 'snippet,cdn',
+      part: 'snippet,cdn,contentDetails',
       requestBody: {
         snippet: { title: `Stream Engine for ${title || broadcastId}` },
         cdn: { frameRate: '30fps', ingestionType: 'rtmp', resolution: '1080p' },
+        // KUNCI UTAMA: Agar StreamKey tidak hangus saat putus koneksi sementara
+        contentDetails: { isReusable: true } 
       },
     });
     const streamId = streamRes.data.id;
@@ -61,21 +63,12 @@ class YouTubeService {
     await this.youtube.liveBroadcasts.bind({ part: 'id,contentDetails', id: broadcastId, streamId: streamId });
 
     if (thumbnailPath && fs.existsSync(thumbnailPath)) {
-      console.log(`🖼️ [YouTube] Mulai Uploading Thumbnail dari: ${thumbnailPath}`);
       try {
-        await this.youtube.thumbnails.set({ 
-          videoId: broadcastId, 
-          media: { body: fs.createReadStream(thumbnailPath) } 
-        });
-        console.log('✅ [YouTube] Thumbnail berhasil diupload ke YouTube!');
-      } catch (err) {
-        console.error('❌ [YouTube] GAGAL upload thumbnail! Alasan:', err.response?.data?.error?.message || err.message);
-      }
-    } else {
-      console.log(`⚠️ [YouTube] Thumbnail dilewati (Path tidak valid atau file hilang: ${thumbnailPath})`);
+        await this.youtube.thumbnails.set({ videoId: broadcastId, media: { body: fs.createReadStream(thumbnailPath) } });
+      } catch (err) {}
     }
 
-    console.log('✅ [YouTube] Broadcast created. Start FFmpeg, then call goLive().');
+    console.log('✅ [YouTube] Broadcast created.');
     return { broadcastId, streamId, rtmpUrl: `${rtmpUrl}/${streamKey}` };
   }
 
@@ -87,34 +80,35 @@ class YouTubeService {
 
     const broadcastCheck = await this.youtube.liveBroadcasts.list({ part: 'status', id: broadcastId });
     const broadcastStatus = broadcastCheck.data.items?.[0]?.status?.lifeCycleStatus;
-    console.log(`📊 [YouTube] Broadcast status: ${broadcastStatus}`);
 
     if (broadcastStatus === 'live') return console.log('✅ [YouTube] Already live!');
 
     if (broadcastStatus === 'ready') {
-      console.log('🧪 [YouTube] Transitioning to testing...');
       try {
         await this.youtube.liveBroadcasts.transition({ part: 'snippet,status', id: broadcastId, broadcastStatus: 'testing' });
         await new Promise(r => setTimeout(r, 5000));
       } catch (e) {}
     }
 
-    console.log('🚀 [YouTube] Transitioning to live...');
     try {
       await this.youtube.liveBroadcasts.transition({ part: 'snippet,status', id: broadcastId, broadcastStatus: 'live' });
       console.log('🎉 [YouTube] Broadcast is now LIVE!');
-    } catch (e) {
-      console.error('❌ [YouTube API Error]:', e.response?.data?.error?.message || e.message);
-    }
+    } catch (e) {}
   }  
+
+  async endBroadcast({ refreshToken, broadcastId }) {
+    try {
+      this.oauth2Client.setCredentials({ refresh_token: refreshToken });
+      await this.youtube.liveBroadcasts.transition({ part: 'snippet,status', id: broadcastId, broadcastStatus: 'complete' });
+      console.log(`✅ [YouTube] Siaran ${broadcastId} telah dihentikan dan VOD berhasil disimpan.`);
+    } catch (err) {}
+  }
 
   async _waitForStreamActive(streamId, timeoutMs = 180000, intervalMs = 5000) {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       const res = await this.youtube.liveStreams.list({ part: 'status', id: streamId });
-      const status = res.data.items?.[0]?.status?.streamStatus;
-      console.log(`   Stream status: ${status}`);
-      if (status === 'active') return;
+      if (res.data.items?.[0]?.status?.streamStatus === 'active') return;
       await new Promise(r => setTimeout(r, intervalMs));
     }
     throw new Error('Stream tidak aktif setelah 3 menit.');
