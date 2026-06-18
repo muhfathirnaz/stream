@@ -100,7 +100,25 @@ class YouTubeService {
     try {
       this.oauth2Client.setCredentials({ refresh_token: refreshToken });
       await this.youtube.liveBroadcasts.transition({ part: 'snippet,status', id: broadcastId, broadcastStatus: 'complete' });
-      console.log(`✅ [YouTube] Siaran ${broadcastId} telah dihentikan dan VOD berhasil disimpan.`);
+      console.log(`✅ [YouTube] Siaran ${broadcastId} telah dihentikan.`);
+      
+      // Jeda 3 detik membiarkan server YouTube memproses transisi ke VOD
+      await new Promise(r => setTimeout(r, 3000));
+      
+      // Auto-Delete VOD setelah streaming selesai
+      try {
+        await this.youtube.videos.delete({ id: broadcastId });
+        console.log(`🗑️ [YouTube] VOD siaran ${broadcastId} berhasil Dihapus Otomatis secara permanen (Auto-Delete).`);
+      } catch (delErr) {
+        console.log(`⚠️ [YouTube] Gagal menghapus permanen, mencoba mengubah menjadi Tidak Publik (Unlisted)...`);
+        try {
+          await this.youtube.videos.update({ 
+            part: "status", 
+            requestBody: { id: broadcastId, status: { privacyStatus: "unlisted" } } 
+          });
+          console.log(`👁️‍🗨️ [YouTube] VOD ${broadcastId} berhasil disembunyikan (Unlisted).`);
+        } catch (updErr) {}
+      }
     } catch (err) {}
   }
 

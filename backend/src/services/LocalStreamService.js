@@ -30,6 +30,30 @@ class LocalStreamService {
     }
     return { titles, descs, thumbs };
   }
+  
+  getRandomVideoReady() {
+    const dir = '/opt/media/video-ready';
+    const path = require('path');
+    if (!fs.existsSync(dir)) return null;
+    
+    // Tarik semua file video di folder
+    const allFiles = fs.readdirSync(dir)
+      .filter(f => f.match(/\.(mp4|mkv|mov|avi|flv)$/i))
+      .map(f => path.join(dir, f));
+      
+    // Tarik daftar video yang sedang diputar di stream manapun
+    const usedFiles = Object.values(this.activeAssets)
+      .map(a => a.videoReadyPath)
+      .filter(Boolean);
+      
+    // Buang video yang sedang tayang dari pilihan
+    let available = allFiles.filter(f => !usedFiles.includes(f));
+    
+    if (available.length === 0) available = allFiles; // Fallback jika semua video kebetulan kepakai
+    if (available.length === 0) return null;
+    
+    return available[Math.floor(Math.random() * available.length)];
+  }
 
   buildPlaylist(folder, songPath, streamId) {
     const playlistPath = `/tmp/playlist_${streamId}.txt`;
@@ -125,7 +149,23 @@ class LocalStreamService {
         originalStartTime = savedYt.originalStartTime;
         console.log(`🔄 [Engine] Melanjutkan stream. Sisa waktu aktual dari target awal akan dihitung...`);
       } else {
-        const ytRes = await this.youtubeService.createBroadcast({ refreshToken, title, description, thumbnailPath });
+        let actualThumb = thumbnailPath;
+        if (actualThumb === 'RANDOM_THUMBNAIL') {
+          const thumbDir = '/opt/media/thumbnails';
+          if (fs.existsSync(thumbDir)) {
+              // Tarik semua file gambar yang ada
+              const files = fs.readdirSync(thumbDir)
+                  .filter(f => f.match(/\.(jpg|jpeg|png)$/i))
+                  .map(f => require('path').join(thumbDir, f));
+              
+              // Pilih satu secara acak!
+              actualThumb = files.length > 0 ? files[Math.floor(Math.random() * files.length)] : null;
+          } else {
+              actualThumb = null;
+          }
+        }
+        
+        const ytRes = await this.youtubeService.createBroadcast({ refreshToken, title, description, thumbnailPath: actualThumb });
         rtmpUrl = ytRes.rtmpUrl;
         broadcastId = ytRes.broadcastId;
         youtubeStreamId = ytRes.streamId;
@@ -149,11 +189,20 @@ class LocalStreamService {
         throw new Error('Batas waktu tayang siaran ini telah habis secara keseluruhan.');
       }
 
-      const useStreamCopy = !!(videoReadyPath && fs.existsSync(videoReadyPath));
+      let actualVideoReadyPath = videoReadyPath;
+      if (actualVideoReadyPath === 'RANDOM_VIDEO_READY') {
+         actualVideoReadyPath = this.getRandomVideoReady();
+         if (!actualVideoReadyPath) throw new Error("Gagal! Tidak ada file video di folder Video Jadi untuk diacak.");
+      }
+
+      // Langsung reservasi awal agar anti-duplikat aman dari stream yang start barengan sedetik!
+      this.activeAssets[streamId] = { videoReadyPath: actualVideoReadyPath };
+
+      const useStreamCopy = !!(actualVideoReadyPath && fs.existsSync(actualVideoReadyPath));
       let finalVideoPath, finalVideoFilename;
       if (useStreamCopy) {
-        finalVideoPath = videoReadyPath;
-        finalVideoFilename = path.basename(videoReadyPath);
+        finalVideoPath = actualVideoReadyPath;
+        finalVideoFilename = path.basename(actualVideoReadyPath);
         console.log(`[Engine] ⚡ STREAM COPY mode: ${finalVideoFilename}`);
       } else {
         const video = await this.fetchNextVideo(channelId, folder, videoPath);
@@ -162,31 +211,54 @@ class LocalStreamService {
         finalVideoFilename = video.filename;
       }
 
-      const { playlistPath, firstSong, count } = this.buildPlaylist(folder, songPath, streamId);
+            let playlistPath = '';
+      let count = 0;
+      let ffmpegArgs = [];
 
-      await new Promise(resolve => setTimeout(resolve, 8000));
+      if (useStreamCopy) {
+        // MODE HEMAT CPU: Langsung tembak video dan audio bawaan tanpa diubah!
+        await new Promise(resolve => setTimeout(resolve, 8000));
+        ffmpegArgs = [
+          '-y',
+          '-fflags', '+genpts',
+          '-re', '-stream_loop', '-1', '-i', finalVideoPath,
+          '-t', String(remainingSecs),
+          '-c:v', 'copy',
+          '-c:a', 'copy',
+          '-flvflags', 'no_duration_filesize',
+          '-rw_timeout', '10000000',
+          '-f', 'flv', rtmpUrl,
+        ];
+      } else {
+        // MODE REGULER: Bikin playlist lagu acak dan gabungkan dengan video loop
+        const playlistData = this.buildPlaylist(folder, songPath, streamId);
+        playlistPath = playlistData.playlistPath;
+        count = playlistData.count;
 
-      const ffmpegArgs = [
-        '-y', 
-        '-fflags', '+genpts', 
-        '-re', '-stream_loop', '-1', '-i', finalVideoPath, 
-        '-fflags', '+genpts',
-        '-re', '-f', 'concat', '-safe', '0', '-i', playlistPath, 
-        '-t', String(remainingSecs), // FFmpeg HANYA JALAN SESUAI SISA WAKTU YANG ADA
-        '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'zerolatency', '-b:v', '1500k', '-maxrate', '1800k', '-bufsize', '3000k',
-        '-vf', 'scale=1280:720,format=yuv420p', '-r', '24', '-g', '48',
-        '-c:a', 'aac', '-b:a', '128k', '-ar', '44100', '-ac', '2',
-        '-async', '1', 
-        '-map', '0:v:0', '-map', '1:a:0', 
-        '-max_muxing_queue_size', '4096', 
-        '-flvflags', 'no_duration_filesize', 
-        '-rw_timeout', '10000000', 
-        '-f', 'flv', rtmpUrl,
-      ];
+        await new Promise(resolve => setTimeout(resolve, 8000));
+
+        ffmpegArgs = [
+          '-y', 
+          '-fflags', '+genpts', 
+          '-re', '-stream_loop', '-1', '-i', finalVideoPath, 
+          '-fflags', '+genpts',
+          '-re', '-f', 'concat', '-safe', '0', '-i', playlistPath, 
+          '-t', String(remainingSecs),
+          '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'zerolatency', '-b:v', '1500k', '-maxrate', '1800k', '-bufsize', '3000k',
+          '-vf', 'scale=1280:720,format=yuv420p', '-r', '24', '-g', '48',
+          '-c:a', 'aac', '-b:a', '128k', '-ar', '44100', '-ac', '2',
+          '-async', '1', 
+          '-map', '0:v:0', '-map', '1:a:0', 
+          '-max_muxing_queue_size', '4096', 
+          '-flvflags', 'no_duration_filesize', 
+          '-rw_timeout', '10000000', 
+          '-f', 'flv', rtmpUrl,
+        ];
+      }
 
       const ffmpeg = spawn('ffmpeg', ffmpegArgs);
       this.processes[streamId] = ffmpeg; this.startTimes[streamId] = new Date(); 
-      this.channelMap[streamId] = channelId; this.activeAssets[streamId] = { title, description, thumbnailPath, playlistPath };
+      this.channelMap[streamId] = channelId; this.activeAssets[streamId] = { title, description, thumbnailPath: actualThumb, playlistPath, videoReadyPath: useStreamCopy ? finalVideoPath : null };
 
       const stabilizationTimer = setTimeout(() => {
         if (this.processes[streamId]) {
@@ -262,8 +334,8 @@ class LocalStreamService {
         }
       });
 
-      this.wsService.broadcast('stream:started', { channelId, streamId, video: finalVideoFilename, song: `Playlist (${count} lagu)`, mode: useStreamCopy ? 'COPY ⚡' : 'ENCODE', ts: new Date().toISOString() });
-      return { streamId, channelId, video: finalVideoFilename, song: `Playlist (${count} lagu, Diacak)`, mode: useStreamCopy ? 'copy' : 'encode', pid: ffmpeg.pid };
+      this.wsService.broadcast('stream:started', { channelId, streamId, video: finalVideoFilename, song: useStreamCopy ? 'Audio Asli Video' : `Playlist (${count} lagu)`, mode: useStreamCopy ? 'COPY ⚡' : 'ENCODE', ts: new Date().toISOString() });
+      return { streamId, channelId, video: finalVideoFilename, song: useStreamCopy ? 'Audio Asli Video' : `Playlist (${count} lagu, Diacak)`, mode: useStreamCopy ? 'copy' : 'encode', pid: ffmpeg.pid };
 
     } catch (error) {
       try { await dbClient.query('INSERT INTO system_logs (channel_id, message) VALUES ($1, $2)', [channelId, `Gagal Start Engine: ${error.message}`]); } catch(e){}
