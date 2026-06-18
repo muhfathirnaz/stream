@@ -163,8 +163,8 @@ class LocalStreamService {
         '-fflags', '+genpts',
         '-re', '-f', 'concat', '-safe', '0', '-i', playlistPath, 
         '-t', String(remainingSecs), // FFmpeg HANYA JALAN SESUAI SISA WAKTU YANG ADA
-        '-c:v', 'libx264', '-preset', 'veryfast', '-b:v', '2500k', '-maxrate', '2500k', '-bufsize', '5000k',
-        '-vf', 'scale=1920:1080,format=yuv420p', '-r', '30', '-g', '60',
+        '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'zerolatency', '-b:v', '1500k', '-maxrate', '1800k', '-bufsize', '3000k',
+        '-vf', 'scale=1280:720,format=yuv420p', '-r', '24', '-g', '48',
         '-c:a', 'aac', '-b:a', '128k', '-ar', '44100', '-ac', '2',
         '-async', '1', 
         '-map', '0:v:0', '-map', '1:a:0', 
