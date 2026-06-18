@@ -161,7 +161,7 @@ export default function StreamsPage() {
   const fetchAssets = useCallback(async () => {
     try {
       const [fRes, thRes, tiRes, dRes, mfRes, vrRes] = await Promise.all([
-        fetch('/api/assets/folders'), fetch('/api/thumbnails'), fetch('/api/assets/titles'), fetch('/api/assets/descriptions'), fetch('/api/assets/mediaFiles')
+        fetch('/api/assets/folders'), fetch('/api/thumbnails'), fetch('/api/assets/titles'), fetch('/api/assets/descriptions'), fetch('/api/assets/mediaFiles'), fetch('/api/assets/videoReadyFiles')
       ]);
       if (fRes.ok) { const d = await fRes.json(); setFolders(d.folders || []); }
       if (thRes.ok) { const d = await thRes.json(); setThumbnails((d.files || []).map((f: any) => ({ ...f, path: f.path || f.filename }))); }
@@ -459,16 +459,25 @@ export default function StreamsPage() {
                           <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">⚡ Video Jadi (Stream Copy — Hemat CPU)</span>
                           {config.videoReadyPath && <span className="text-[9px] bg-amber-400/20 text-amber-400 px-2 py-0.5 rounded-full animate-pulse">AKTIF</span>}
                         </div>
-                        <MediaDropdown label="Pilih Video Jadi" options={videoReadyFiles} value={config.videoReadyPath} onChange={p => updateConfig(ch.channel_id, { videoReadyPath: p, videoPath: p ? null : config.videoPath })} placeholder="— Tidak pakai stream copy —" />
+                        <MediaDropdown label="Pilih Video Jadi" options={videoReadyFiles} value={config.videoReadyPath} onChange={p => updateConfig(ch.channel_id, { videoReadyPath: p, videoPath: p ? null : config.videoPath, songPath: p ? null : config.songPath })} placeholder="— Tidak pakai stream copy —" />
                         {config.videoReadyPath && <div className="mt-2 text-[10px] text-amber-400/70">CPU ringan, bisa jalankan 4+ stream sekaligus</div>}
                         {!config.videoReadyPath && <div className="mt-2 text-[10px] text-white/30">Kalau kosong, pakai video reguler di bawah (re-encode)</div>}
                       </div>
-                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 bg-black/20 p-3 rounded-xl border border-white/5">
-                        <MediaDropdown label="Video (Re-encode)" options={videos} value={config.videoPath} onChange={path => updateConfig(ch.channel_id, { videoPath: path, videoReadyPath: path ? null : config.videoReadyPath })} />
-                        <MediaDropdown label="Lagu" options={config.folders.length > 0 ? songs.filter(s => s.category && config.folders.includes(s.category)) : songs} value={config.songPath} onChange={path => updateConfig(ch.channel_id, { songPath: path })} />
-                        <AssetDropdown label="Judul" options={titles} value={config.titleId} onChange={id => updateConfig(ch.channel_id, { titleId: id })} onDelete={deleteAsset} />
-                        <AssetDropdown label="Desc" options={descriptions} value={config.descriptionId} onChange={id => updateConfig(ch.channel_id, { descriptionId: id })} onDelete={deleteAsset} />
-                      </div>
+                      {config.videoReadyPath ? (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-black/20 p-3 rounded-xl border border-white/5">
+                          <MediaDropdown label="Thumbnail" options={thumbnails} value={config.thumbnailPath} onChange={path => updateConfig(ch.channel_id, { thumbnailPath: path })} placeholder="— Tanpa Thumbnail —" />
+                          <AssetDropdown label="Judul" options={titles} value={config.titleId} onChange={id => updateConfig(ch.channel_id, { titleId: id })} onDelete={deleteAsset} placeholder="— Acak Otomatis —" />
+                          <AssetDropdown label="Desc" options={descriptions} value={config.descriptionId} onChange={id => updateConfig(ch.channel_id, { descriptionId: id })} onDelete={deleteAsset} placeholder="— Acak Otomatis —" />
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 bg-black/20 p-3 rounded-xl border border-white/5">
+                          <MediaDropdown label="Video (Re-encode)" options={videos} value={config.videoPath} onChange={path => updateConfig(ch.channel_id, { videoPath: path, videoReadyPath: null })} placeholder="— Wajib Pilih —" />
+                          <MediaDropdown label="Lagu" options={config.folders.length > 0 ? songs.filter(s => s.category && config.folders.includes(s.category)) : songs} value={config.songPath} onChange={path => updateConfig(ch.channel_id, { songPath: path })} placeholder="— Acak Otomatis —" />
+                          <MediaDropdown label="Thumbnail" options={thumbnails} value={config.thumbnailPath} onChange={path => updateConfig(ch.channel_id, { thumbnailPath: path })} placeholder="— Tanpa Thumbnail —" />
+                          <AssetDropdown label="Judul" options={titles} value={config.titleId} onChange={id => updateConfig(ch.channel_id, { titleId: id })} onDelete={deleteAsset} placeholder="— Acak Otomatis —" />
+                          <AssetDropdown label="Desc" options={descriptions} value={config.descriptionId} onChange={id => updateConfig(ch.channel_id, { descriptionId: id })} onDelete={deleteAsset} placeholder="— Acak Otomatis —" />
+                        </div>
+                      )}
                       </>
                     )}
 

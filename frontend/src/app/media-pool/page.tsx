@@ -408,11 +408,11 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
 }
 
 
-function VideoJadiTab({ toast }: { toast: (msg: string, type: ToastItem["type"]) => void }) {
+function VideoJadiTab({ toast, queue, onUpload, refresh }: { toast: (msg: string, type: ToastItem["type"]) => void; queue: UploadQueueItem[]; onUpload: (f: File[], c: string) => void; refresh: number }) {
   const [files, setFiles] = useState<{filename: string; category: string; path: string; size: number}[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [selectedCat, setSelectedCat] = useState('__all__');
-  const [uploading, setUploading] = useState(false);
+  const uploading = queue.some(q => q.status === "uploading");
   const [uploadCat, setUploadCat] = useState('');
   const [newCatName, setNewCatName] = useState('');
   const [addingCat, setAddingCat] = useState(false);
@@ -434,24 +434,11 @@ function VideoJadiTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
     } catch {}
   }, []);
 
-  useEffect(() => { fetchFiles(); fetchCats(); }, [fetchFiles, fetchCats]);
+  useEffect(() => { fetchFiles(); fetchCats(); }, [fetchFiles, fetchCats, refresh]);
 
-  const handleUpload = async (file: File) => {
+  const handleUpload = (file: File) => {
     if (!file) return;
-    setUploading(true);
-    try {
-      const fd = new FormData();
-      fd.append('type', 'video-ready');
-      fd.append('category', uploadCat || 'Uncategorized');
-      fd.append('file', file);
-      const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: fd });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      await fetchFiles();
-      toast(`${data.filename} berhasil diupload`, 'success');
-    } catch (err) {
-      toast(err instanceof Error ? err.message : 'Upload gagal', 'error');
-    } finally { setUploading(false); }
+    onUpload([file], uploadCat || 'Uncategorized');
   };
 
   const handleDelete = async (category: string, filename: string) => {
@@ -465,11 +452,13 @@ function VideoJadiTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
     const n = newCatName.trim();
     if (!n) return;
     try {
-      await fetch(`${API_BASE}/categories`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'video-ready', name: n }) });
+      const res = await fetch(`${API_BASE}/categories`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'video-ready', name: n }) });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'Gagal');
       await fetchCats();
       setNewCatName(''); setAddingCat(false);
       toast('Kategori ditambah', 'success');
-    } catch { toast('Gagal', 'error'); }
+    } catch (err) { toast(err instanceof Error ? err.message : 'Gagal', 'error'); }
   };
 
   const delCat = async (name: string) => {
@@ -512,7 +501,7 @@ function VideoJadiTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
             <span className="text-[9px] font-bold text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-full">⚡ Stream Copy</span>
           </div>
           <div className="bg-amber-500/8 border border-amber-500/20 rounded-xl p-3 mb-3 text-[10px] text-amber-300 leading-relaxed">
-            Video di sini distream langsung tanpa re-encode. Pastikan format: <span className="font-bold">MP4 H264, 720p, 24fps</span>. Pre-encode dulu dengan ffmpeg sebelum upload.
+            Video di sini distream langsung tanpa re-encode. Pastikan format: <span className="font-bold">MP4 H264, 1080p/720p, 30fps</span>. Pre-encode dulu dengan ffmpeg sebelum upload.
           </div>
           <select value={uploadCat} onChange={e => setUploadCat(e.target.value)} className="w-full mb-3 glass-input rounded-xl px-3 py-2 text-xs text-white outline-none appearance-none">
             <option value="">— Uncategorized —</option>
@@ -573,7 +562,7 @@ function VideoJadiTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
 
 export default function MediaPool() {
   const { toasts, add: addToast, remove: removeToast } = useToast();
-  const [activeTab, setActiveTab] = useState<"music"|"video"|"thumbnails">("music");
+  const [activeTab, setActiveTab] = useState<"music"|"video"|"thumbnails" | "video-jadi">("music");
   const [musicCats, setMusicCats] = useState<string[]>([]);
   const [videoCats, setVideoCats] = useState<string[]>([]);
   const [musicCat, setMusicCat] = useState("__all__");
@@ -582,14 +571,15 @@ export default function MediaPool() {
   const [queue, setQueue] = useState<UploadQueueItem[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [playing, setPlaying] = useState<FileItem|null>(null);
+  const [refreshCount, setRefreshCount] = useState(0);
   const [syncing, setSyncing] = useState(false);
 
-  const fetchFiles = useCallback(async () => { try { const r = await fetch(`${API_BASE}/files`); if (!r.ok) throw new Error(`HTTP ${r.status}`); const data = await r.json(); setFiles(Array.isArray(data.files) ? data.files : []); } catch (err) {} }, []);
+  const fetchFiles = useCallback(async () => { try { const r = await fetch(`${API_BASE}/files`); if (!r.ok) throw new Error(`HTTP ${r.status}`); const data = await r.json(); setFiles(Array.isArray(data.files) ? data.files : []); setRefreshCount(c => c + 1); } catch (err) {} }, []);
   const fetchCategories = useCallback(async () => { try { const r = await fetch(`${API_BASE}/categories`); if (!r.ok) throw new Error(`HTTP ${r.status}`); const data = await r.json(); if (Array.isArray(data.music)) setMusicCats(data.music); if (Array.isArray(data.video)) setVideoCats(data.video); } catch (err) {} }, []);
   
   useEffect(() => { fetchFiles(); fetchCategories(); }, [fetchFiles, fetchCategories]);
 
-  const mediaType = activeTab === "thumbnails" ? "music" : activeTab;
+  const mediaType = activeTab === "thumbnails" ? "music" : activeTab === "video-jadi" ? "video-ready" : activeTab;
   const cats = mediaType==="music"?musicCats:videoCats;
   const selCat = mediaType==="music"?musicCat:videoCat;
   const setSelCat = mediaType==="music"?setMusicCat:setVideoCat;
@@ -653,11 +643,21 @@ export default function MediaPool() {
             <button onClick={()=>setActiveTab("music")} className={`px-5 py-2.5 rounded-full text-xs font-bold transition-all duration-300 flex items-center gap-2 ${activeTab==="music" ? 'bg-white text-black shadow-lg' : 'text-white/50 hover:text-white hover:bg-white/5'}`}><Icon.Music /> Musik</button>
             <button onClick={()=>setActiveTab("video")} className={`px-5 py-2.5 rounded-full text-xs font-bold transition-all duration-300 flex items-center gap-2 ${activeTab==="video" ? 'bg-white text-black shadow-lg' : 'text-white/50 hover:text-white hover:bg-white/5'}`}><Icon.Video /> Video</button>
             <button onClick={()=>setActiveTab("thumbnails")} className={`px-5 py-2.5 rounded-full text-xs font-bold transition-all duration-300 flex items-center gap-2 ${activeTab==="thumbnails" ? 'bg-white text-black shadow-lg' : 'text-white/50 hover:text-white hover:bg-white/5'}`}><Icon.Image /> Thumbnails</button>
-            <button onClick={()=>setActiveTab("video-jadi")} className={`px-5 py-2.5 rounded-full text-xs font-bold transition-all duration-300 flex items-center gap-2 ${activeTab==="video-jadi" ? 'bg-amber-400 text-black shadow-lg' : 'text-amber-400/60 hover:text-amber-400 hover:bg-amber-400/5'}`}>⚡ Video Jadi</button>
+            <button onClick={()=>setActiveTab("video-jadi")} className={`px-5 py-2.5 rounded-full text-xs font-bold transition-all duration-300 flex items-center gap-2 ${activeTab==="video-jadi" ? 'bg-amber-400 text-black shadow-lg' : 'text-amber-400/60 hover:text-amber-400 hover:bg-amber-400/5'}`}><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" className={activeTab==="video-jadi" ? "text-white drop-shadow-md" : ""}><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg> Video Jadi</button>
           </div>
         </div>
 
-        {activeTab === "video-jadi" ? <VideoJadiTab toast={addToast} /> : activeTab === "thumbnails" ? <ThumbnailTab toast={addToast} /> : (
+        {queue.length>0 && (
+                <div className="mb-6 space-y-2">
+                  {queue.map(item => (
+                    <div key={item.id} className="glass-card-strong rounded-xl p-3 flex flex-col gap-2">
+                      <div className="flex justify-between items-center text-xs"><span className="text-white/80 font-medium truncate pr-4">{item.name}</span><span className={item.status==="done"?"text-emerald-400":item.status==="error"?"text-red-400":"text-white"}>{item.status==="uploading"?`${item.progress}%`:"Selesai"}</span></div>
+                      <div className="h-1 bg-white/10 rounded-full overflow-hidden"><div className={`h-full rounded-full transition-all ${item.status==="done"?"bg-emerald-400":item.status==="error"?"bg-red-400":"bg-white"}`} style={{width:`${item.progress}%`}} /></div>
+                    </div>
+                  ))}
+                </div>
+              )}
+        {activeTab === "video-jadi" ? <VideoJadiTab toast={addToast} queue={queue} onUpload={handleUpload} refresh={refreshCount} /> : activeTab === "thumbnails" ? <ThumbnailTab toast={addToast} /> : (
           <div className="glass-card rounded-[32px] overflow-hidden flex flex-col md:flex-row min-h-[600px] mb-8">
             <div className="bg-white/[0.02] border-r border-white/5 p-4 md:p-6 flex flex-col gap-2">
               <CategorySidebar type={activeTab} categories={cats} selected={selCat} onSelect={setSelCat} onAdd={n=>addCat(activeTab,n)} onDelete={n=>delCat(activeTab,n)} onMoveFile={handleMoveFile} />
@@ -673,16 +673,7 @@ export default function MediaPool() {
                 </div>
               </div>
               
-              {queue.length>0 && (
-                <div className="mb-6 space-y-2">
-                  {queue.map(item => (
-                    <div key={item.id} className="glass-card-strong rounded-xl p-3 flex flex-col gap-2">
-                      <div className="flex justify-between items-center text-xs"><span className="text-white/80 font-medium truncate pr-4">{item.name}</span><span className={item.status==="done"?"text-emerald-400":item.status==="error"?"text-red-400":"text-white"}>{item.status==="uploading"?`${item.progress}%`:"Selesai"}</span></div>
-                      <div className="h-1 bg-white/10 rounded-full overflow-hidden"><div className={`h-full rounded-full transition-all ${item.status==="done"?"bg-emerald-400":item.status==="error"?"bg-red-400":"bg-white"}`} style={{width:`${item.progress}%`}} /></div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              
 
               <div className="flex-1 overflow-y-auto pr-2 -mr-2"><FileList files={visible} type={activeTab} onDelete={delFile} onPlay={setPlaying} playing={playing} /></div>
             </div>
