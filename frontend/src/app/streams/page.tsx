@@ -9,7 +9,7 @@ interface Folder { name: string; count: number; }
 interface Asset { id: number; type: string; value: string; label: string; in_use?: boolean; }
 interface MediaFile { filename: string; path: string; category?: string; }
 interface SystemLog { id: number; channel_id: string; message: string; created_at: string; }
-interface StreamConfig { folders: string[]; videoPath: string | null; songPath: string | null; thumbnailPath: string | null; titleId: number | null; descriptionId: number | null; auto: boolean; duration: number; }
+interface StreamConfig { folders: string[]; videoPath: string | null; videoReadyPath: string | null; songPath: string | null; thumbnailPath: string | null; titleId: number | null; descriptionId: number | null; auto: boolean; duration: number; }
 
 // --- ICONS ---
 const Icon = {
@@ -28,7 +28,7 @@ const formatScheduleTime = (iso: string) => { const d = new Date(iso); const pad
 const getUTCDatetimeLocal = () => { const now = new Date(); now.setMinutes(now.getMinutes() + 5); const pad = (n: number) => String(n).padStart(2, '0'); return `${now.getUTCFullYear()}-${pad(now.getUTCMonth()+1)}-${pad(now.getUTCDate())}T${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}`; };
 const getCountdown = (iso: string) => { const diff = new Date(iso).getTime() - Date.now(); if (diff <= 0) return 'Sesaat lagi'; const h = Math.floor(diff / 3600000); const m = Math.floor((diff % 3600000) / 60000); return h > 0 ? `${h}j ${m}m` : `${m}m`; };
 
-const defaultConfig = (): StreamConfig => ({ folders: [], videoPath: null, songPath: null, thumbnailPath: null, titleId: null, descriptionId: null, auto: true, duration: 4 });
+const defaultConfig = (): StreamConfig => ({ folders: [], videoPath: null, videoReadyPath: null, songPath: null, thumbnailPath: null, titleId: null, descriptionId: null, auto: true, duration: 4 });
 
 function UTCClock() {
   const [time, setTime] = useState(''); const [date, setDate] = useState('');
@@ -114,6 +114,7 @@ export default function StreamsPage() {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [thumbnails, setThumbnails] = useState<MediaFile[]>([]);
   const [videos, setVideos] = useState<MediaFile[]>([]);
+  const [videoReadyFiles, setVideoReadyFiles] = useState<MediaFile[]>([]);
   const [songs, setSongs] = useState<MediaFile[]>([]);
   const [titles, setTitles] = useState<Asset[]>([]);
   const [descriptions, setDescriptions] = useState<Asset[]>([]);
@@ -159,7 +160,7 @@ export default function StreamsPage() {
 
   const fetchAssets = useCallback(async () => {
     try {
-      const [fRes, thRes, tiRes, dRes, mfRes] = await Promise.all([
+      const [fRes, thRes, tiRes, dRes, mfRes, vrRes] = await Promise.all([
         fetch('/api/assets/folders'), fetch('/api/thumbnails'), fetch('/api/assets/titles'), fetch('/api/assets/descriptions'), fetch('/api/assets/mediaFiles')
       ]);
       if (fRes.ok) { const d = await fRes.json(); setFolders(d.folders || []); }
@@ -167,6 +168,7 @@ export default function StreamsPage() {
       if (tiRes.ok) setTitles(await tiRes.json());
       if (dRes.ok) setDescriptions(await dRes.json());
       if (mfRes.ok) { const d = await mfRes.json(); setVideos(d.videos || []); setSongs(d.songs || []); }
+      if (vrRes.ok) { const d = await vrRes.json(); setVideoReadyFiles(d.files || []); }
     } catch (err) {}
   }, []);
 
@@ -186,7 +188,8 @@ export default function StreamsPage() {
         if (config.titleId) { const t = titles.find(x => x.id === config.titleId); if (t) body.title = t.value; }
         if (config.descriptionId) { const d = descriptions.find(x => x.id === config.descriptionId); if (d) body.description = d.value; }
         if (config.thumbnailPath) body.thumbnailPath = config.thumbnailPath;
-        if (config.videoPath) body.videoPath = config.videoPath;
+        if (config.videoReadyPath) body.videoReadyPath = config.videoReadyPath;
+        else if (config.videoPath) body.videoPath = config.videoPath;
         if (config.songPath) body.songPath = config.songPath;
       }
       const res = await fetch('/api/streams/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -210,7 +213,7 @@ export default function StreamsPage() {
     try {
       const payloadFolder = config.folders.length > 0 ? config.folders.join(',') : 'Semua';
       // FIX: Durasi sekarang 100% mengambil dari config.duration yang ada di "Engine Config"
-      const body: Record<string, unknown> = { channelId, scheduledAt, durationSecs: config.duration * 3600, folder: payloadFolder, auto: config.auto, title: 'Lofi Jazz Radio', repeatType: form.repeat || 'none', videoPath: config.videoPath, songPath: config.songPath };
+      const body: Record<string, unknown> = { channelId, scheduledAt, durationSecs: config.duration * 3600, folder: payloadFolder, auto: config.auto, title: 'Lofi Jazz Radio', repeatType: form.repeat || 'none', videoPath: config.auto ? null : config.videoPath, videoReadyPath: config.auto ? null : config.videoReadyPath, songPath: config.songPath };
       if (!config.auto && config.titleId) { const t = titles.find(x => x.id === config.titleId); if (t) body.title = t.value; }
       const res = await fetch('/api/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!res.ok) { const err = await res.json(); alert('Gagal schedule: ' + err.error); } else { setShowScheduleFor(null); await fetchSchedulesAndLogs(); }
@@ -450,12 +453,23 @@ export default function StreamsPage() {
                     </div>
                     
                     {!config.auto && (
+                      <>
+                      <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-3 mb-2">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">⚡ Video Jadi (Stream Copy — Hemat CPU)</span>
+                          {config.videoReadyPath && <span className="text-[9px] bg-amber-400/20 text-amber-400 px-2 py-0.5 rounded-full animate-pulse">AKTIF</span>}
+                        </div>
+                        <MediaDropdown label="Pilih Video Jadi" options={videoReadyFiles} value={config.videoReadyPath} onChange={p => updateConfig(ch.channel_id, { videoReadyPath: p, videoPath: p ? null : config.videoPath })} placeholder="— Tidak pakai stream copy —" />
+                        {config.videoReadyPath && <div className="mt-2 text-[10px] text-amber-400/70">CPU ringan, bisa jalankan 4+ stream sekaligus</div>}
+                        {!config.videoReadyPath && <div className="mt-2 text-[10px] text-white/30">Kalau kosong, pakai video reguler di bawah (re-encode)</div>}
+                      </div>
                       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 bg-black/20 p-3 rounded-xl border border-white/5">
-                        <MediaDropdown label="Video" options={videos} value={config.videoPath} onChange={path => updateConfig(ch.channel_id, { videoPath: path })} />
+                        <MediaDropdown label="Video (Re-encode)" options={videos} value={config.videoPath} onChange={path => updateConfig(ch.channel_id, { videoPath: path, videoReadyPath: path ? null : config.videoReadyPath })} />
                         <MediaDropdown label="Lagu" options={config.folders.length > 0 ? songs.filter(s => s.category && config.folders.includes(s.category)) : songs} value={config.songPath} onChange={path => updateConfig(ch.channel_id, { songPath: path })} />
                         <AssetDropdown label="Judul" options={titles} value={config.titleId} onChange={id => updateConfig(ch.channel_id, { titleId: id })} onDelete={deleteAsset} />
                         <AssetDropdown label="Desc" options={descriptions} value={config.descriptionId} onChange={id => updateConfig(ch.channel_id, { descriptionId: id })} onDelete={deleteAsset} />
                       </div>
+                      </>
                     )}
 
                     <div className="mt-4 flex items-center gap-2">

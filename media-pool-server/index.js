@@ -37,6 +37,7 @@ const fileFilter = (req, file, cb) => {
   const okVideo = ['.mp4','.webm','.mkv','.mov','.avi'];
   if (type === 'music' && okMusic.includes(ext)) return cb(null, true);
   if (type === 'video' && okVideo.includes(ext)) return cb(null, true);
+  if (type === 'video-ready' && okVideo.includes(ext)) return cb(null, true);
   cb(new Error(`File ${ext} tidak diizinkan untuk tipe "${type}"`));
 };
 
@@ -151,6 +152,7 @@ app.post('/sync', (_req, res) => {
 
 fs.mkdirSync(path.join(MEDIA_BASE_DIR, 'music'), { recursive: true });
 fs.mkdirSync(path.join(MEDIA_BASE_DIR, 'video'), { recursive: true });
+fs.mkdirSync(path.join(MEDIA_BASE_DIR, 'video-ready'), { recursive: true });
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`[media-pool-server] ✓ Port ${PORT} | Dir: ${MEDIA_BASE_DIR} | rclone: ${RCLONE_ENABLED}`);

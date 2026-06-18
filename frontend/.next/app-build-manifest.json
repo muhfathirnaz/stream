@@ -23,13 +23,6 @@
       "static/chunks/main-app-9649aeb4600a1566.js",
       "static/chunks/app/media-pool/page-c9b4e1cfa8d4f22b.js"
     ],
-    "/oauth-helper/page": [
-      "static/chunks/webpack-1796d5ecd61cbd74.js",
-      "static/chunks/fd9d1056-23bdddb1df3a91c8.js",
-      "static/chunks/23-689eda8e83791f79.js",
-      "static/chunks/main-app-9649aeb4600a1566.js",
-      "static/chunks/app/oauth-helper/page-6038a38bb5d1b7da.js"
-    ],
     "/page": [
       "static/chunks/webpack-1796d5ecd61cbd74.js",
       "static/chunks/fd9d1056-23bdddb1df3a91c8.js",
@@ -43,6 +36,13 @@
       "static/chunks/23-689eda8e83791f79.js",
       "static/chunks/main-app-9649aeb4600a1566.js",
       "static/chunks/app/streams/page-d424d5d62d06d464.js"
+    ],
+    "/oauth-helper/page": [
+      "static/chunks/webpack-1796d5ecd61cbd74.js",
+      "static/chunks/fd9d1056-23bdddb1df3a91c8.js",
+      "static/chunks/23-689eda8e83791f79.js",
+      "static/chunks/main-app-9649aeb4600a1566.js",
+      "static/chunks/app/oauth-helper/page-6038a38bb5d1b7da.js"
     ],
     "/thumbnails/page": [
       "static/chunks/webpack-1796d5ecd61cbd74.js",

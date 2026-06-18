@@ -22,7 +22,7 @@ function resolveThumbPath(inputPath) {
 }
 
 router.post('/start', async (req, res) => {
-  const { channelId, durationSecs, title, description, thumbnailPath, folder, auto, videoPath, songPath } = req.body;
+  const { channelId, durationSecs, title, description, thumbnailPath, folder, auto, videoPath, songPath, videoReadyPath } = req.body;
   if (!channelId) return res.status(400).json({ error: 'channelId required' });
 
   try {
@@ -75,7 +75,7 @@ router.post('/start', async (req, res) => {
 
     const result = await req.streamService.start(channelId, req.db, {
       durationSecs: durationSecs || 21600, title: finalTitle, description: finalDesc, thumbnailPath: finalThumb,
-      folder: folder || 'Semua', videoPath: auto ? null : videoPath, songPath: auto ? null : songPath
+      folder: folder || 'Semua', videoPath: auto ? null : videoPath, songPath: auto ? null : songPath, videoReadyPath: auto ? null : videoReadyPath
     });
 
     await req.db.query(`INSERT INTO stream_sessions (channel_id, started_at, status) VALUES ($1, NOW(), 'live') ON CONFLICT (channel_id) DO UPDATE SET started_at = NOW(), status = 'live'`, [channelId]);

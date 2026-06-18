@@ -407,6 +407,170 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
   );
 }
 
+
+function VideoJadiTab({ toast }: { toast: (msg: string, type: ToastItem["type"]) => void }) {
+  const [files, setFiles] = useState<{filename: string; category: string; path: string; size: number}[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [selectedCat, setSelectedCat] = useState('__all__');
+  const [uploading, setUploading] = useState(false);
+  const [uploadCat, setUploadCat] = useState('');
+  const [newCatName, setNewCatName] = useState('');
+  const [addingCat, setAddingCat] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const catInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchFiles = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/files?type=video-ready`);
+      if (res.ok) { const d = await res.json(); setFiles(d.files || []); }
+    } catch {}
+  }, []);
+
+  const fetchCats = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/categories?type=video-ready`);
+      if (res.ok) { const d = await res.json(); setCategories(d['video-ready'] || []); }
+    } catch {}
+  }, []);
+
+  useEffect(() => { fetchFiles(); fetchCats(); }, [fetchFiles, fetchCats]);
+
+  const handleUpload = async (file: File) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('type', 'video-ready');
+      fd.append('category', uploadCat || 'Uncategorized');
+      fd.append('file', file);
+      const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      await fetchFiles();
+      toast(`${data.filename} berhasil diupload`, 'success');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Upload gagal', 'error');
+    } finally { setUploading(false); }
+  };
+
+  const handleDelete = async (category: string, filename: string) => {
+    if (!confirm(`Hapus ${filename}?`)) return;
+    await fetch(`${API_BASE}/files/video-ready/${encodeURIComponent(category)}/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+    await fetchFiles();
+    toast('File dihapus', 'info');
+  };
+
+  const addCat = async () => {
+    const n = newCatName.trim();
+    if (!n) return;
+    try {
+      await fetch(`${API_BASE}/categories`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'video-ready', name: n }) });
+      await fetchCats();
+      setNewCatName(''); setAddingCat(false);
+      toast('Kategori ditambah', 'success');
+    } catch { toast('Gagal', 'error'); }
+  };
+
+  const delCat = async (name: string) => {
+    if (files.some(f => f.category === name)) return toast('Masih ada file di kategori ini', 'error');
+    await fetch(`${API_BASE}/categories/video-ready/${encodeURIComponent(name)}`, { method: 'DELETE' });
+    await fetchCats();
+    if (selectedCat === name) setSelectedCat('__all__');
+  };
+
+  const visible = files.filter(f => selectedCat === '__all__' || f.category === selectedCat);
+
+  return (
+    <div className="glass-card rounded-[32px] overflow-hidden flex flex-col md:flex-row min-h-[500px]">
+      {/* Sidebar kategori */}
+      <div className="w-full md:w-56 bg-white/[0.02] border-r border-white/5 p-4 flex flex-col gap-1">
+        <div className="flex items-center justify-between px-2 mb-2">
+          <span className="text-[10px] font-semibold text-white/40 uppercase tracking-widest">Kategori</span>
+          <button onClick={() => { setAddingCat(true); setTimeout(() => catInputRef.current?.focus(), 50); }} className="text-white/40 hover:text-white transition-colors p-1"><Icon.Plus /></button>
+        </div>
+        <SidebarItem icon={<Icon.Folder />} label="__all__" active={selectedCat === '__all__'} onClick={() => setSelectedCat('__all__')} />
+        {categories.map(cat => (
+          <SidebarItem key={cat} icon={<Icon.Folder />} label={cat} active={selectedCat === cat} onClick={() => setSelectedCat(cat)} onDelete={() => delCat(cat)} />
+        ))}
+        {addingCat && (
+          <div className="px-2 mt-1 animate-in fade-in zoom-in-95">
+            <input ref={catInputRef} value={newCatName} onChange={e => setNewCatName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') addCat(); if (e.key === 'Escape') { setAddingCat(false); setNewCatName(''); } }}
+              onBlur={() => { if (!newCatName.trim()) setAddingCat(false); }}
+              placeholder="Nama kategori..." className="w-full glass-input rounded-lg px-3 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-white/20" />
+          </div>
+        )}
+      </div>
+
+      {/* Main */}
+      <div className="flex-1 p-4 md:p-6 flex flex-col gap-6">
+        {/* Upload section */}
+        <div className="glass-card-strong rounded-[24px] p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-[10px] font-semibold text-white/50 uppercase tracking-widest">Upload Video Jadi</span>
+            <span className="text-[9px] font-bold text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-full">⚡ Stream Copy</span>
+          </div>
+          <div className="bg-amber-500/8 border border-amber-500/20 rounded-xl p-3 mb-3 text-[10px] text-amber-300 leading-relaxed">
+            Video di sini distream langsung tanpa re-encode. Pastikan format: <span className="font-bold">MP4 H264, 720p, 24fps</span>. Pre-encode dulu dengan ffmpeg sebelum upload.
+          </div>
+          <select value={uploadCat} onChange={e => setUploadCat(e.target.value)} className="w-full mb-3 glass-input rounded-xl px-3 py-2 text-xs text-white outline-none appearance-none">
+            <option value="">— Uncategorized —</option>
+            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <div onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)}
+            onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) handleUpload(f); }}
+            onClick={() => fileInputRef.current?.click()}
+            className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${dragOver ? 'border-amber-400/50 bg-amber-400/5' : 'border-white/10 hover:bg-white/[0.02]'}`}>
+            <input ref={fileInputRef} type="file" accept=".mp4,.mkv,.mov,.avi,.webm" className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); e.target.value = ''; }} />
+            <div className="text-white/30 mb-1 flex justify-center"><Icon.Video /></div>
+            <div className="text-[11px] text-white/60 font-medium">{uploading ? '⏳ Uploading...' : 'Drop file MP4 atau klik untuk pilih'}</div>
+            <div className="text-[10px] text-white/30 mt-1">MP4 · MKV · MOV · WebM</div>
+          </div>
+        </div>
+
+        {/* File grid */}
+        <div>
+          <div className="flex items-center justify-between mb-4 px-1">
+            <span className="text-xs font-semibold text-white/50">Video Jadi — {selectedCat === '__all__' ? 'Semua' : selectedCat}</span>
+            <span className="text-[10px] text-white/40">{visible.length} file</span>
+          </div>
+          {visible.length === 0 ? (
+            <div className="flex items-center justify-center h-32 text-white/30 text-xs">Belum ada video jadi di sini.</div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {visible.map(f => (
+                <div key={`${f.category}-${f.filename}`} className="group glass-input rounded-2xl overflow-hidden hover:ring-1 hover:ring-white/20 transition-all">
+                  <video
+                    src={`${API_BASE}/media/video-ready/${encodeURIComponent(f.category)}/${encodeURIComponent(f.filename)}`}
+                    className="w-full aspect-video object-cover bg-black/60"
+                    controls preload="metadata"
+                  />
+                  <div className="p-3 flex items-center justify-between gap-2">
+                    <div className="truncate">
+                      <div className="text-[10px] font-semibold text-white/80 truncate">{f.filename}</div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[9px] text-white/40">{fmtSize(f.size)}</span>
+                        <span className="text-[9px] text-amber-400 font-bold">⚡ copy</span>
+                        {f.category !== 'Uncategorized' && <span className="text-[9px] text-white/30">{f.category}</span>}
+                      </div>
+                    </div>
+                    <button onClick={() => handleDelete(f.category, f.filename)}
+                      className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-lg text-white/30 hover:bg-red-500/20 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all">
+                      <Icon.Trash />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function MediaPool() {
   const { toasts, add: addToast, remove: removeToast } = useToast();
   const [activeTab, setActiveTab] = useState<"music"|"video"|"thumbnails">("music");
@@ -489,10 +653,11 @@ export default function MediaPool() {
             <button onClick={()=>setActiveTab("music")} className={`px-5 py-2.5 rounded-full text-xs font-bold transition-all duration-300 flex items-center gap-2 ${activeTab==="music" ? 'bg-white text-black shadow-lg' : 'text-white/50 hover:text-white hover:bg-white/5'}`}><Icon.Music /> Musik</button>
             <button onClick={()=>setActiveTab("video")} className={`px-5 py-2.5 rounded-full text-xs font-bold transition-all duration-300 flex items-center gap-2 ${activeTab==="video" ? 'bg-white text-black shadow-lg' : 'text-white/50 hover:text-white hover:bg-white/5'}`}><Icon.Video /> Video</button>
             <button onClick={()=>setActiveTab("thumbnails")} className={`px-5 py-2.5 rounded-full text-xs font-bold transition-all duration-300 flex items-center gap-2 ${activeTab==="thumbnails" ? 'bg-white text-black shadow-lg' : 'text-white/50 hover:text-white hover:bg-white/5'}`}><Icon.Image /> Thumbnails</button>
+            <button onClick={()=>setActiveTab("video-jadi")} className={`px-5 py-2.5 rounded-full text-xs font-bold transition-all duration-300 flex items-center gap-2 ${activeTab==="video-jadi" ? 'bg-amber-400 text-black shadow-lg' : 'text-amber-400/60 hover:text-amber-400 hover:bg-amber-400/5'}`}>⚡ Video Jadi</button>
           </div>
         </div>
 
-        {activeTab === "thumbnails" ? <ThumbnailTab toast={addToast} /> : (
+        {activeTab === "video-jadi" ? <VideoJadiTab toast={addToast} /> : activeTab === "thumbnails" ? <ThumbnailTab toast={addToast} /> : (
           <div className="glass-card rounded-[32px] overflow-hidden flex flex-col md:flex-row min-h-[600px] mb-8">
             <div className="bg-white/[0.02] border-r border-white/5 p-4 md:p-6 flex flex-col gap-2">
               <CategorySidebar type={activeTab} categories={cats} selected={selCat} onSelect={setSelCat} onAdd={n=>addCat(activeTab,n)} onDelete={n=>delCat(activeTab,n)} onMoveFile={handleMoveFile} />

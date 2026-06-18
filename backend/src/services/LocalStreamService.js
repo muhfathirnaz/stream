@@ -106,7 +106,7 @@ class LocalStreamService {
     this.savedConfigs[channelId] = { dbClient, options };
 
     try {
-      const { durationSecs = 21600, title, description, thumbnailPath, folder, videoPath, songPath } = options;
+      const { durationSecs = 21600, title, description, thumbnailPath, folder, videoPath, songPath, videoReadyPath } = options;
       const streamId = randomUUID();
 
       const { rows } = await dbClient.query('SELECT google_refresh_token FROM channels WHERE channel_id = $1', [channelId]);
@@ -149,8 +149,18 @@ class LocalStreamService {
         throw new Error('Batas waktu tayang siaran ini telah habis secara keseluruhan.');
       }
 
-      const video = await this.fetchNextVideo(channelId, folder, videoPath);
-      if (!video || video.error) throw new Error(`Video Gagal: ${video?.error || 'File tidak ditemukan'}`);
+      const useStreamCopy = !!(videoReadyPath && fs.existsSync(videoReadyPath));
+      let finalVideoPath, finalVideoFilename;
+      if (useStreamCopy) {
+        finalVideoPath = videoReadyPath;
+        finalVideoFilename = path.basename(videoReadyPath);
+        console.log(`[Engine] ⚡ STREAM COPY mode: ${finalVideoFilename}`);
+      } else {
+        const video = await this.fetchNextVideo(channelId, folder, videoPath);
+        if (!video || video.error) throw new Error(`Video Gagal: ${video?.error || 'File tidak ditemukan'}`);
+        finalVideoPath = video.path;
+        finalVideoFilename = video.filename;
+      }
 
       const { playlistPath, firstSong, count } = this.buildPlaylist(folder, songPath, streamId);
 
@@ -159,7 +169,7 @@ class LocalStreamService {
       const ffmpegArgs = [
         '-y', 
         '-fflags', '+genpts', 
-        '-re', '-stream_loop', '-1', '-i', video.path, 
+        '-re', '-stream_loop', '-1', '-i', finalVideoPath, 
         '-fflags', '+genpts',
         '-re', '-f', 'concat', '-safe', '0', '-i', playlistPath, 
         '-t', String(remainingSecs), // FFmpeg HANYA JALAN SESUAI SISA WAKTU YANG ADA
@@ -252,8 +262,8 @@ class LocalStreamService {
         }
       });
 
-      this.wsService.broadcast('stream:started', { channelId, streamId, video: video.filename, song: `Playlist (${count} lagu)`, ts: new Date().toISOString() });
-      return { streamId, channelId, video: video.filename, song: `Playlist (${count} lagu, Diacak)`, pid: ffmpeg.pid };
+      this.wsService.broadcast('stream:started', { channelId, streamId, video: finalVideoFilename, song: `Playlist (${count} lagu)`, mode: useStreamCopy ? 'COPY ⚡' : 'ENCODE', ts: new Date().toISOString() });
+      return { streamId, channelId, video: finalVideoFilename, song: `Playlist (${count} lagu, Diacak)`, mode: useStreamCopy ? 'copy' : 'encode', pid: ffmpeg.pid };
 
     } catch (error) {
       try { await dbClient.query('INSERT INTO system_logs (channel_id, message) VALUES ($1, $2)', [channelId, `Gagal Start Engine: ${error.message}`]); } catch(e){}

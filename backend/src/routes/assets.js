@@ -54,4 +54,25 @@ router.get('/mediaFiles', (req, res) => {
   res.json({ videos: getFiles('/opt/media/video'), songs: getFiles('/opt/media/music') });
 });
 
+
+router.get('/videoReadyFiles', (req, res) => {
+  const VIDEO_READY_DIR = '/opt/media/video-ready';
+  if (!fs.existsSync(VIDEO_READY_DIR)) return res.json({ files: [] });
+  const files = [];
+  try {
+    fs.readdirSync(VIDEO_READY_DIR).forEach(cat => {
+      const catDir = path.join(VIDEO_READY_DIR, cat);
+      if (!fs.statSync(catDir).isDirectory()) return;
+      fs.readdirSync(catDir)
+        .filter(f => fs.statSync(path.join(catDir, f)).isFile() && /\.(mp4|mkv|mov|avi|webm)$/i.test(f))
+        .forEach(f => {
+          const fp = path.join(catDir, f);
+          const stat = fs.statSync(fp);
+          files.push({ filename: f, category: cat, path: fp, size: stat.size });
+        });
+    });
+  } catch(e) { console.error(e); }
+  res.json({ files });
+});
+
 module.exports = router;
