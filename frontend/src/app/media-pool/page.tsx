@@ -572,7 +572,7 @@ function TextAssetsTab({ toast }: { toast: any }) {
     try {
       const [tRes, dRes, cRes] = await Promise.all([fetch('/api/assets/titles'), fetch('/api/assets/descriptions'), fetch('/api/assets/text-categories')]);
       if(tRes.ok) setTitles(await tRes.json()); if(dRes.ok) setDescs(await dRes.json());
-      if(cRes.ok) { const d = await cRes.json(); setCats(d.categories || []); }
+      if(cRes.ok) { const d = await cRes.json(); setCats(Array.from(new Set(d.categories || []))); }
     } catch {}
   };
   useEffect(() => { load(); }, []);
@@ -596,7 +596,7 @@ function TextAssetsTab({ toast }: { toast: any }) {
     if (!confirm(`Hapus folder "${catName}"? Teks di dalamnya akan otomatis dipindah ke Uncategorized biar aman.`)) return;
     try {
       await fetch(`/api/assets/text-categories/${encodeURIComponent(catName)}`, { method: 'DELETE' });
-      if (selCat === catName) setSelCat('__all__');
+      setCats(prev => prev.filter(c => c !== catName)); if (selCat === catName) setSelCat('__all__');
       load(); toast('Folder dihapus', 'info');
     } catch {}
   };
