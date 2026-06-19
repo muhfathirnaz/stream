@@ -376,7 +376,9 @@ export default function StreamsPage() {
                     
                     <div className="flex items-center gap-1.5 bg-black/20 p-1 rounded-full border border-white/5">
                        {!isLive && (
-                         <button onClick={() => startStream(ch.channel_id)} disabled={loading || !hasToken} className="bg-white text-black px-4 py-1.5 rounded-full text-[11px] font-bold hover:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1">
+                         <button onClick={() => { if (loading) return; // Proteksi double klik startStream(ch.channel_id);
+}} 
+  disabled={loading || !hasToken} className="bg-white text-black px-4 py-1.5 rounded-full text-[11px] font-bold hover:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1">
                            <Icon.Play /> Start
                          </button>
                        )}

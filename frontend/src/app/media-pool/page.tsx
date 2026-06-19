@@ -584,6 +584,23 @@ function TextAssetsTab({ toast }: { toast: any }) {
   };
   const delAsset = async (id: number) => { if(!confirm('Hapus teks ini?')) return; await fetch(`/api/assets/${id}`, { method:'DELETE' }); load(); toast('Dihapus', 'info'); };
 
+  const addCategory = async () => {
+    const n = newCat.trim(); if (!n) return;
+    try {
+      await fetch('/api/assets/text-categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: n }) });
+      setAdding(false); setNewCat(''); load(); toast('Kategori ditambah', 'success');
+    } catch {}
+  };
+
+  const deleteCategory = async (catName: string) => {
+    if (!confirm(`Hapus folder "${catName}"? Teks di dalamnya akan otomatis dipindah ke Uncategorized biar aman.`)) return;
+    try {
+      await fetch(`/api/assets/text-categories/${encodeURIComponent(catName)}`, { method: 'DELETE' });
+      if (selCat === catName) setSelCat('__all__');
+      load(); toast('Folder dihapus', 'info');
+    } catch {}
+  };
+
   const moveAsset = async (dataStr: string, targetCat: string) => {
     const data = JSON.parse(dataStr); if(data.oldCategory === targetCat) return;
     await fetch('/api/assets/move', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ id: data.id, category: targetCat }) });
@@ -628,8 +645,8 @@ function TextAssetsTab({ toast }: { toast: any }) {
         <div className="flex items-center justify-between px-2 mb-2"><span className="text-[10px] font-semibold text-white/40 uppercase tracking-widest">Kategori Teks</span><button onClick={()=>{setAdding(true)}} className="text-white/40 hover:text-white transition-colors p-1">+</button></div>
         <SidebarItem icon={<span className="text-lg">📁</span>} label="__all__" active={selCat==='__all__'} onClick={()=>setSelCat('__all__')} />
         <SidebarItem icon={<span className="text-lg">📁</span>} label="Uncategorized" active={selCat==='Uncategorized'} onClick={()=>setSelCat('Uncategorized')} onDropFile={(d:any)=>moveAsset(d, 'Uncategorized')} />
-        {cats.map(c => <SidebarItem key={c} icon={<span className="text-lg">📁</span>} label={c} active={selCat===c} onClick={()=>setSelCat(c)} onDropFile={(d:any)=>moveAsset(d, c)} />)}
-        {adding && <input value={newCat} onChange={e=>setNewCat(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){setCats(p=>[...p, newCat]); setAdding(false); setNewCat('');}}} placeholder="Ketik & Enter..." className="glass-input p-2 text-xs rounded-lg mt-2 text-white outline-none" />}
+        {cats.map(c => <SidebarItem key={c} icon={<span className="text-lg">📁</span>} label={c} active={selCat===c} onClick={()=>setSelCat(c)} onDropFile={(d:any)=>moveAsset(d, c)} onDelete={() => deleteCategory(c)} />)}
+        {adding && <input value={newCat} onChange={e=>setNewCat(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){addCategory();}}} placeholder="Ketik & Enter..." className="glass-input p-2 text-xs rounded-lg mt-2 text-white outline-none" />}
       </div>
       <div className="flex-1 p-6 flex flex-col md:flex-row gap-4"><AssetList type="title" data={titles} /><AssetList type="description" data={descs} /></div>
     </div>
