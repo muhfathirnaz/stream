@@ -18,7 +18,7 @@ app.use(express.json());
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const { type, category } = req.body;
-    if (!['music', 'video'].includes(type)) return cb(new Error('type harus music atau video'));
+    if (!['music', 'video', 'video-ready'].includes(type)) return cb(new Error('type harus music atau video'));
     if (!category || !category.trim()) return cb(new Error('category wajib diisi'));
     const safeCategory = category.trim().replace(/[^a-zA-Z0-9_\- ]/g, '');
     const destDir = path.join(MEDIA_BASE_DIR, type, safeCategory);
@@ -58,7 +58,7 @@ app.post('/upload', (req, res) => {
 app.get('/files', (req, res) => {
   const { type, category } = req.query;
   const results = [];
-  const types = type ? [type] : ['music', 'video'];
+  const types = type ? [type] : ['music', 'video', 'video-ready'];
   for (const t of types) {
     const typeDir = path.join(MEDIA_BASE_DIR, t);
     if (!fs.existsSync(typeDir)) continue;
@@ -78,7 +78,7 @@ app.get('/files', (req, res) => {
 
 app.delete('/files/:type/:category/:filename', (req, res) => {
   const { type, category, filename } = req.params;
-  if (filename.includes('..') || category.includes('..') || !['music','video'].includes(type))
+  if (filename.includes('..') || category.includes('..') || !['music','video','video-ready'].includes(type))
     return res.status(400).json({ error: 'Invalid path' });
   const filePath = path.join(MEDIA_BASE_DIR, type, category, filename);
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File tidak ditemukan' });
@@ -88,7 +88,7 @@ app.delete('/files/:type/:category/:filename', (req, res) => {
 
 app.get('/media/:type/:category/:filename', (req, res) => {
   const { type, category, filename } = req.params;
-  if (filename.includes('..') || category.includes('..') || !['music','video'].includes(type))
+  if (filename.includes('..') || category.includes('..') || !['music','video','video-ready'].includes(type))
     return res.status(400).json({ error: 'Invalid path' });
   const filePath = path.join(MEDIA_BASE_DIR, type, category, filename);
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File tidak ditemukan' });
@@ -110,7 +110,7 @@ app.get('/media/:type/:category/:filename', (req, res) => {
 
 app.post("/categories", (req, res) => {
   const { type, name } = req.body;
-  if (!["music","video"].includes(type)) return res.status(400).json({ error: "type harus music atau video" });
+  if (!["music","video","video-ready"].includes(type)) return res.status(400).json({ error: "type harus music atau video" });
   if (!name || !name.trim()) return res.status(400).json({ error: "name wajib diisi" });
   const safe = name.trim().replace(/[^a-zA-Z0-9_\- ]/g, "");
   if (!safe) return res.status(400).json({ error: "name tidak valid" });
@@ -121,7 +121,7 @@ app.post("/categories", (req, res) => {
 
 app.delete("/categories/:type/:name", (req, res) => {
   const { type, name } = req.params;
-  if (!["music","video"].includes(type) || name.includes("..") || name.includes("/"))
+  if (!["music","video","video-ready"].includes(type) || name.includes("..") || name.includes("/"))
     return res.status(400).json({ error: "Invalid path" });
   const dir = path.join(MEDIA_BASE_DIR, type, name);
   if (!fs.existsSync(dir)) return res.status(404).json({ error: "Kategori tidak ditemukan" });
@@ -133,7 +133,7 @@ app.delete("/categories/:type/:name", (req, res) => {
 
 app.get('/categories', (req, res) => {
   const { type } = req.query;
-  const types = type ? [type] : ['music', 'video'];
+  const types = type ? [type] : ['music', 'video', 'video-ready'];
   const result = {};
   for (const t of types) {
     const dir = path.join(MEDIA_BASE_DIR, t);
