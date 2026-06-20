@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -45,69 +46,6 @@ function UTCClock() {
   );
 }
 
-function MediaDropdown({ label, options, value, onChange, placeholder, disabled, clearText = "— Acak Otomatis —" }: { label: string; options: MediaFile[]; value: string | null; onChange: (path: string | null) => void; placeholder?: string; disabled?: boolean; clearText?: string; }) {
-  const [open, setOpen] = useState(false);
-  const selected = options.find(o => o.path === value);
-  return (
-    <div className="relative flex flex-col gap-1.5">
-      <div className="text-[10px] font-semibold text-white/40 uppercase tracking-widest pl-1">{label}</div>
-      <button type="button" onClick={() => !disabled && setOpen(!open)} disabled={disabled}
-        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all duration-300 text-xs text-left backdrop-blur-md outline-none
-          ${disabled ? "glass-input opacity-40 cursor-not-allowed" : open ? "glass-card-strong text-white shadow-xl ring-1 ring-white/20" : selected ? "glass-card-strong text-white" : "glass-input text-white/70 hover:bg-white/[0.08]"}`}>
-        <span className="truncate pr-4">{selected ? selected.filename : (placeholder || '—')}</span>
-        <span className={`transition-transform duration-300 text-white/40 flex-shrink-0 ${open ? 'rotate-180' : ''}`}><Icon.ChevronDown /></span>
-      </button>
-      {open && (
-        <div className="absolute top-[calc(100%+6px)] left-0 w-full min-w-[220px] z-[99999] bg-[#111318] border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.8)] rounded-xl p-1.5 max-h-64 overflow-y-auto flex flex-col gap-0.5 origin-top animate-in fade-in zoom-in-95">
-          <button onClick={() => { onChange(null); setOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg text-[11px] font-medium text-white/50 hover:bg-white/10 hover:text-white transition-colors">{clearText}</button>
-          {options.length === 0 && <div className="px-3 py-2 text-[11px] text-white/30">Kosong</div>}
-          {options.map(opt => (
-            <button key={opt.path} onClick={() => { onChange(opt.path); setOpen(false); }} className={`group w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors text-left text-[11px] font-medium ${opt.path === value ? 'bg-white text-black' : 'text-white/80 hover:bg-white/10'}`}>
-              <span className="truncate pr-3">{opt.filename}</span>
-              {opt.category && opt.category !== 'Uncategorized' && <span className={`flex-shrink-0 ml-2 text-[9px] px-1.5 py-0.5 rounded-md ${opt.path === value ? 'bg-black/10 text-black/60' : 'bg-white/10 text-white/50'}`}>{opt.category}</span>}
-            </button>
-          ))}
-        </div>
-      )}
-      {open && <div className="fixed inset-0 z-[99998]" onClick={() => setOpen(false)} />}
-    </div>
-  );
-}
-
-function AssetDropdown({ label, options, value, onChange, onDelete, placeholder, disabled, clearText = "— Acak Otomatis —" }: { label: string; options: Asset[]; value: number | null; onChange: (id: number | null) => void; onDelete: (id: number) => void; placeholder?: string; disabled?: boolean; clearText?: string; }) {
-  const [open, setOpen] = useState(false);
-  const selected = options.find(o => o.id === value);
-  return (
-    <div className="relative flex flex-col gap-1.5">
-      <div className="text-[10px] font-semibold text-white/40 uppercase tracking-widest pl-1">{label}</div>
-      <button type="button" onClick={() => !disabled && setOpen(!open)} disabled={disabled}
-        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all duration-300 text-xs text-left backdrop-blur-md outline-none
-          ${disabled ? "glass-input opacity-40 cursor-not-allowed" : open ? "glass-card-strong text-white shadow-xl ring-1 ring-white/20" : selected ? "glass-card-strong text-white" : "glass-input text-white/70 hover:bg-white/[0.08]"}`}>
-        <span className="truncate pr-4">{selected ? selected.label : (placeholder || '—')}</span>
-        <span className={`transition-transform duration-300 text-white/40 flex-shrink-0 ${open ? 'rotate-180' : ''}`}><Icon.ChevronDown /></span>
-      </button>
-      {open && (
-        <div className="absolute top-[calc(100%+6px)] left-0 w-full min-w-[240px] z-[99999] bg-[#111318] border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.8)] rounded-xl p-1.5 max-h-64 overflow-y-auto flex flex-col gap-0.5 origin-top animate-in fade-in zoom-in-95">
-          <button onClick={() => { onChange(null); setOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg text-[11px] font-medium text-white/50 hover:bg-white/10 hover:text-white transition-colors">{clearText}</button>
-          {options.length === 0 && <div className="px-3 py-2 text-[11px] text-white/30">Kosong</div>}
-          {options.map(opt => (
-            <div key={opt.id} className={`group flex items-center justify-between px-2 py-1.5 rounded-lg transition-colors ${opt.id === value ? 'bg-white text-black' : 'hover:bg-white/10 text-white/80'}`}>
-              <button className="flex-1 text-left text-[11px] font-medium truncate pr-3" onClick={() => { onChange(opt.id); setOpen(false); }}>
-                {opt.in_use && <span className="text-emerald-500 mr-1.5">●</span>} {opt.label || opt.value}
-              </button>
-              <button onClick={(e) => { e.stopPropagation(); onDelete(opt.id); }} className={`w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-md transition-all ${opt.id === value ? 'text-black/40 hover:bg-black/10 hover:text-red-600' : 'text-white/30 opacity-0 group-hover:opacity-100 hover:bg-white/10 hover:text-red-400'}`}>
-                <Icon.Trash />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-      {open && <div className="fixed inset-0 z-[99998]" onClick={() => setOpen(false)} />}
-    </div>
-  );
-}
-
-
 function CategoryFileSelect({ label, type, folders, items, folderVal, fileVal, onChange, isText = false }: any) {
   const visibleItems = items.filter((i:any) => folderVal === '__all__' || (i.category || 'Uncategorized') === folderVal);
   return (
@@ -143,7 +81,6 @@ export default function StreamsPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [loading, setLoading] = useState(false);
   
-  // FIX: Form jadwal sekarang tidak punya duration state sendiri. Dia akan merujuk ke Engine Config.
   const [scheduleForm, setScheduleForm] = useState<{ [key: string]: { datetime: string; repeat: string } }>({});
   const [showScheduleFor, setShowScheduleFor] = useState<string | null>(null);
   const [showConfigFor, setShowConfigFor] = useState<string | null>(null);
@@ -151,8 +88,6 @@ export default function StreamsPage() {
   const [editingTokenFor, setEditingTokenFor] = useState<string | null>(null);
   const [editTokenValue, setEditTokenValue] = useState('');
   const [countdown, setCountdown] = useState<{ [key: number]: string }>({});
-  const [newAsset, setNewAsset] = useState<{ type: string; value: string; label: string }>({ type: 'title', value: '', label: '' });
-  const [showAddAsset, setShowAddAsset] = useState(false);
 
   const fetchChannels = useCallback(async () => {
     try {
@@ -198,6 +133,11 @@ export default function StreamsPage() {
   const getConfig = (channelId: string): StreamConfig => streamConfigs[channelId] || defaultConfig();
   const updateConfig = (channelId: string, patch: Partial<StreamConfig>) => { setStreamConfigs(prev => ({ ...prev, [channelId]: { ...getConfig(channelId), ...patch } })); };
 
+  const initScheduleForm = (channelId: string) => {
+    setScheduleForm(prev => ({ ...prev, [channelId]: { datetime: getUTCDatetimeLocal(), repeat: 'none' } }));
+    setShowScheduleFor(channelId);
+  };
+
   const startStream = async (channelId: string) => {
     const config = getConfig(channelId);
     setLoading(true);
@@ -205,12 +145,12 @@ export default function StreamsPage() {
       const payloadFolder = config.folders.length > 0 ? config.folders.join(',') : 'Semua';
       const body: Record<string, unknown> = { channelId, durationSecs: config.duration * 3600, folder: payloadFolder, auto: config.auto, mode: config.mode || 'encode' };
       if (!config.auto) {
-          body.vrFolder = config.vrFolder; body.vrPath = config.vrPath;
-          body.vidFolder = config.vidFolder; body.vidPath = config.vidPath;
-          body.songFolder = config.songFolder; body.songPath = config.songPath;
-          body.thumbFolder = config.thumbFolder; body.thumbnailPath = config.thumbPath;
-          body.titleFolder = config.titleFolder; body.titleId = config.titleId;
-          body.descFolder = config.descFolder; body.descriptionId = config.descId;
+          body.videoReadyPath = config.vrPath;
+          body.videoPath = config.vidPath;
+          body.songPath = config.songPath;
+          body.thumbnailPath = config.thumbPath;
+          body.titleId = config.titleId;
+          body.descriptionId = config.descId;
       }
       const res = await fetch('/api/streams/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!res.ok) { const err = await res.json(); alert('Gagal start: ' + err.error); }
@@ -232,15 +172,14 @@ export default function StreamsPage() {
     setLoading(true);
     try {
       const payloadFolder = config.folders.length > 0 ? config.folders.join(',') : 'Semua';
-      // FIX: Durasi sekarang 100% mengambil dari config.duration yang ada di "Engine Config"
       const body: Record<string, unknown> = { channelId, scheduledAt, durationSecs: config.duration * 3600, folder: payloadFolder, auto: config.auto, mode: config.mode || 'encode', repeatType: form.repeat || 'none', title: 'Lofi Broadcast' };
       if (!config.auto) {
-          body.vrFolder = config.vrFolder; body.vrPath = config.vrPath;
-          body.vidFolder = config.vidFolder; body.vidPath = config.vidPath;
-          body.songFolder = config.songFolder; body.songPath = config.songPath;
-          body.thumbFolder = config.thumbFolder; body.thumbnailPath = config.thumbPath;
-          body.titleFolder = config.titleFolder; body.titleId = config.titleId;
-          body.descFolder = config.descFolder; body.descriptionId = config.descId;
+          body.videoReadyPath = config.vrPath;
+          body.videoPath = config.vidPath;
+          body.songPath = config.songPath;
+          body.thumbnailPath = config.thumbPath;
+          body.titleId = config.titleId;
+          body.descriptionId = config.descId;
       }
       const res = await fetch('/api/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!res.ok) { const err = await res.json(); alert('Gagal schedule: ' + err.error); } else { setShowScheduleFor(null); await fetchSchedulesAndLogs(); }
@@ -248,14 +187,6 @@ export default function StreamsPage() {
   };
   
   const cancelSchedule = async (scheduleId: number) => { if (!confirm('Batalkan jadwal ini?')) return; await fetch(`/api/schedules/${scheduleId}`, { method: 'DELETE' }); await fetchSchedulesAndLogs(); };
-  const addAsset = async () => { if (!newAsset.value.trim()) return; const res = await fetch('/api/assets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: newAsset.type, value: newAsset.value.trim(), label: newAsset.label.trim() || newAsset.value.trim() }) }); if (res.ok) { setNewAsset({ type: 'title', value: '', label: '' }); setShowAddAsset(false); await fetchAssets(); } };
-  const deleteAsset = async (id: number) => { await fetch(`/api/assets/${id}`, { method: 'DELETE' }); await fetchAssets(); };
-  
-  const initScheduleForm = (channelId: string) => { 
-    if (!scheduleForm[channelId]) { setScheduleForm(prev => ({ ...prev, [channelId]: { datetime: getUTCDatetimeLocal(), repeat: 'none' } })); } 
-    setShowScheduleFor(channelId); 
-  };
-  
   const clearLogs = async () => { if(!confirm('Hapus log?')) return; await fetch('/api/streams/logs', { method: 'DELETE' }); await fetchSchedulesAndLogs(); };
 
   const pendingSchedules = schedules.filter(s => s.status === 'pending');
@@ -491,7 +422,6 @@ export default function StreamsPage() {
                   </div>
                 )}
 
-                {/* SCHEDULE PANEL: HANYA ADA WAKTU & SIKLUS (DURASI IKUT CONFIG) */}
                 {isShowingSchedule && !isLive && (
                   <div className="glass-card-strong rounded-[20px] p-4 mb-2 border border-amber-500/20 mt-4 relative z-[40] animate-in slide-in-from-top-2">
                     <div className="flex flex-col sm:flex-row gap-4">
