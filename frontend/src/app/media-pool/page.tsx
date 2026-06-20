@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from "react";
@@ -43,7 +44,7 @@ function useToast() {
 
 function Toast({ toasts, remove }: { toasts: ToastItem[]; remove: (id: number) => void }) {
   return (
-    <div className="fixed bottom-6 right-6 flex flex-col gap-2 z-[9999]">
+    <div className="fixed bottom-6 right-6 flex flex-col gap-2 z-[999999]">
       {toasts.map(t => (
         <div key={t.id} className={`flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl backdrop-blur-xl border animate-in slide-in-from-right-8 duration-300 ${t.type==="error"?"bg-red-500/10 border-red-500/20 text-white":t.type==="success"?"bg-emerald-500/10 border-emerald-500/20 text-white":"bg-black/60 border-white/10 text-white"}`}>
           <span className={t.type==="error"?"text-red-400":t.type==="success"?"text-emerald-400":"text-blue-400"}>{t.type==="success"?<Icon.Check />:<Icon.X />}</span>
@@ -124,12 +125,12 @@ function CategorySidebar({ type, categories, selected, onSelect, onAdd, onDelete
   );
 }
 
-function FileRow({ file, onDelete, onPlay, isPlaying }: { file:FileItem; onDelete:(id:string)=>void; onPlay:(f:FileItem)=>void; isPlaying:boolean }) {
+function FileRow({ file, onDelete, onPlay, isPlaying, isPaused, onTogglePause }: { file:FileItem; onDelete:(id:string)=>void; onPlay:(f:FileItem)=>void; isPlaying:boolean; isPaused:boolean; onTogglePause:()=>void }) {
   return (
     <div draggable onDragStart={e => e.dataTransfer.setData('text/plain', JSON.stringify({ filename: file.name, oldCategory: file.category, type: file.type }))}
       className={`group flex items-center gap-3 p-2.5 rounded-2xl transition-all duration-300 cursor-grab border ${isPlaying ? 'bg-white/10 border-white/20' : 'bg-transparent hover:bg-white/5 border-transparent'}`}>
-      <button onClick={()=>onPlay(file)} className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all shadow-sm ${isPlaying ? 'bg-white text-black scale-95' : 'bg-white/10 text-white group-hover:bg-white/20'}`}>
-        {isPlaying ? <Icon.Pause /> : <Icon.Play />}
+      <button onClick={(e)=>{ e.stopPropagation(); if(isPlaying){onTogglePause();}else{onPlay(file);} }} className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all shadow-sm ${isPlaying ? 'bg-white text-black scale-95' : 'bg-white/10 text-white group-hover:bg-white/20'}`}>
+        {isPlaying && !isPaused ? <Icon.Pause /> : <Icon.Play />}
       </button>
       <div className="flex-1 overflow-hidden">
         <div className={`text-xs font-semibold truncate ${isPlaying ? 'text-white' : 'text-white/80'}`}>{file.name}</div>
@@ -144,14 +145,14 @@ function FileRow({ file, onDelete, onPlay, isPlaying }: { file:FileItem; onDelet
   );
 }
 
-function FileList({ files, type, onDelete, onPlay, playing }: { files:FileItem[]; type:"music"|"video"; onDelete:(id:string)=>void; onPlay:(f:FileItem)=>void; playing:FileItem|null }) {
+function FileList({ files, type, onDelete, onPlay, playing, isPaused, onTogglePause }: { files:FileItem[]; type:"music"|"video"; onDelete:(id:string)=>void; onPlay:(f:FileItem)=>void; playing:FileItem|null; isPaused:boolean; onTogglePause:()=>void }) {
   if (!files.length) return (
     <div className="h-full flex flex-col items-center justify-center text-white/30 pb-10">
       <div className="mb-3 opacity-50 scale-150">{type==="music"?<Icon.Music />:<Icon.Video />}</div>
       <div className="text-xs font-medium">Belum ada file di kategori ini</div>
     </div>
   );
-  return <div className="flex flex-col gap-1">{files.map(f => <FileRow key={f.id} file={f} onDelete={onDelete} onPlay={onPlay} isPlaying={playing?.id===f.id} />)}</div>;
+  return <div className="flex flex-col gap-1">{files.map(f => <FileRow key={f.id} file={f} onDelete={onDelete} onPlay={onPlay} isPlaying={playing?.id===f.id} isPaused={isPaused} onTogglePause={onTogglePause} />)}</div>;
 }
 
 function UploadModal({ type, categories, onClose, onUpload }: { type:"music"|"video"; categories:string[]; onClose:()=>void; onUpload:(files:File[],cat:string)=>void }) {
@@ -194,14 +195,21 @@ function UploadModal({ type, categories, onClose, onUpload }: { type:"music"|"vi
   );
 }
 
-function MiniPlayer({ playing, type, apiBase }: { playing:FileItem|null; type:"music"|"video"; apiBase:string }) {
+function MiniPlayer({ playing, type, apiBase, isPaused, setIsPaused }: { playing:FileItem|null; type:"music"|"video"; apiBase:string; isPaused:boolean; setIsPaused:(b:boolean)=>void }) {
   const mediaRef = useRef<HTMLMediaElement>(null);
-  const [paused, setPaused] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
-  useEffect(() => { setPaused(false); setProgress(0); setCurrentTime(0); setDuration(0); }, [playing?.id]);
+  useEffect(() => { setIsPaused(false); setProgress(0); setCurrentTime(0); setDuration(0); }, [playing?.id]);
+
+  useEffect(() => {
+    const el = mediaRef.current;
+    if (!el) return;
+    if (isPaused && !el.paused) el.pause();
+    else if (!isPaused && el.paused) el.play();
+  }, [isPaused]);
+
   if (!playing) return null;
 
   const url = `${apiBase}/media/${type}/${encodeURIComponent(playing.category)}/${encodeURIComponent(playing.name)}`;
@@ -217,9 +225,7 @@ function MiniPlayer({ playing, type, apiBase }: { playing:FileItem|null; type:"m
 
   const toggle = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    const el=mediaRef.current;
-    if(!el)return;
-    if(el.paused) el.play(); else el.pause();
+    setIsPaused(!isPaused);
   };
 
   const seek = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -235,14 +241,15 @@ function MiniPlayer({ playing, type, apiBase }: { playing:FileItem|null; type:"m
   return (
     <>
     {type==="video" && (
-      <div className="fixed bottom-24 right-6 w-80 glass-card-strong rounded-[24px] overflow-hidden shadow-2xl z-[501] animate-in slide-in-from-bottom-4">\
-        <video ref={mediaRef as React.RefObject<HTMLVideoElement>} src={url} autoPlay onTimeUpdate={onTime} onPlay={()=>setPaused(false)} onPause={()=>setPaused(true)} onClick={toggle} className="w-full block cursor-pointer" />
+      <div className="fixed bottom-24 right-6 w-80 glass-card-strong rounded-[24px] overflow-hidden shadow-2xl z-[500] animate-in slide-in-from-bottom-4">
+        <video ref={mediaRef as React.RefObject<HTMLVideoElement>} src={url} autoPlay onTimeUpdate={onTime} onPlay={()=>setIsPaused(false)} onPause={()=>setIsPaused(true)} onClick={toggle} className="w-full block cursor-pointer" />
       </div>
     )}
-    <div onClick={toggle} className="fixed bottom-0 left-0 right-0 bg-[#050508]/90 backdrop-blur-3xl border-t border-white/10 px-6 py-4 flex items-center gap-4 z-[500] cursor-pointer hover:bg-white/5 transition-colors">
-      {type==="music" && <audio ref={mediaRef as React.RefObject<HTMLAudioElement>} src={url} autoPlay onTimeUpdate={onTime} onPlay={()=>setPaused(false)} onPause={()=>setPaused(true)} />}
+    {/* POSISI DIGANTI JADI left-[220px] BIAR NEMPEL DI KANAN SIDEBAR, z-index 90 */}
+    <div onClick={toggle} className="fixed bottom-0 left-[220px] right-0 bg-[#050508]/90 backdrop-blur-3xl border-t border-white/10 px-6 py-4 flex items-center gap-4 z-[90] cursor-pointer hover:bg-white/5 transition-colors">
+      {type==="music" && <audio ref={mediaRef as React.RefObject<HTMLAudioElement>} src={url} autoPlay onTimeUpdate={onTime} onPlay={()=>setIsPaused(false)} onPause={()=>setIsPaused(true)} />}
       <button onClick={toggle} className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center hover:scale-95 transition-transform shadow-lg flex-shrink-0 z-10">
-        {paused ? <Icon.Play /> : <Icon.Pause />}
+        {isPaused ? <Icon.Play /> : <Icon.Pause />}
       </button>
       <div className="flex-1 max-w-md flex flex-col gap-1 z-10">
         <div className="flex justify-between items-center">
@@ -297,7 +304,6 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
   const [dragOver, setDragOver] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
   
-  // State diubah jadi Array buat nampung banyak file preview
   const [previewFiles, setPreviewFiles] = useState<{file: File, url: string}[]>([]);
   
   const [lightbox, setLightbox] = useState<string | null>(null);
@@ -308,7 +314,6 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
   const fetchCategories = useCallback(async () => { try { const res = await fetch('/api/thumbnails/categories'); if (res.ok) { const d = await res.json(); setCategories(d.categories || []); } } catch {} }, []);
   useEffect(() => { fetchThumbnails(); fetchCategories(); }, [fetchThumbnails, fetchCategories]);
   
-  // Cleanup URL biar memory nggak bocor pas ganti/hapus preview
   useEffect(() => () => { previewFiles.forEach(p => URL.revokeObjectURL(p.url)); }, [previewFiles]);
 
   const handleFileSelect = (files: File[]) => {
@@ -317,9 +322,7 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
       if (file.size > 5 * 1024 * 1024) { toast(`File max 5MB (${file.name})`, 'error'); return false; }
       return true;
     });
-    
     if (!validFiles.length) return;
-    
     const newPreviews = validFiles.map(file => ({ file, url: URL.createObjectURL(file) }));
     setPreviewFiles(prev => [...prev, ...newPreviews]); 
     setUploadState('idle'); 
@@ -347,33 +350,24 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
     
     let success = 0;
     let fail = 0;
-    
-    // Loop nge-post per file biar aman di backend yang sekarang
     for (const p of previewFiles) {
       try {
         const formData = new FormData(); 
         formData.append('file', p.file); 
         if (uploadCategory) formData.append('category', uploadCategory);
-        
         const res = await fetch('/api/thumbnails/upload', { method: 'POST', body: formData });
         if (!res.ok) throw new Error();
         success++;
       } catch (err) { fail++; }
     }
-    
     await fetchThumbnails(); await fetchCategories();
-    
     if (success > 0) toast(`${success} file berhasil diupload`, 'success');
     if (fail > 0) toast(`${fail} file gagal diupload`, 'error');
-    
     setUploadState('done'); 
     setUploadMsg(`✓ Selesai`);
-    
     setTimeout(() => { 
       previewFiles.forEach(p => URL.revokeObjectURL(p.url));
-      setPreviewFiles([]); 
-      setUploadState('idle'); 
-      setUploadMsg(''); 
+      setPreviewFiles([]); setUploadState('idle'); setUploadMsg(''); 
     }, 2000);
   };
 
@@ -433,7 +427,6 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
               {categories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
             
-            {/* AREA DROPZONE UPLOAD */}
             <div onDragOver={e=>{e.preventDefault();setDragOver(true)}} onDragLeave={()=>setDragOver(false)} onDrop={handleDrop} onClick={()=>fileInputRef.current?.click()} className={`border-2 border-dashed rounded-2xl p-4 text-center cursor-pointer transition-all overflow-hidden ${dragOver?'border-white/40 bg-white/5':previewFiles.length?'border-transparent bg-white/10':'border-white/10 hover:bg-white/[0.02]'}`}>
               <input ref={fileInputRef} type="file" multiple accept="image/jpeg,image/jpg,image/png,image/webp" className="hidden" onChange={e=>{ if(e.target.files?.length)handleFileSelect(Array.from(e.target.files)); e.target.value=''; }} />
               
@@ -503,9 +496,8 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
   );
 }
 
-
 function VideoJadiTab({ toast, queue, onUpload, refresh }: { toast: (msg: string, type: ToastItem["type"]) => void; queue: UploadQueueItem[]; onUpload: (f: File[], c: string) => void; refresh: number }) {
-  const [files, setFiles] = useState<{filename: string; category: string; path: string; size: number}[]>([]);
+  const [files, setFiles] = useState<any[]>([]); // allow any so it doesn't break if API returns name instead of filename
   const [categories, setCategories] = useState<string[]>([]);
   const [selectedCat, setSelectedCat] = useState('__all__');
   const uploading = queue.some(q => q.status === "uploading");
@@ -539,7 +531,8 @@ function VideoJadiTab({ toast, queue, onUpload, refresh }: { toast: (msg: string
 
   const handleDelete = async (category: string, filename: string) => {
     if (!confirm(`Hapus ${filename}?`)) return;
-    await fetch(`${API_BASE}/files/video-ready/${encodeURIComponent(category)}/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+    const catSafe = category || 'Uncategorized';
+    await fetch(`${API_BASE}/files/video-ready/${encodeURIComponent(catSafe)}/${encodeURIComponent(filename)}`, { method: 'DELETE' });
     await fetchFiles();
     toast('File dihapus', 'info');
   };
@@ -564,11 +557,10 @@ function VideoJadiTab({ toast, queue, onUpload, refresh }: { toast: (msg: string
     if (selectedCat === name) setSelectedCat('__all__');
   };
 
-  const visible = files.filter(f => selectedCat === '__all__' || f.category === selectedCat);
+  const visible = files.filter(f => selectedCat === '__all__' || (f.category || 'Uncategorized') === selectedCat);
 
   return (
     <div className="glass-card rounded-[32px] overflow-hidden flex flex-col md:flex-row min-h-[500px]">
-      {/* Sidebar kategori */}
       <div className="w-full md:w-56 bg-white/[0.02] border-r border-white/5 p-4 flex flex-col gap-1">
         <div className="flex items-center justify-between px-2 mb-2">
           <span className="text-[10px] font-semibold text-white/40 uppercase tracking-widest">Kategori</span>
@@ -588,9 +580,7 @@ function VideoJadiTab({ toast, queue, onUpload, refresh }: { toast: (msg: string
         )}
       </div>
 
-      {/* Main */}
       <div className="flex-1 p-4 md:p-6 flex flex-col gap-6">
-        {/* Upload section */}
         <div className="glass-card-strong rounded-[24px] p-5">
           <div className="flex items-center gap-2 mb-3">
             <span className="text-[10px] font-semibold text-white/50 uppercase tracking-widest">Upload Video Jadi</span>
@@ -615,7 +605,6 @@ function VideoJadiTab({ toast, queue, onUpload, refresh }: { toast: (msg: string
           </div>
         </div>
 
-        {/* File grid */}
         <div>
           <div className="flex items-center justify-between mb-4 px-1">
             <span className="text-xs font-semibold text-white/50">Video Jadi — {selectedCat === '__all__' ? 'Semua' : selectedCat}</span>
@@ -625,29 +614,34 @@ function VideoJadiTab({ toast, queue, onUpload, refresh }: { toast: (msg: string
             <div className="flex items-center justify-center h-32 text-white/30 text-xs">Belum ada video jadi di sini.</div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {visible.map(f => (
-                <div key={`${f.category}-${f.filename}`} className="group glass-input rounded-2xl overflow-hidden hover:ring-1 hover:ring-white/20 transition-all">
-                  <video
-                    src={`${API_BASE}/media/video-ready/${encodeURIComponent(f.category)}/${encodeURIComponent(f.filename)}`}
-                    className="w-full aspect-video object-cover bg-black/60"
-                    controls preload="metadata"
-                  />
-                  <div className="p-3 flex items-center justify-between gap-2">
-                    <div className="truncate">
-                      <div className="text-[10px] font-semibold text-white/80 truncate">{f.filename}</div>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[9px] text-white/40">{fmtSize(f.size)}</span>
-                        <span className="text-[9px] text-amber-400 font-bold">⚡ copy</span>
-                        {f.category !== 'Uncategorized' && <span className="text-[9px] text-white/30">{f.category}</span>}
+              {visible.map(f => {
+                const name = f.filename || f.name;
+                const size = f.size || f.sizeBytes || 0;
+                const cat = f.category || 'Uncategorized';
+                return (
+                  <div key={`${cat}-${name}`} className="group glass-input rounded-2xl overflow-hidden hover:ring-1 hover:ring-white/20 transition-all">
+                    <video
+                      src={`${API_BASE}/media/video-ready/${encodeURIComponent(cat)}/${encodeURIComponent(name)}`}
+                      className="w-full aspect-video object-cover bg-black/60"
+                      controls preload="metadata" playsInline
+                    />
+                    <div className="p-3 flex items-center justify-between gap-2">
+                      <div className="truncate">
+                        <div className="text-[10px] font-semibold text-white/80 truncate">{name}</div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[9px] text-white/40">{fmtSize(size)}</span>
+                          <span className="text-[9px] text-amber-400 font-bold">⚡ copy</span>
+                          {cat !== 'Uncategorized' && <span className="text-[9px] text-white/30">{cat}</span>}
+                        </div>
                       </div>
+                      <button onClick={() => handleDelete(cat, name)}
+                        className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-lg text-white/30 hover:bg-red-500/20 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all">
+                        <Icon.Trash />
+                      </button>
                     </div>
-                    <button onClick={() => handleDelete(f.category, f.filename)}
-                      className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-lg text-white/30 hover:bg-red-500/20 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all">
-                      <Icon.Trash />
-                    </button>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -655,7 +649,6 @@ function VideoJadiTab({ toast, queue, onUpload, refresh }: { toast: (msg: string
     </div>
   );
 }
-
 
 function TextAssetsTab({ toast }: { toast: any }) {
   const [titles, setTitles] = useState<any[]>([]); const [descs, setDescs] = useState<any[]>([]);
@@ -760,6 +753,7 @@ export default function MediaPool() {
   const [queue, setQueue] = useState<UploadQueueItem[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [playing, setPlaying] = useState<FileItem|null>(null);
+  const [isPaused, setIsPaused] = useState(false);
   const [refreshCount, setRefreshCount] = useState(0);
   const [syncing, setSyncing] = useState(false);
 
@@ -772,7 +766,7 @@ export default function MediaPool() {
   const cats = mediaType==="music"?musicCats:videoCats;
   const selCat = mediaType==="music"?musicCat:videoCat;
   const setSelCat = mediaType==="music"?setMusicCat:setVideoCat;
-  const visible = files.filter(f => f.type===mediaType && (selCat==="__all__"||f.category===selCat));
+  const visible = files.filter(f => f.type===mediaType && (selCat==="__all__"||(f.category||'Uncategorized')===selCat));
 
   const handleUpload = async (rawFiles: File[], category: string) => {
     const items: UploadQueueItem[] = rawFiles.map(f => ({ id:`${Date.now()}-${Math.random()}`, name:f.name, file:f, status:"pending", progress:0 }));
@@ -862,17 +856,14 @@ export default function MediaPool() {
                   <button onClick={()=>setShowModal(true)} className="bg-white text-black px-5 py-2 rounded-full text-xs font-bold shadow-lg hover:scale-95 transition-all flex items-center gap-1.5"><Icon.Upload /> Upload</button>
                 </div>
               </div>
-              
-              
-
-              <div className="flex-1 overflow-y-auto pr-2 -mr-2"><FileList files={visible} type={activeTab} onDelete={delFile} onPlay={setPlaying} playing={playing} /></div>
+              <div className="flex-1 overflow-y-auto pr-2 -mr-2"><FileList files={visible} type={activeTab} onDelete={delFile} onPlay={setPlaying} playing={playing} isPaused={isPaused} onTogglePause={() => setIsPaused(!isPaused)} /></div>
             </div>
           </div>
         )}
       </div>
 
       {showModal && <UploadModal type={activeTab as "music"|"video"} categories={cats} onClose={()=>setShowModal(false)} onUpload={handleUpload} />}
-      {activeTab !== "thumbnails" && <MiniPlayer playing={playing} type={activeTab as "music"|"video"} apiBase={API_BASE} />}
+      {activeTab !== "thumbnails" && <MiniPlayer playing={playing} type={activeTab as "music"|"video"} apiBase={API_BASE} isPaused={isPaused} setIsPaused={setIsPaused} />}
       <Toast toasts={toasts} remove={removeToast} />
     </div>
   );
