@@ -1,3 +1,4 @@
+
 'use client';
 
 import { usePathname } from 'next/navigation';
@@ -7,6 +8,7 @@ const navItems = [
   { label: 'Dashboard',    icon: '⊞', href: '/' },
   { label: 'Live Streams', icon: '◉', href: '/streams' },
   { label: 'Media Pool',   icon: '🎵', href: '/media-pool' },
+  { label: 'Generator',    icon: '✨', href: '/generator' },
   { label: 'OAuth Tool',   icon: '🔑', href: '/oauth-helper' },
 ];
 

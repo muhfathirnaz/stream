@@ -198,66 +198,33 @@ function MiniPlayer({ playing, type, apiBase }: { playing:FileItem|null; type:"m
   const mediaRef = useRef<HTMLMediaElement>(null);
   const [paused, setPaused] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-
-  useEffect(() => { setPaused(false); setProgress(0); setCurrentTime(0); setDuration(0); }, [playing?.id]);
+  useEffect(() => { setPaused(false); setProgress(0); }, [playing?.id]);
   if (!playing) return null;
-
   const url = `${apiBase}/media/${type}/${encodeURIComponent(playing.category)}/${encodeURIComponent(playing.name)}`;
-
-  const onTime = () => {
-    const el=mediaRef.current;
-    if(el?.duration) {
-      setProgress((el.currentTime/el.duration)*100);
-      setCurrentTime(el.currentTime);
-      setDuration(el.duration);
-    }
-  };
-
-  const toggle = (e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    const el=mediaRef.current;
-    if(!el)return;
-    if(el.paused) el.play(); else el.pause();
-  };
-
-  const seek = (e: React.MouseEvent<HTMLDivElement>) => {
-    e.stopPropagation();
-    const el=mediaRef.current;
-    if(!el?.duration)return;
-    const r=e.currentTarget.getBoundingClientRect();
-    el.currentTime=((e.clientX-r.left)/r.width)*el.duration;
-  };
-
-  const formatT = (s: number) => !s ? "0:00" : `${Math.floor(s/60)}:${Math.floor(s%60).toString().padStart(2,"0")}`;
-
+  const onTime = () => { const el=mediaRef.current; if(el?.duration) setProgress((el.currentTime/el.duration)*100); };
+  const toggle = () => { const el=mediaRef.current; if(!el)return; if(el.paused) el.play(); else el.pause(); };
+  const seek = (e: React.MouseEvent<HTMLDivElement>) => { const el=mediaRef.current; if(!el?.duration)return; const r=e.currentTarget.getBoundingClientRect(); el.currentTime=((e.clientX-r.left)/r.width)*el.duration; };
   return (
     <>
     {type==="video" && (
-      <div className="fixed bottom-24 right-6 w-80 glass-card-strong rounded-[24px] overflow-hidden shadow-2xl z-[501] animate-in slide-in-from-bottom-4">\
+      <div className="fixed bottom-24 right-6 w-80 glass-card-strong rounded-[24px] overflow-hidden shadow-2xl z-[501] animate-in slide-in-from-bottom-4">
         <video ref={mediaRef as React.RefObject<HTMLVideoElement>} src={url} autoPlay onTimeUpdate={onTime} onPlay={()=>setPaused(false)} onPause={()=>setPaused(true)} onClick={toggle} className="w-full block cursor-pointer" />
       </div>
     )}
-    <div onClick={toggle} className="fixed bottom-0 left-0 right-0 bg-[#050508]/90 backdrop-blur-3xl border-t border-white/10 px-6 py-4 flex items-center gap-4 z-[500] cursor-pointer hover:bg-white/5 transition-colors">
+    <div className="fixed bottom-0 left-0 right-0 bg-[#050508]/90 backdrop-blur-3xl border-t border-white/10 px-6 py-4 flex items-center gap-4 z-[500]">
       {type==="music" && <audio ref={mediaRef as React.RefObject<HTMLAudioElement>} src={url} autoPlay onTimeUpdate={onTime} onPlay={()=>setPaused(false)} onPause={()=>setPaused(true)} />}
-      <button onClick={toggle} className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center hover:scale-95 transition-transform shadow-lg flex-shrink-0 z-10">
+      <button onClick={toggle} className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center hover:scale-95 transition-transform shadow-lg flex-shrink-0">
         {paused ? <Icon.Play /> : <Icon.Pause />}
       </button>
-      <div className="flex-1 max-w-md flex flex-col gap-1 z-10">
-        <div className="flex justify-between items-center">
-          <div className="text-xs font-semibold text-white mb-1.5 truncate pr-4">{playing.name}</div>
-          <div className="text-[10px] text-white/50 font-medium tabular-nums tracking-wider">
-            {formatT(currentTime)} / {formatT(duration)}
-          </div>
-        </div>
-        <div onClick={seek} className="h-1.5 bg-white/10 rounded-full cursor-pointer overflow-hidden group py-1">
+      <div className="flex-1 max-w-md">
+        <div className="text-xs font-semibold text-white mb-1.5 truncate">{playing.name}</div>
+        <div onClick={seek} className="h-1.5 bg-white/10 rounded-full cursor-pointer overflow-hidden group">
           <div className="h-full bg-white rounded-full transition-all duration-100 relative" style={{ width:`${progress}%` }}>
             <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2 h-2 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
         </div>
       </div>
-      <span className="text-[10px] font-medium text-white/40 px-2.5 py-1 rounded-md bg-white/5 z-10">{playing.category}</span>
+      <span className="text-[10px] font-medium text-white/40 px-2.5 py-1 rounded-md bg-white/5">{playing.category}</span>
     </div>
     </>
   );
@@ -296,10 +263,8 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
   const [uploadMsg, setUploadMsg] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
-  
-  // State diubah jadi Array buat nampung banyak file preview
-  const [previewFiles, setPreviewFiles] = useState<{file: File, url: string}[]>([]);
-  
+  const [previewFile, setPreviewFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [uploadCategory, setUploadCategory] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -307,74 +272,29 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
   const fetchThumbnails = useCallback(async () => { try { const res = await fetch('/api/thumbnails'); if (res.ok) { const d = await res.json(); setThumbnails(d.files || []); } } catch {} }, []);
   const fetchCategories = useCallback(async () => { try { const res = await fetch('/api/thumbnails/categories'); if (res.ok) { const d = await res.json(); setCategories(d.categories || []); } } catch {} }, []);
   useEffect(() => { fetchThumbnails(); fetchCategories(); }, [fetchThumbnails, fetchCategories]);
-  
-  // Cleanup URL biar memory nggak bocor pas ganti/hapus preview
-  useEffect(() => () => { previewFiles.forEach(p => URL.revokeObjectURL(p.url)); }, [previewFiles]);
+  useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
 
-  const handleFileSelect = (files: File[]) => {
-    const validFiles = files.filter(file => {
-      if (!file.type.startsWith('image/')) { toast(`Hanya JPG, PNG, WebP (${file.name})`, 'error'); return false; }
-      if (file.size > 5 * 1024 * 1024) { toast(`File max 5MB (${file.name})`, 'error'); return false; }
-      return true;
-    });
-    
-    if (!validFiles.length) return;
-    
-    const newPreviews = validFiles.map(file => ({ file, url: URL.createObjectURL(file) }));
-    setPreviewFiles(prev => [...prev, ...newPreviews]); 
-    setUploadState('idle'); 
-    setUploadMsg('');
+  const handleFileSelect = (file: File) => {
+    if (!file.type.startsWith('image/')) return toast('Hanya JPG, PNG, WebP', 'error');
+    if (file.size > 5 * 1024 * 1024) return toast('File max 5MB', 'error');
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewFile(file); setPreviewUrl(URL.createObjectURL(file)); setUploadState('idle'); setUploadMsg('');
   };
 
-  const handleDrop = (e: React.DragEvent) => { 
-    e.preventDefault(); setDragOver(false); 
-    if (e.dataTransfer.files?.length) handleFileSelect(Array.from(e.dataTransfer.files)); 
-  };
-
-  const removePreview = (e: React.MouseEvent, index: number) => {
-    e.stopPropagation();
-    setPreviewFiles(prev => {
-      const newArr = [...prev];
-      URL.revokeObjectURL(newArr[index].url);
-      newArr.splice(index, 1);
-      return newArr;
-    });
-  };
+  const handleDrop = (e: React.DragEvent) => { e.preventDefault(); setDragOver(false); const file = e.dataTransfer.files[0]; if (file) handleFileSelect(file); };
 
   const handleUpload = async () => {
-    if (!previewFiles.length) return;
+    if (!previewFile) return;
     setUploadState('uploading'); setUploadMsg('Mengupload...');
-    
-    let success = 0;
-    let fail = 0;
-    
-    // Loop nge-post per file biar aman di backend yang sekarang
-    for (const p of previewFiles) {
-      try {
-        const formData = new FormData(); 
-        formData.append('file', p.file); 
-        if (uploadCategory) formData.append('category', uploadCategory);
-        
-        const res = await fetch('/api/thumbnails/upload', { method: 'POST', body: formData });
-        if (!res.ok) throw new Error();
-        success++;
-      } catch (err) { fail++; }
-    }
-    
-    await fetchThumbnails(); await fetchCategories();
-    
-    if (success > 0) toast(`${success} file berhasil diupload`, 'success');
-    if (fail > 0) toast(`${fail} file gagal diupload`, 'error');
-    
-    setUploadState('done'); 
-    setUploadMsg(`✓ Selesai`);
-    
-    setTimeout(() => { 
-      previewFiles.forEach(p => URL.revokeObjectURL(p.url));
-      setPreviewFiles([]); 
-      setUploadState('idle'); 
-      setUploadMsg(''); 
-    }, 2000);
+    try {
+      const formData = new FormData(); formData.append('file', previewFile); if (uploadCategory) formData.append('category', uploadCategory);
+      const res = await fetch('/api/thumbnails/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok) { setUploadState('error'); setUploadMsg(data.error || 'Upload gagal'); return; }
+      await fetchThumbnails(); await fetchCategories();
+      setUploadState('done'); setUploadMsg(`✓ ${data.filename}`); toast(`${data.filename} diupload`, 'success');
+      setTimeout(() => { setPreviewFile(null); if (previewUrl) URL.revokeObjectURL(previewUrl); setPreviewUrl(null); setUploadState('idle'); setUploadMsg(''); }, 2000);
+    } catch (err) { setUploadState('error'); setUploadMsg('Error'); }
   };
 
   const handleMoveFile = async (dataString: string, targetCat: string) => {
@@ -432,38 +352,22 @@ function ThumbnailTab({ toast }: { toast: (msg: string, type: ToastItem["type"])
               <option value="">— Uncategorized —</option>
               {categories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
-            
-            {/* AREA DROPZONE UPLOAD */}
-            <div onDragOver={e=>{e.preventDefault();setDragOver(true)}} onDragLeave={()=>setDragOver(false)} onDrop={handleDrop} onClick={()=>fileInputRef.current?.click()} className={`border-2 border-dashed rounded-2xl p-4 text-center cursor-pointer transition-all overflow-hidden ${dragOver?'border-white/40 bg-white/5':previewFiles.length?'border-transparent bg-white/10':'border-white/10 hover:bg-white/[0.02]'}`}>
-              <input ref={fileInputRef} type="file" multiple accept="image/jpeg,image/jpg,image/png,image/webp" className="hidden" onChange={e=>{ if(e.target.files?.length)handleFileSelect(Array.from(e.target.files)); e.target.value=''; }} />
-              
-              {previewFiles.length > 0 ? (
-                <div className="w-full overflow-x-auto pb-2 flex gap-3 snap-x">
-                  {previewFiles.map((p, idx) => (
-                    <div key={idx} className="relative group snap-center flex-shrink-0">
-                      <img src={p.url} alt="preview" className="h-20 w-32 object-cover rounded-lg shadow-md" />
-                      <button onClick={(e) => removePreview(e, idx)} className="absolute -top-2 -right-2 bg-red-500 rounded-full w-5 h-5 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg z-10">
-                         <Icon.X />
-                      </button>
-                      <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-md px-1 py-0.5 text-[8px] text-white truncate rounded-b-lg text-center">
-                        {p.file.name}
-                      </div>
-                    </div>
-                  ))}
+            <div onDragOver={e=>{e.preventDefault();setDragOver(true)}} onDragLeave={()=>setDragOver(false)} onDrop={handleDrop} onClick={()=>fileInputRef.current?.click()} className={`border-2 border-dashed rounded-2xl p-4 text-center cursor-pointer transition-all ${dragOver?'border-white/40 bg-white/5':previewFile?'border-transparent bg-white/10':'border-white/10 hover:bg-white/[0.02]'}`}>
+              <input ref={fileInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp" className="hidden" onChange={e=>{ const f=e.target.files?.[0]; if(f)handleFileSelect(f); e.target.value=''; }} />
+              {previewUrl ? (
+                <div className="flex flex-col items-center gap-2">
+                  <img src={previewUrl} alt="preview" className="max-h-24 max-w-full rounded-lg object-contain" />
+                  <div className="text-[10px] text-white/50">{previewFile?.name}</div>
                 </div>
               ) : (
-                <div className="flex flex-col items-center gap-1 py-4">
+                <div className="flex flex-col items-center gap-1">
                   <div className="text-white/30 mb-1"><Icon.Image /></div>
                   <div className="text-[11px] text-white/60">Drop file JPG/PNG/WebP</div>
-                  <div className="text-[10px] text-emerald-400 font-medium">Bisa pilih BANYAK file sekaligus</div>
                 </div>
               )}
             </div>
-
-            {previewFiles.length > 0 && uploadState !== 'done' && (
-              <button onClick={handleUpload} disabled={uploadState==='uploading'} className="w-full mt-3 bg-white text-black py-2.5 rounded-xl text-xs font-bold hover:scale-95 transition-transform disabled:opacity-50 flex items-center justify-center gap-2">
-                {uploadState==='uploading' ? '⏳ Mengupload...' : <><Icon.Upload /> Upload {previewFiles.length} File ke VPS</>}
-              </button>
+            {previewFile && uploadState !== 'done' && (
+              <button onClick={handleUpload} disabled={uploadState==='uploading'} className="w-full mt-3 bg-white text-black py-2 rounded-xl text-xs font-bold hover:scale-95 transition-transform disabled:opacity-50">Upload ke VPS</button>
             )}
           </div>
         </div>
@@ -532,9 +436,9 @@ function VideoJadiTab({ toast, queue, onUpload, refresh }: { toast: (msg: string
 
   useEffect(() => { fetchFiles(); fetchCats(); }, [fetchFiles, fetchCats, refresh]);
 
-  const handleUpload = (files: File[]) => {
-    if (!files || !files.length) return;
-    onUpload(files, uploadCat || 'Uncategorized');
+  const handleUpload = (file: File) => {
+    if (!file) return;
+    onUpload([file], uploadCat || 'Uncategorized');
   };
 
   const handleDelete = async (category: string, filename: string) => {
@@ -604,14 +508,14 @@ function VideoJadiTab({ toast, queue, onUpload, refresh }: { toast: (msg: string
             {categories.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
           <div onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)}
-            onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files; if (f?.length) handleUpload(Array.from(f)); }}
+            onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) handleUpload(f); }}
             onClick={() => fileInputRef.current?.click()}
             className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${dragOver ? 'border-amber-400/50 bg-amber-400/5' : 'border-white/10 hover:bg-white/[0.02]'}`}>
-            <input ref={fileInputRef} type="file" multiple accept=".mp4,.mkv,.mov,.avi,.webm" className="hidden"
-              onChange={e => { const f = e.target.files; if (f?.length) handleUpload(Array.from(f)); e.target.value = ''; }} />
+            <input ref={fileInputRef} type="file" accept=".mp4,.mkv,.mov,.avi,.webm" className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); e.target.value = ''; }} />
             <div className="text-white/30 mb-1 flex justify-center"><Icon.Video /></div>
-            <div className="text-[11px] text-white/60 font-medium">{uploading ? '⏳ Uploading...' : 'Drop file video atau klik untuk pilih BANYAK file'}</div>
-            <div className="text-[10px] text-white/30 mt-1">MP4 · MKV · MOV · WebM (Bisa upload langsung banyak)</div>
+            <div className="text-[11px] text-white/60 font-medium">{uploading ? '⏳ Uploading...' : 'Drop file MP4 atau klik untuk pilih'}</div>
+            <div className="text-[10px] text-white/30 mt-1">MP4 · MKV · MOV · WebM</div>
           </div>
         </div>
 
