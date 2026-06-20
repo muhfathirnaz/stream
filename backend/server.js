@@ -54,7 +54,6 @@ const songCoord = new SongCoordinatorClient('http://localhost:8090');
 const streamService = new LocalStreamService(wsService, songCoord);
 
 const scheduler = new SchedulerService(db, streamService, wsService);
-scheduler.start();
 
 app.use(helmet());
 app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:3000' }));

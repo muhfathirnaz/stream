@@ -2,10 +2,18 @@ const fs = require('fs');
 const path = require('path');
 
 class SchedulerService {
-  constructor(db, streamService) { this.db = db; this.streamService = streamService; this.start(); }
+  constructor(db, streamService, wsService) {
+    this.db = db;
+    this.streamService = streamService;
+    this.wsService = wsService;
+    this._processing = false;
+    this._timer = null;
+    this.start();
+  }
 
   start() {
-    setInterval(() => this.checkSchedules(), 60000);
+    if (this._timer) return;
+    this._timer = setInterval(() => this.checkSchedules(), 60000);
     setTimeout(() => this.checkSchedules(), 5000);
   }
 
@@ -33,12 +41,37 @@ class SchedulerService {
   }
 
   async checkSchedules() {
+    if (this._processing) {
+      console.log('[Scheduler] Masih processing, skip...');
+      return;
+    }
+    this._processing = true;
+
     try {
-      const { rows } = await this.db.query("SELECT * FROM schedules WHERE status = 'pending' AND scheduled_at <= NOW()");
+      const { rows } = await this.db.query(
+        "SELECT * FROM schedules WHERE status = 'pending' AND scheduled_at <= NOW()"
+      );
 
       for (const schedule of rows) {
         try {
+          // Lock row dulu biar nggak double-fire
+          const { rows: fresh } = await this.db.query(
+            "SELECT status FROM schedules WHERE id = $1 FOR UPDATE SKIP LOCKED",
+            [schedule.id]
+          );
+          if (!fresh.length || fresh[0].status !== 'pending') {
+            console.log(`[Scheduler] Schedule ${schedule.id} sudah diproses, skip.`);
+            continue;
+          }
+
+          // Mark 'running' sebelum eksekusi apapun
+          await this.db.query(
+            "UPDATE schedules SET status = 'running' WHERE id = $1",
+            [schedule.id]
+          );
+
           if (this.streamService.isRunning(schedule.channel_id)) {
+            console.log(`[Scheduler] Channel ${schedule.channel_id} sudah live, skip jadwal ${schedule.id}`);
             await this.db.query("UPDATE schedules SET status = 'failed' WHERE id = $1", [schedule.id]);
             await this.handleRepeat(schedule);
             continue;
@@ -77,24 +110,24 @@ class SchedulerService {
                 }
                 const availPrio = priorityFiles.filter(f => !used.thumbs.includes(f));
                 const poolPrio = availPrio.length > 0 ? availPrio : priorityFiles;
-
                 const availAll = allFiles.filter(f => !used.thumbs.includes(f));
                 const poolAll = availAll.length > 0 ? availAll : allFiles;
-
                 const pool = priorityFiles.length > 0 ? poolPrio : poolAll;
                 if (pool.length > 0) finalThumb = pool[Math.floor(Math.random() * pool.length)];
               }
             } catch (e) {}
 
-            // Mode Video Jadi (copy) + Auto -> acak video jadi sesuai kategori yang dipilih di schedule.folder
             if (schedule.mode === 'copy') {
               finalVideoReadyPath = this.pickRandomVideoReady(schedule.folder);
             }
           }
 
           await this.streamService.start(schedule.channel_id, this.db, {
-            durationSecs: schedule.duration_secs, title: finalTitle, description: finalDesc,
-            thumbnailPath: finalThumb, folder: schedule.folder || 'Semua',
+            durationSecs: schedule.duration_secs,
+            title: finalTitle,
+            description: finalDesc,
+            thumbnailPath: finalThumb,
+            folder: schedule.folder || 'Semua',
             videoPath: schedule.auto ? null : schedule.video_path,
             songPath: schedule.auto ? null : schedule.song_path,
             videoReadyPath: finalVideoReadyPath,
@@ -102,14 +135,20 @@ class SchedulerService {
           });
 
           await this.db.query("UPDATE schedules SET status = 'done' WHERE id = $1", [schedule.id]);
+          console.log(`[Scheduler] Schedule ${schedule.id} berhasil dijalankan.`);
           await this.handleRepeat(schedule);
 
         } catch (err) {
+          console.error(`[Scheduler] Error schedule ${schedule.id}:`, err.message);
           await this.db.query("UPDATE schedules SET status = 'failed' WHERE id = $1", [schedule.id]);
           await this.handleRepeat(schedule);
         }
       }
-    } catch (err) {}
+    } catch (err) {
+      console.error('[Scheduler] DB error:', err.message);
+    } finally {
+      this._processing = false;
+    }
   }
 
   async handleRepeat(schedule) {
@@ -127,11 +166,14 @@ class SchedulerService {
 
     try {
       await this.db.query(
-        `INSERT INTO schedules (channel_id, scheduled_at, duration_secs, title, folder, auto, status, repeat_type, video_path, song_path, video_ready_path, thumbnail_path, mode) 
+        `INSERT INTO schedules (channel_id, scheduled_at, duration_secs, title, folder, auto, status, repeat_type, video_path, song_path, video_ready_path, thumbnail_path, mode)
          VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8, $9, $10, $11, $12)`,
         [schedule.channel_id, nextDate, schedule.duration_secs, schedule.title, schedule.folder, schedule.auto, schedule.repeat_type, schedule.video_path, schedule.song_path, schedule.video_ready_path, schedule.thumbnail_path, schedule.mode]
       );
-    } catch (err) { }
+      console.log(`[Scheduler] Repeat schedule dibuat untuk ${schedule.channel_id} at ${nextDate}`);
+    } catch (err) {
+      console.error('[Scheduler] Gagal buat repeat:', err.message);
+    }
   }
 }
 
