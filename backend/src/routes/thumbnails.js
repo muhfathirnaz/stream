@@ -232,3 +232,5 @@ router.get('/preview/:filename', (req, res) => {
   res.setHeader('Cache-Control', 'public, max-age=3600');
   fs.createReadStream(filePath).pipe(res);
 });
+
+module.exports = router;

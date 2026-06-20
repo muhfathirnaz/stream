@@ -13,8 +13,8 @@ router.get('/descriptions', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { type, value, label } = req.body;
-  try { const { rows } = await req.db.query("INSERT INTO broadcast_assets (type, value, label) VALUES ($1, $2, $3) RETURNING *", [type, value, label]); res.json(rows[0]); } 
+  const { type, value, label, category = 'Uncategorized' } = req.body;
+  try { const { rows } = await req.db.query("INSERT INTO broadcast_assets (type, value, label, category) VALUES ($1, $2, $3, $4) RETURNING *", [type, value, label, category]); res.json(rows[0]); } 
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -54,7 +54,6 @@ router.get('/mediaFiles', (req, res) => {
   res.json({ videos: getFiles('/opt/media/video'), songs: getFiles('/opt/media/music') });
 });
 
-
 router.get('/videoReadyFiles', (req, res) => {
   const VIDEO_READY_DIR = '/opt/media/video-ready';
   if (!fs.existsSync(VIDEO_READY_DIR)) return res.json({ files: [] });
@@ -73,6 +72,36 @@ router.get('/videoReadyFiles', (req, res) => {
     });
   } catch(e) { console.error(e); }
   res.json({ files });
+});
+
+router.post('/move', async (req, res) => {
+  try { await req.db.query("UPDATE broadcast_assets SET category = $1 WHERE id = $2", [req.body.category, req.body.id]); res.json({ success: true }); } catch(e) { res.status(500).json({error: e.message}); }
+});
+
+router.get('/text-categories', async (req, res) => {
+  try { const { rows } = await req.db.query("SELECT DISTINCT category FROM broadcast_assets WHERE category IS NOT NULL AND category != ''"); res.json({ categories: rows.map(r => r.category) }); } catch(e) { res.status(500).json({error: e.message}); }
+});
+
+// --- LOGIKA BARU UNTUK MEMBUAT & MENGHAPUS FOLDER TEKS ---
+router.post('/text-categories', async (req, res) => {
+  try {
+    try {
+      await req.db.query("INSERT INTO broadcast_assets (type, value, label, category) VALUES ('category_marker', '', '', $1)", [req.body.name]);
+    } catch(err) {
+      await req.db.query("ALTER TABLE broadcast_assets ADD COLUMN IF NOT EXISTS category VARCHAR(100) DEFAULT 'Uncategorized'");
+      await req.db.query("INSERT INTO broadcast_assets (type, value, label, category) VALUES ('category_marker', '', '', $1)", [req.body.name]);
+    }
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({error: e.message}); }
+});
+
+router.delete('/text-categories/:name', async (req, res) => {
+  try {
+    const cat = req.params.name;
+    await req.db.query("DELETE FROM broadcast_assets WHERE type = 'category_marker' AND category = $1", [cat]);
+    await req.db.query("UPDATE broadcast_assets SET category = 'Uncategorized' WHERE category = $1", [cat]);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({error: e.message}); }
 });
 
 module.exports = router;

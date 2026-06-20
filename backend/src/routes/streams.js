@@ -2,6 +2,7 @@ const router = require('express').Router();
 const fs = require('fs');
 const path = require('path');
 const THUMB_DIR = '/opt/thumbnails';
+const VIDEO_READY_DIR = '/opt/media/video-ready';
 
 // Helper agar backend bisa mencari gambar ke sub-folder manapun di Media Pool
 function resolveThumbPath(inputPath) {
@@ -21,14 +22,38 @@ function resolveThumbPath(inputPath) {
   return inputPath; 
 }
 
+// Acak file Video Jadi, dengan prioritas ke kategori yang dipilih (folder bisa "Cat1,Cat2" atau "Semua")
+function pickRandomVideoReady(folder) {
+  try {
+    if (!fs.existsSync(VIDEO_READY_DIR)) return null;
+    let allFiles = []; let priorityFiles = [];
+    const selectedFolders = folder && folder !== 'Semua' ? folder.split(',').map(f => f.trim()).filter(Boolean) : [];
+    const items = fs.readdirSync(VIDEO_READY_DIR);
+    for (const item of items) {
+      const itemPath = path.join(VIDEO_READY_DIR, item);
+      if (fs.statSync(itemPath).isDirectory()) {
+        const subFiles = fs.readdirSync(itemPath).filter(f => /\.(mp4|mkv|mov|avi|webm)$/i.test(f)).map(f => path.join(itemPath, f));
+        allFiles.push(...subFiles);
+        if (selectedFolders.includes(item)) priorityFiles.push(...subFiles);
+      } else if (/\.(mp4|mkv|mov|avi|webm)$/i.test(item)) {
+        allFiles.push(itemPath);
+      }
+    }
+    const pool = selectedFolders.length > 0 ? (priorityFiles.length > 0 ? priorityFiles : allFiles) : allFiles;
+    if (pool.length === 0) return null;
+    return pool[Math.floor(Math.random() * pool.length)];
+  } catch (e) { console.error('Gagal ngacak video jadi:', e); return null; }
+}
+
 router.post('/start', async (req, res) => {
-  const { channelId, durationSecs, title, description, thumbnailPath, folder, auto, videoPath, songPath, videoReadyPath } = req.body;
+  const { channelId, durationSecs, title, description, thumbnailPath, folder, auto, videoPath, songPath, videoReadyPath, mode } = req.body;
   if (!channelId) return res.status(400).json({ error: 'channelId required' });
 
   try {
     let finalTitle = title; 
     let finalDesc = description; 
     let finalThumb = resolveThumbPath(thumbnailPath);
+    let finalVideoReadyPath = videoReadyPath || null;
     
     const used = req.streamService.getUsedAssets();
 
@@ -73,9 +98,17 @@ router.post('/start', async (req, res) => {
       } catch(e) { console.error('Gagal ngacak thumbnail:', e); }
     }
 
+    // BARU: Mode Video Jadi (copy) + (AUTO atau belum ada file spesifik) -> acak dari kategori yang dipilih
+    if (mode === 'copy' && (auto || !finalVideoReadyPath)) {
+      finalVideoReadyPath = pickRandomVideoReady(folder);
+      if (!finalVideoReadyPath) {
+        return res.status(400).json({ error: 'Tidak ada file di Video Jadi untuk kategori yang dipilih.' });
+      }
+    }
+
     const result = await req.streamService.start(channelId, req.db, {
       durationSecs: durationSecs || 21600, title: finalTitle, description: finalDesc, thumbnailPath: finalThumb,
-      folder: folder || 'Semua', videoPath: auto ? null : videoPath, songPath: auto ? null : songPath, videoReadyPath: auto ? null : videoReadyPath
+      folder: folder || 'Semua', videoPath: auto ? null : videoPath, songPath: auto ? null : songPath, videoReadyPath: finalVideoReadyPath
     });
 
     await req.db.query(`INSERT INTO stream_sessions (channel_id, started_at, status) VALUES ($1, NOW(), 'live') ON CONFLICT (channel_id) DO UPDATE SET started_at = NOW(), status = 'live'`, [channelId]);
