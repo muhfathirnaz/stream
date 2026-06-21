@@ -60,13 +60,14 @@ class LocalStreamService {
   }
 
   getUsedAssets() {
-    const titles = []; const descs = []; const thumbs = [];
+    const titles = []; const descs = []; const thumbs = []; const videos = [];
     for (const id in this.activeAssets) {
-      if (this.activeAssets[id].title) titles.push(this.activeAssets[id].title);
-      if (this.activeAssets[id].description) descs.push(this.activeAssets[id].description);
-      if (this.activeAssets[id].thumbnailPath) thumbs.push(this.activeAssets[id].thumbnailPath);
+      if (this.activeAssets[id].title)          titles.push(this.activeAssets[id].title);
+      if (this.activeAssets[id].description)    descs.push(this.activeAssets[id].description);
+      if (this.activeAssets[id].thumbnailPath)  thumbs.push(this.activeAssets[id].thumbnailPath);
+      if (this.activeAssets[id].videoReadyPath) videos.push(this.activeAssets[id].videoReadyPath);
     }
-    return { titles, descs, thumbs };
+    return { titles, descs, thumbs, videos };
   }
   
   getRandomVideoReady() {
