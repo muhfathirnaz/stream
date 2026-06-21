@@ -18,3 +18,24 @@ frontend/.env.*.local
 *.pfx
 private_key*
 service_account*
+
+# Next.js build output
+frontend/.next/
+frontend/out/
+
+# Backup files
+*.bak
+*.bak2
+*.backup
+*.orig
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# PM2 logs
+*.log
+/logs/
+
+# node_modules semua level
+**/node_modules/
