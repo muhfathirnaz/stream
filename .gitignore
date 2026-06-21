@@ -4,3 +4,17 @@ node_modules/
 .env
 backend/token.json
 backend/credentials.json
+
+# Environment files
+frontend/.env.local
+frontend/.env.*.local
+*.env.local
+*.env.local.*
+
+# Secret files
+*.pem
+*.key
+*.p12
+*.pfx
+private_key*
+service_account*
