@@ -226,7 +226,7 @@ class LocalStreamService {
       const ffmpeg = spawn('ffmpeg', ffmpegArgs);
       this.processes[streamId] = ffmpeg; this.startTimes[streamId] = new Date(); 
       this.channelMap[streamId] = channelId; 
-      this.activeAssets[streamId] = { title, description, thumbnailPath: actualThumb, playlistPath, videoReadyPath: useStreamCopy ? finalVideoPath : null, deleteAfterStream: !!deleteAfterStream, finalVideoPath };
+      this.activeAssets[streamId] = { title, description, thumbnailPath: actualThumb, playlistPath, videoReadyPath: useStreamCopy ? finalVideoPath : null, deleteAfterStream: !!deleteAfterStream, finalVideoPath, mode: useStreamCopy ? 'copy' : 'encode', videoFilename: finalVideoFilename, songInfo: useStreamCopy ? 'Audio Asli Video' : `Playlist (${count} lagu)` };
 
       const stabilizationTimer = setTimeout(() => {
         if (this.processes[streamId]) { this.crashCounts[channelId] = 0; }
@@ -365,7 +365,20 @@ class LocalStreamService {
     const active = Object.keys(this.processes).map(id => {
       const cId = this.channelMap[id]; const ytData = this.channelYoutubeData[cId];
       const startedAt = (ytData && ytData.originalStartTime) ? ytData.originalStartTime : this.startTimes[id];
-      return { streamId: id, channelId: cId, pid: this.processes[id].pid, startedAt: startedAt, elapsedSeconds: Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000) };
+      const assets = this.activeAssets[id] || {};
+      const isCopyMode = !!assets.videoReadyPath;
+      return {
+        streamId: id,
+        channelId: cId,
+        pid: this.processes[id].pid,
+        startedAt: startedAt,
+        elapsedSeconds: Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000),
+        title: assets.title || null,
+        thumbnailPath: assets.thumbnailPath || null,
+        mode: isCopyMode ? 'copy' : 'encode',
+        videoFilename: assets.finalVideoPath ? path.basename(assets.finalVideoPath) : null,
+        songInfo: isCopyMode ? 'Audio Asli Video' : (assets.playlistPath ? 'Playlist Lagu (Diacak)' : null),
+      };
     });
     
     const reconnecting = Object.keys(this.reconnectingMap).map(cId => {
