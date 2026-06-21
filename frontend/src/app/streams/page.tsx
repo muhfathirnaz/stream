@@ -4,7 +4,8 @@
 import { useEffect, useState, useCallback } from 'react';
 
 // --- INTERFACES ---
-interface Channel { id: number; channel_id: string; name: string; google_refresh_token?: string; stream_status?: string; activeStreams: { streamId: string; elapsedSeconds: number }[]; }
+interface StreamStatusRaw { streamId: string; channelId: string; pid: number; elapsedSeconds: number; mode?: string; videoFilename?: string; songInfo?: string; thumbnailPath?: string; title?: string; }
+interface Channel { id: number; channel_id: string; name: string; google_refresh_token?: string; stream_status?: string; activeStreams: { streamId: string; elapsedSeconds: number; mode?: string; videoFilename?: string; songInfo?: string; thumbnailPath?: string; title?: string }[]; }
 interface Schedule { id: number; channel_id: string; channel_name: string; scheduled_at: string; duration_secs: number; title: string; status: string; repeat_type?: string; }
 interface Folder { name: string; count: number; }
 interface Asset { id: number; type: string; value: string; label: string; in_use?: boolean; }
@@ -94,11 +95,11 @@ export default function StreamsPage() {
       const [chRes, stRes] = await Promise.all([ fetch('/api/channels'), fetch('/api/streams/status') ]);
       if (chRes.ok) {
         const chData = await chRes.json();
-        const activeStreams: { streamId: string; channelId: string; elapsedSeconds: number }[] = stRes.ok ? await stRes.json() : [];
+        const activeStreams: StreamStatusRaw[] = stRes.ok ? await stRes.json() : [];
         const merged = chData.map((ch: Channel) => ({
           ...ch,
           stream_status: activeStreams.some(s => s.channelId === ch.channel_id) ? 'live' : 'stopped',
-          activeStreams: activeStreams.filter(s => s.channelId === ch.channel_id).map(s => ({ streamId: s.streamId, elapsedSeconds: s.elapsedSeconds })),
+          activeStreams: activeStreams.filter(s => s.channelId === ch.channel_id).map(s => ({ streamId: s.streamId, elapsedSeconds: s.elapsedSeconds, mode: s.mode, videoFilename: s.videoFilename, songInfo: s.songInfo, thumbnailPath: s.thumbnailPath, title: s.title })),
         }));
         setChannels(merged);
       }
@@ -342,14 +343,24 @@ export default function StreamsPage() {
                 {ch.activeStreams?.length > 0 && (
                   <div className="mb-4 space-y-2 relative z-[20]">
                     {ch.activeStreams.map(s => (
-                      <div key={s.streamId} className="glass-card-strong rounded-xl p-3 flex items-center justify-between bg-emerald-500/5 border border-emerald-500/10">
-                        <div className="flex items-center gap-3">
-                          <span className="text-emerald-400 text-xs font-semibold tabular-nums bg-emerald-400/10 px-2 py-1 rounded-md">{formatElapsed(s.elapsedSeconds)}</span>
-                          <span className="text-[10px] text-emerald-400/50 font-mono hidden sm:inline-block">({s.streamId.slice(0, 8)})</span>
+                      <div key={s.streamId} className="glass-card-strong rounded-xl p-3 flex flex-col gap-2 bg-emerald-500/5 border border-emerald-500/10">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <span className="text-emerald-400 text-xs font-semibold tabular-nums bg-emerald-400/10 px-2 py-1 rounded-md">{formatElapsed(s.elapsedSeconds)}</span>
+                          </div>
+                          <button onClick={() => stopStream(s.streamId)} disabled={loading} className="bg-red-500/10 hover:bg-red-500/20 text-red-400 px-3 py-1 rounded-lg text-[9px] font-bold tracking-widest uppercase transition-colors flex items-center gap-1">
+                            <Icon.Stop /> Stop
+                          </button>
                         </div>
-                        <button onClick={() => stopStream(s.streamId)} disabled={loading} className="bg-red-500/10 hover:bg-red-500/20 text-red-400 px-4 py-1.5 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-colors flex items-center gap-1.5">
-                          <Icon.Stop /> Stop
-                        </button>
+                        {(s.title || s.videoFilename || s.songInfo || s.thumbnailPath) && (
+                          <div className="grid grid-cols-1 gap-1.5 pt-2 border-t border-emerald-500/10">
+                            {s.mode && <div className="flex items-center gap-2"><span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${s.mode === 'copy' ? 'bg-amber-400/10 text-amber-400 border-amber-400/20' : 'bg-blue-400/10 text-blue-400 border-blue-400/20'}`}>{s.mode === 'copy' ? '⚡ COPY' : '🔧 ENCODE'}</span></div>}
+                            {s.title && <div className="flex items-start gap-2"><span className="text-[9px] font-bold text-white/30 uppercase tracking-wider w-14 flex-shrink-0 pt-0.5">Title</span><span className="text-[10px] text-white/70 leading-tight line-clamp-1">{s.title}</span></div>}
+                            {s.videoFilename && <div className="flex items-center gap-2"><span className="text-[9px] font-bold text-white/30 uppercase tracking-wider w-14 flex-shrink-0">Video</span><span className="text-[10px] text-white/60 font-mono truncate">{s.videoFilename}</span></div>}
+                            {s.songInfo && <div className="flex items-center gap-2"><span className="text-[9px] font-bold text-white/30 uppercase tracking-wider w-14 flex-shrink-0">Audio</span><span className="text-[10px] text-white/60 font-mono truncate">{s.songInfo}</span></div>}
+                            {s.thumbnailPath && <div className="flex items-center gap-2"><span className="text-[9px] font-bold text-white/30 uppercase tracking-wider w-14 flex-shrink-0">Thumb</span><span className="text-[10px] text-white/60 font-mono truncate">{s.thumbnailPath.split('/').pop()}</span></div>}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
