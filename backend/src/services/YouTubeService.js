@@ -96,7 +96,7 @@ class YouTubeService {
     } catch (e) {}
   }  
 
-  async endBroadcast({ refreshToken, broadcastId }) {
+  async endBroadcast({ refreshToken, broadcastId, deleteAfterStream = true }) {
     try {
       this.oauth2Client.setCredentials({ refresh_token: refreshToken });
       await this.youtube.liveBroadcasts.transition({ part: 'snippet,status', id: broadcastId, broadcastStatus: 'complete' });
@@ -105,19 +105,22 @@ class YouTubeService {
       // Jeda 3 detik membiarkan server YouTube memproses transisi ke VOD
       await new Promise(r => setTimeout(r, 3000));
       
-      // Auto-Delete VOD setelah streaming selesai
-      try {
-        await this.youtube.videos.delete({ id: broadcastId });
-        console.log(`🗑️ [YouTube] VOD siaran ${broadcastId} berhasil Dihapus Otomatis secara permanen (Auto-Delete).`);
-      } catch (delErr) {
-        console.log(`⚠️ [YouTube] Gagal menghapus permanen, mencoba mengubah menjadi Tidak Publik (Unlisted)...`);
+      if (deleteAfterStream) {
         try {
-          await this.youtube.videos.update({ 
-            part: "status", 
-            requestBody: { id: broadcastId, status: { privacyStatus: "unlisted" } } 
-          });
-          console.log(`👁️‍🗨️ [YouTube] VOD ${broadcastId} berhasil disembunyikan (Unlisted).`);
-        } catch (updErr) {}
+          await this.youtube.videos.delete({ id: broadcastId });
+          console.log(`🗑️ [YouTube] VOD ${broadcastId} dihapus permanen (deleteAfterStream=ON).`);
+        } catch (delErr) {
+          console.log(`⚠️ [YouTube] Gagal hapus permanen, ubah ke Unlisted...`);
+          try {
+            await this.youtube.videos.update({
+              part: "status",
+              requestBody: { id: broadcastId, status: { privacyStatus: "unlisted" } }
+            });
+            console.log(`👁️‍🗨️ [YouTube] VOD ${broadcastId} disembunyikan (Unlisted).`);
+          } catch (updErr) {}
+        }
+      } else {
+        console.log(`💾 [YouTube] VOD ${broadcastId} disimpan sebagai publik (deleteAfterStream=OFF).`);
       }
     } catch (err) {}
   }

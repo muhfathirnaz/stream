@@ -10,7 +10,7 @@ interface Folder { name: string; count: number; }
 interface Asset { id: number; type: string; value: string; label: string; in_use?: boolean; }
 interface MediaFile { filename: string; path: string; category?: string; }
 interface SystemLog { id: number; channel_id: string; message: string; created_at: string; }
-interface StreamConfig { folders: string[]; videoPath: string | null; videoReadyPath: string | null; songPath: string | null; thumbnailPath: string | null; titleId: number | null; descriptionId: number | null; auto: boolean; duration: number; mode?: string; vrFolder?: string; vrPath?: string | null; vidFolder?: string; vidPath?: string | null; songFolder?: string; thumbFolder?: string; thumbPath?: string | null; titleFolder?: string; descFolder?: string; descId?: number | null; [key: string]: any; }
+interface StreamConfig { folders: string[]; videoPath: string | null; videoReadyPath: string | null; songPath: string | null; thumbnailPath: string | null; titleId: number | null; descriptionId: number | null; auto: boolean; duration: number; mode?: string; vrFolder?: string; vrPath?: string | null; vidFolder?: string; vidPath?: string | null; songFolder?: string; thumbFolder?: string; thumbPath?: string | null; titleFolder?: string; descFolder?: string; descId?: number | null; deleteAfterStream?: boolean; [key: string]: any; }
 
 // --- ICONS ---
 const Icon = {
@@ -29,7 +29,7 @@ const formatScheduleTime = (iso: string) => { const d = new Date(iso); const pad
 const getUTCDatetimeLocal = () => { const now = new Date(); now.setMinutes(now.getMinutes() + 5); const pad = (n: number) => String(n).padStart(2, '0'); return `${now.getUTCFullYear()}-${pad(now.getUTCMonth()+1)}-${pad(now.getUTCDate())}T${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}`; };
 const getCountdown = (iso: string) => { const diff = new Date(iso).getTime() - Date.now(); if (diff <= 0) return 'Sesaat lagi'; const h = Math.floor(diff / 3600000); const m = Math.floor((diff % 3600000) / 60000); return h > 0 ? `${h}j ${m}m` : `${m}m`; };
 
-const defaultConfig = (): StreamConfig => ({ folders: [], videoPath: null, videoReadyPath: null, songPath: null, thumbnailPath: null, titleId: null, descriptionId: null, auto: true, duration: 4 });
+const defaultConfig = (): StreamConfig => ({ folders: [], videoPath: null, videoReadyPath: null, songPath: null, thumbnailPath: null, titleId: null, descriptionId: null, auto: true, duration: 4, deleteAfterStream: false });
 
 function UTCClock() {
   const [time, setTime] = useState(''); const [date, setDate] = useState('');
@@ -143,7 +143,7 @@ export default function StreamsPage() {
     setLoading(true);
     try {
       const payloadFolder = config.folders.length > 0 ? config.folders.join(',') : 'Semua';
-      const body: Record<string, unknown> = { channelId, durationSecs: config.duration * 3600, folder: payloadFolder, auto: config.auto, mode: config.mode || 'encode' };
+      const body: Record<string, unknown> = { channelId, durationSecs: config.duration * 3600, folder: payloadFolder, auto: config.auto, mode: config.mode || 'encode', deleteAfterStream: !!config.deleteAfterStream };
       if (!config.auto) {
           body.videoReadyPath = config.vrPath;
           body.videoPath = config.vidPath;
@@ -172,7 +172,7 @@ export default function StreamsPage() {
     setLoading(true);
     try {
       const payloadFolder = config.folders.length > 0 ? config.folders.join(',') : 'Semua';
-      const body: Record<string, unknown> = { channelId, scheduledAt, durationSecs: config.duration * 3600, folder: payloadFolder, auto: config.auto, mode: config.mode || 'encode', repeatType: form.repeat || 'none', title: 'Lofi Broadcast' };
+      const body: Record<string, unknown> = { channelId, scheduledAt, durationSecs: config.duration * 3600, folder: payloadFolder, auto: config.auto, mode: config.mode || 'encode', repeatType: form.repeat || 'none', title: 'Lofi Broadcast', deleteAfterStream: !!config.deleteAfterStream };
       if (!config.auto) {
           body.videoReadyPath = config.vrPath;
           body.videoPath = config.vidPath;
@@ -418,6 +418,14 @@ export default function StreamsPage() {
                           <button key={h} onClick={() => updateConfig(ch.channel_id, { duration: h })} className={`w-8 h-6 rounded-md text-[10px] font-bold transition-all ${config.duration === h ? 'bg-white text-black' : 'glass-input text-white/60 hover:bg-white/10'}`}>{h}</button>
                         ))}
                       </div>
+                    </div>
+                    <div className="mt-3 flex items-center gap-2 px-1">
+                      <button onClick={() => updateConfig(ch.channel_id, { deleteAfterStream: !config.deleteAfterStream })} className={`relative w-9 h-5 rounded-full transition-all duration-300 flex-shrink-0 ${config.deleteAfterStream ? 'bg-red-500' : 'bg-white/10'}`}>
+                        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all duration-300 ${config.deleteAfterStream ? 'left-[18px]' : 'left-0.5'}`} />
+                      </button>
+                      <span className={`text-[10px] font-semibold ${config.deleteAfterStream ? 'text-red-400' : 'text-white/40'}`}>
+                        {config.deleteAfterStream ? '🗑 Hapus video setelah streaming selesai' : 'Simpan video setelah streaming'}
+                      </span>
                     </div>
                   </div>
                 )}

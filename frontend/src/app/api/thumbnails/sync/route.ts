@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // frontend/src/app/api/thumbnails/sync/route.ts
 import { NextResponse } from 'next/server';
 

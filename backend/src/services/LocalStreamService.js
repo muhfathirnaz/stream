@@ -17,6 +17,7 @@ class LocalStreamService {
     this.coord = coordinatorService;
     
     this.crashCounts = {};
+    this.deleteAfterStreamMap = {};
     this.savedConfigs = {};
     this.channelYoutubeData = {}; 
     this.reconnectingMap = {}; 
@@ -125,9 +126,10 @@ class LocalStreamService {
     if (!isRestart) this.crashCounts[channelId] = 0;
     delete this.reconnectingMap[channelId];
     this.savedConfigs[channelId] = { dbClient, options };
+    this.deleteAfterStreamMap[channelId] = !!(options && options.deleteAfterStream);
 
     try {
-      const { durationSecs = 21600, title, description, thumbnailPath, folder, videoPath, songPath, videoReadyPath } = options;
+      const { durationSecs = 21600, title, description, thumbnailPath, folder, videoPath, songPath, videoReadyPath, deleteAfterStream = false } = options;
       const streamId = randomUUID();
 
       const { rows } = await dbClient.query('SELECT google_refresh_token FROM channels WHERE channel_id = $1', [channelId]);
@@ -171,7 +173,7 @@ class LocalStreamService {
       if (remainingSecs <= 0) {
         const savedYt = this.channelYoutubeData[channelId];
         if (savedYt) {
-          await this.youtubeService.endBroadcast({ refreshToken: savedYt.refreshToken, broadcastId: savedYt.broadcastId });
+          await this.youtubeService.endBroadcast({ refreshToken: savedYt.refreshToken, broadcastId: savedYt.broadcastId, deleteAfterStream: !!this.deleteAfterStreamMap[channelId] });
           this.channelYoutubeData[channelId] = null; this.saveYtState();
         }
         throw new Error('Batas waktu tayang siaran habis.');
@@ -224,7 +226,7 @@ class LocalStreamService {
       const ffmpeg = spawn('ffmpeg', ffmpegArgs);
       this.processes[streamId] = ffmpeg; this.startTimes[streamId] = new Date(); 
       this.channelMap[streamId] = channelId; 
-      this.activeAssets[streamId] = { title, description, thumbnailPath: actualThumb, playlistPath, videoReadyPath: useStreamCopy ? finalVideoPath : null };
+      this.activeAssets[streamId] = { title, description, thumbnailPath: actualThumb, playlistPath, videoReadyPath: useStreamCopy ? finalVideoPath : null, deleteAfterStream: !!deleteAfterStream, finalVideoPath };
 
       const stabilizationTimer = setTimeout(() => {
         if (this.processes[streamId]) { this.crashCounts[channelId] = 0; }
@@ -277,8 +279,22 @@ class LocalStreamService {
           delete this.reconnectingMap[channelId];
           const savedYt = this.channelYoutubeData[channelId];
           if (savedYt) {
-            await this.youtubeService.endBroadcast({ refreshToken: savedYt.refreshToken, broadcastId: savedYt.broadcastId });
+            await this.youtubeService.endBroadcast({ refreshToken: savedYt.refreshToken, broadcastId: savedYt.broadcastId, deleteAfterStream: !!this.deleteAfterStreamMap[channelId] });
             this.channelYoutubeData[channelId] = null; this.saveYtState();
+          }
+          // Hapus file video jika opsi deleteAfterStream diaktifkan
+          const assetInfo = this.activeAssets && this.activeAssets[streamId];
+          const shouldDelete = assetInfo && assetInfo.deleteAfterStream && assetInfo.finalVideoPath;
+          if (shouldDelete) {
+            try {
+              const delPath = assetInfo.finalVideoPath;
+              if (require('fs').existsSync(delPath)) {
+                require('fs').unlinkSync(delPath);
+                console.log(`[DELETE-AFTER-STREAM] Dihapus: ${delPath}`);
+              }
+            } catch(delErr) {
+              console.error('[DELETE-AFTER-STREAM] Gagal hapus:', delErr.message);
+            }
           }
           this.wsService.broadcast('stream:stopped', { channelId, streamId, exitCode: code, ts: new Date().toISOString() });
         }
@@ -311,7 +327,7 @@ class LocalStreamService {
         await config.dbClient.query('INSERT INTO system_logs (channel_id, message) VALUES ($1, $2)', [channelId, `[CRASH TOTAL] Gagal 5 kali beruntun. Menutup paksa broadcast.`]); 
         const savedYt = this.channelYoutubeData[channelId];
         if (savedYt) {
-          await this.youtubeService.endBroadcast({ refreshToken: savedYt.refreshToken, broadcastId: savedYt.broadcastId });
+          await this.youtubeService.endBroadcast({ refreshToken: savedYt.refreshToken, broadcastId: savedYt.broadcastId, deleteAfterStream: !!this.deleteAfterStreamMap[channelId] });
           this.channelYoutubeData[channelId] = null; this.saveYtState();
         }
       } catch(e){}
@@ -325,7 +341,7 @@ class LocalStreamService {
       delete this.reconnectingMap[channelId];
       const savedYt = this.channelYoutubeData[channelId];
       if (savedYt) {
-        this.youtubeService.endBroadcast({ refreshToken: savedYt.refreshToken, broadcastId: savedYt.broadcastId });
+        this.youtubeService.endBroadcast({ refreshToken: savedYt.refreshToken, broadcastId: savedYt.broadcastId, deleteAfterStream: !!this.deleteAfterStreamMap[channelId] });
         this.channelYoutubeData[channelId] = null; this.saveYtState();
       }
       return { streamId, channelId, stopped: true };
