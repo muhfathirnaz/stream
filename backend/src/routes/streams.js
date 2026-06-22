@@ -131,4 +131,33 @@ router.post('/stop', async (req, res) => {
 });
 
 router.get('/status', (_req, res) => { res.json(res.req.streamService.getStatus()); });
+// ── GET /api/streams/live-stats/:channelId ───────────────────────────────────
+const liveStatsCache = {}; // { channelId: { data, ts } }
+const LIVE_STATS_TTL = 20000; // 20s, biar gak boros quota YouTube API
+
+router.get('/live-stats/:channelId', async (req, res) => {
+  const { channelId } = req.params;
+  const cached = liveStatsCache[channelId];
+  if (cached && Date.now() - cached.ts < LIVE_STATS_TTL) {
+    return res.json(cached.data);
+  }
+  try {
+    if (!req.streamService.isRunning(channelId)) {
+      return res.json({ concurrentViewers: null, totalViews: null, live: false });
+    }
+    const ytData = req.streamService.channelYoutubeData[channelId];
+    if (!ytData) return res.json({ concurrentViewers: null, totalViews: null, live: false });
+
+    const stats = await req.streamService.youtubeService.getLiveViewerCount({
+      refreshToken: ytData.refreshToken,
+      videoId: ytData.broadcastId,
+    });
+    const data = { ...stats, live: true };
+    liveStatsCache[channelId] = { data, ts: Date.now() };
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

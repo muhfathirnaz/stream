@@ -19,6 +19,31 @@ router.get('/', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+// GET /api/metrics/channel/:channelId — breakdown per channel (bukan SUM semua)
+router.get('/channel/:channelId', async (req, res) => {
+  const { channelId } = req.params;
+  try {
+    const latestRes = await req.db.query(
+      `SELECT * FROM daily_metrics WHERE channel_id = $1 ORDER BY recorded_at DESC LIMIT 1`,
+      [channelId]
+    );
+    const sumRes = await req.db.query(
+      `SELECT SUM(estimated_revenue_usd) as revenue_30d,
+              SUM(watch_hours) as watch_hours_30d,
+              SUM(subscriber_gain) as sub_gain_30d
+       FROM daily_metrics WHERE channel_id = $1 AND recorded_at > NOW() - INTERVAL '30 days'`,
+      [channelId]
+    );
+    res.json({
+      latest: latestRes.rows[0] || null,
+      revenue30d: Number(sumRes.rows[0]?.revenue_30d || 0),
+      watchHours30d: Number(sumRes.rows[0]?.watch_hours_30d || 0),
+      subGain30d: Number(sumRes.rows[0]?.sub_gain_30d || 0),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 module.exports = router;
 

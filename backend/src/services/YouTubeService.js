@@ -134,5 +134,27 @@ class YouTubeService {
     }
     throw new Error('Stream tidak aktif setelah 3 menit.');
   }
+
+  async getLiveViewerCount({ refreshToken, videoId }) {
+  if (!videoId) return { concurrentViewers: null, totalViews: null };
+  this.oauth2Client.setCredentials({ refresh_token: refreshToken });
+  try {
+    const res = await this.youtube.videos.list({
+      part: 'liveStreamingDetails,statistics',
+      id: videoId,
+    });
+    const item = res.data.items?.[0];
+    if (!item) return { concurrentViewers: null, totalViews: null };
+    return {
+      concurrentViewers: item.liveStreamingDetails?.concurrentViewers
+        ? Number(item.liveStreamingDetails.concurrentViewers) : null,
+      totalViews: item.statistics?.viewCount
+        ? Number(item.statistics.viewCount) : null,
+    };
+  } catch (err) {
+    console.error('[YouTube] getLiveViewerCount error:', err.message);
+    return { concurrentViewers: null, totalViews: null };
+  }
+}
 }
 module.exports = YouTubeService;
