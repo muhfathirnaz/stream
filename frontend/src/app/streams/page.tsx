@@ -68,6 +68,8 @@ function CategoryFileSelect({ label, type, folders, items, folderVal, fileVal, o
 
 export default function StreamsPage() {
   const [channels, setChannels] = useState<Channel[]>([]);
+  const [liveStats, setLiveStats] = useState<{ [channelId: string]: { concurrentViewers: number | null; totalViews: number | null } }>({});
+const [channelMetrics, setChannelMetrics] = useState<{ [channelId: string]: { latest: any; revenue30d: number } }>({});
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
@@ -131,6 +133,28 @@ export default function StreamsPage() {
   useEffect(() => { fetchChannels(); fetchSchedulesAndLogs(); fetchAssets(); const interval = setInterval(() => { fetchChannels(); fetchSchedulesAndLogs(); }, 10000); return () => clearInterval(interval); }, [fetchChannels, fetchSchedulesAndLogs, fetchAssets]);
   useEffect(() => { const update = () => { const counts: { [key: number]: string } = {}; schedules.filter(s => s.status === 'pending').forEach(s => { counts[s.id] = getCountdown(s.scheduled_at); }); setCountdown(counts); }; update(); const t = setInterval(update, 30000); return () => clearInterval(t); }, [schedules]);
 
+  const fetchLiveStats = useCallback(async () => {
+  const liveChannels = channels.filter(c => c.stream_status === 'live');
+  if (!liveChannels.length) return;
+  const results = await Promise.all(liveChannels.map(async ch => {
+    try { const res = await fetch(`/api/streams/live-stats/${ch.channel_id}`); if (res.ok) return [ch.channel_id, await res.json()] as const; } catch {}
+    return [ch.channel_id, null] as const;
+  }));
+  setLiveStats(prev => { const next = { ...prev }; results.forEach(([id, data]) => { if (data) next[id] = data; }); return next; });
+}, [channels]);
+
+useEffect(() => { fetchLiveStats(); const t = setInterval(fetchLiveStats, 20000); return () => clearInterval(t); }, [fetchLiveStats]);
+
+const fetchChannelMetrics = useCallback(async () => {
+  if (!channels.length) return;
+  const results = await Promise.all(channels.map(async ch => {
+    try { const res = await fetch(`/api/metrics/channel/${ch.channel_id}`); if (res.ok) return [ch.channel_id, await res.json()] as const; } catch {}
+    return [ch.channel_id, null] as const;
+  }));
+  setChannelMetrics(prev => { const next = { ...prev }; results.forEach(([id, data]) => { if (data) next[id] = data; }); return next; });
+}, [channels]);
+
+useEffect(() => { fetchChannelMetrics(); const t = setInterval(fetchChannelMetrics, 300000); return () => clearInterval(t); }, [fetchChannelMetrics]); // refresh tiap 5 menit, datanya gak real-time
   const getConfig = (channelId: string): StreamConfig => streamConfigs[channelId] || defaultConfig();
   const updateConfig = (channelId: string, patch: Partial<StreamConfig>) => { setStreamConfigs(prev => ({ ...prev, [channelId]: { ...getConfig(channelId), ...patch } })); };
 
@@ -305,6 +329,12 @@ export default function StreamsPage() {
 
                   <div className="flex items-center gap-2 relative z-[30]">
                     {isLive && <div className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold tracking-widest uppercase animate-pulse flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> LIVE</div>}
+                    {channelMetrics[ch.channel_id]?.latest && (
+                    <div className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-mono text-white/50">
+                        ~${Number(channelMetrics[ch.channel_id].latest.estimated_revenue_usd || 0).toFixed(2)}/hari
+                        <span className="text-white/30 ml-1">(30d: ${channelMetrics[ch.channel_id].revenue30d.toFixed(2)})</span>
+                      </div>
+                    )}
                     
                     <div className="flex items-center gap-1.5 bg-black/20 p-1 rounded-full border border-white/5">
                        {!isLive && (
@@ -355,6 +385,12 @@ export default function StreamsPage() {
                         {(s.title || s.videoFilename || s.songInfo || s.thumbnailPath) && (
                           <div className="grid grid-cols-1 gap-1.5 pt-2 border-t border-emerald-500/10">
                             {s.mode && <div className="flex items-center gap-2"><span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${s.mode === 'copy' ? 'bg-amber-400/10 text-amber-400 border-amber-400/20' : 'bg-blue-400/10 text-blue-400 border-blue-400/20'}`}>{s.mode === 'copy' ? '⚡ COPY' : '🔧 ENCODE'}</span></div>}
+                            {liveStats[ch.channel_id]?.concurrentViewers != null && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-[9px] font-bold text-white/30 uppercase tracking-wider w-14 flex-shrink-0">Viewers</span>
+                                <span className="text-[10px] text-emerald-400 font-mono font-bold">👁 {liveStats[ch.channel_id].concurrentViewers} nonton</span>
+                              </div>
+                            )}
                             {s.title && <div className="flex items-start gap-2"><span className="text-[9px] font-bold text-white/30 uppercase tracking-wider w-14 flex-shrink-0 pt-0.5">Title</span><span className="text-[10px] text-white/70 leading-tight line-clamp-1">{s.title}</span></div>}
                             {s.videoFilename && <div className="flex items-center gap-2"><span className="text-[9px] font-bold text-white/30 uppercase tracking-wider w-14 flex-shrink-0">Video</span><span className="text-[10px] text-white/60 font-mono truncate">{s.videoFilename}</span></div>}
                             {s.songInfo && <div className="flex items-center gap-2"><span className="text-[9px] font-bold text-white/30 uppercase tracking-wider w-14 flex-shrink-0">Audio</span><span className="text-[10px] text-white/60 font-mono truncate">{s.songInfo}</span></div>}
