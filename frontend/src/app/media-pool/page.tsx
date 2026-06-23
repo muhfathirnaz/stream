@@ -537,7 +537,7 @@ function VideoJadiTab({ toast, queue, onUpload, refresh }: { toast:(msg:string,t
                 return (
                   <VideoJadiCard key={`${cat}-${name}`} name={name} size={size} cat={cat} apiBase={API_BASE}
                     onDelete={()=>handleDelete(cat,name)}
-                    onRename={(newName:string)=>handleRenameFile(cat,name,newName)} />
+                    onRename={(newName:string)=>handleRenameFile(cat,name,newName)} categories={categories} onMove={async(newCat)=>{try{const res=await fetch(API_BASE+'/files/move',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'video-ready',oldCategory:cat,newCategory:newCat,filename:name})});if(!res.ok)throw new Error();await fetchFiles();toast('Dipindah ke '+newCat,'success');}catch{toast('Gagal pindah','error');}}} />
                 );
               })}
             </div>
@@ -548,32 +548,46 @@ function VideoJadiTab({ toast, queue, onUpload, refresh }: { toast:(msg:string,t
   );
 }
 
-function VideoJadiCard({ name, size, cat, apiBase, onDelete, onRename }: { name:string; size:number; cat:string; apiBase:string; onDelete:()=>void; onRename:(n:string)=>void }) {
+function VideoJadiCard({ name, size, cat, apiBase, categories, onDelete, onRename, onMove }: { name:string; size:number; cat:string; apiBase:string; categories:string[]; onDelete:()=>void; onRename:(n:string)=>void; onMove:(newCat:string)=>void }) {
   const [editing, setEditing] = useState(false);
   const [editVal, setEditVal] = useState(name);
+  const [showMove, setShowMove] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(()=>{if(editing)setTimeout(()=>inputRef.current?.focus(),50);},[editing]);
   const submit=()=>{const v=editVal.trim();if(v&&v!==name)onRename(v);setEditing(false);};
   return (
     <div className="group glass-input rounded-2xl overflow-hidden hover:ring-1 hover:ring-white/20 transition-all">
-      <video src={`${apiBase}/media/video-ready/${encodeURIComponent(cat)}/${encodeURIComponent(name)}`} className="w-full aspect-video object-cover bg-black/60" controls preload="metadata" playsInline />
-      <div className="p-3 flex items-center justify-between gap-2">
-        <div className="truncate flex-1">
-          {editing?(
-            <input ref={inputRef} value={editVal} onChange={e=>setEditVal(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')submit();if(e.key==='Escape'){setEditing(false);setEditVal(name);}}} onBlur={submit} onClick={e=>e.stopPropagation()} className="w-full glass-input rounded px-2 py-1 text-[10px] text-white outline-none" />
-          ):(
-            <div className="text-[10px] font-semibold text-white/80 truncate">{name}</div>
-          )}
-          <div className="flex items-center gap-2 mt-0.5">
-            <span className="text-[9px] text-white/40">{fmtSize(size)}</span>
-            <span className="text-[9px] text-amber-400 font-bold">⚡ copy</span>
-            {cat!=='Uncategorized'&&<span className="text-[9px] text-white/30">{cat}</span>}
+      <video src={apiBase+'/media/video-ready/'+encodeURIComponent(cat)+'/'+encodeURIComponent(name)} className="w-full aspect-video object-cover bg-black/60" controls preload="metadata" playsInline />
+      <div className="p-3 flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="truncate flex-1">
+            {editing?(
+              <input ref={inputRef} value={editVal} onChange={e=>setEditVal(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')submit();if(e.key==='Escape'){setEditing(false);setEditVal(name);}}} onBlur={submit} onClick={e=>e.stopPropagation()} className="w-full glass-input rounded px-2 py-1 text-[10px] text-white outline-none" />
+            ):(
+              <div className="text-[10px] font-semibold text-white/80 truncate">{name}</div>
+            )}
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="text-[9px] text-white/40">{fmtSize(size)}</span>
+              <span className="text-[9px] text-amber-400 font-bold">⚡ copy</span>
+              <span className="text-[9px] text-white/30">{cat}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <button onClick={()=>setShowMove(!showMove)} title="Pindah folder" className="w-7 h-7 flex items-center justify-center rounded-lg text-white/30 hover:bg-white/10 hover:text-white opacity-0 group-hover:opacity-100 transition-all"><Icon.Folder /></button>
+            <button onClick={()=>setEditing(true)} className="w-7 h-7 flex items-center justify-center rounded-lg text-white/30 hover:bg-white/10 hover:text-white opacity-0 group-hover:opacity-100 transition-all"><Icon.Pencil /></button>
+            <button onClick={onDelete} className="w-7 h-7 flex items-center justify-center rounded-lg text-white/30 hover:bg-red-500/20 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"><Icon.Trash /></button>
           </div>
         </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
-          <button onClick={()=>setEditing(true)} className="w-7 h-7 flex items-center justify-center rounded-lg text-white/30 hover:bg-white/10 hover:text-white opacity-0 group-hover:opacity-100 transition-all"><Icon.Pencil /></button>
-          <button onClick={onDelete} className="w-7 h-7 flex items-center justify-center rounded-lg text-white/30 hover:bg-red-500/20 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"><Icon.Trash /></button>
-        </div>
+        {showMove&&(
+          <div className="flex gap-2 items-center">
+            <select onChange={e=>{if(e.target.value){onMove(e.target.value);setShowMove(false);}}} defaultValue="" className="flex-1 glass-input rounded-lg px-2 py-1.5 text-[10px] text-white outline-none appearance-none">
+              <option value="" disabled>Pindah ke folder...</option>
+              {categories.filter(c=>c!==cat).map(c=><option key={c} value={c}>{c}</option>)}
+              {cat!=='Uncategorized'&&<option value="Uncategorized">Uncategorized</option>}
+            </select>
+            <button onClick={()=>setShowMove(false)} className="text-white/30 hover:text-white text-[10px]">✕</button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -617,7 +631,7 @@ function TextAssetsTab({ toast }: { toast:any }) {
         <div className="flex items-center justify-between px-2 mb-2"><span className="text-[10px] font-semibold text-white/40 uppercase tracking-widest">Kategori Teks</span><button onClick={()=>setAdding(true)} className="text-white/40 hover:text-white transition-colors p-1">+</button></div>
         <SidebarItem icon={<span>📁</span>} label="__all__" active={selCat==='__all__'} onClick={()=>setSelCat('__all__')} />
         <SidebarItem icon={<span>📁</span>} label="Uncategorized" active={selCat==='Uncategorized'} onClick={()=>setSelCat('Uncategorized')} onDropFile={(d:any)=>moveAsset(d,'Uncategorized')} />
-        {cats.map(c=><SidebarItem key={c} icon={<span>📁</span>} label={c} active={selCat===c} onClick={()=>setSelCat(c)} onDropFile={(d:any)=>moveAsset(d,c)} onDelete={()=>deleteCategory(c)} />)}
+        {cats.filter(c=>c!=='Uncategorized').map(c=><SidebarItem key={c} icon={<span>📁</span>} label={c} active={selCat===c} onClick={()=>setSelCat(c)} onDropFile={(d:any)=>moveAsset(d,c)} onDelete={()=>deleteCategory(c)} />)}
         {adding&&<input value={newCat} onChange={e=>setNewCat(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')addCategory();}} placeholder="Ketik & Enter..." className="glass-input p-2 text-xs rounded-lg mt-2 text-white outline-none" />}
       </div>
       <div className="flex-1 p-6 flex flex-col md:flex-row gap-4"><AssetList type="title" data={titles}/><AssetList type="description" data={descs}/></div>

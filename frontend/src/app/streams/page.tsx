@@ -446,7 +446,7 @@ useEffect(() => { fetchChannelMetrics(); const t = setInterval(fetchChannelMetri
                           <CategoryFileSelect label="Pilih Video Jadi" type="video-ready" folders={videoReadyFiles.map((f:any)=>f.category).filter((v:any,i:any,a:any)=>v&&a.indexOf(v)===i)} items={videoReadyFiles} folderVal={config.vrFolder||'__all__'} fileVal={config.vrPath||null} onChange={(v:any) => updateConfig(ch.channel_id, { vrFolder: v.folder, vrPath: v.file })} />
                         ) : (
                           <div className="bg-black/20 p-3 rounded-xl border border-white/5 space-y-3">
-                            <CategoryFileSelect label="Video Visual" type="video" folders={folders.map((f:any)=>f.name)} items={videos} folderVal={config.vidFolder||'__all__'} fileVal={config.vidPath||null} onChange={(v:any) => updateConfig(ch.channel_id, { vidFolder: v.folder, vidPath: v.file })} />
+                            <CategoryFileSelect label="Video Visual" type="video" folders={videos.map((f:any)=>f.category).filter((v:any,i:any,a:any)=>v&&a.indexOf(v)===i)} items={videos} folderVal={config.vidFolder||'__all__'} fileVal={config.vidPath||null} onChange={(v:any) => updateConfig(ch.channel_id, { vidFolder: v.folder, vidPath: v.file })} />
                             <CategoryFileSelect label="Lagu / Audio" type="music" folders={folders.map((f:any)=>f.name)} items={songs} folderVal={config.songFolder||'__all__'} fileVal={config.songPath||null} onChange={(v:any) => updateConfig(ch.channel_id, { songFolder: v.folder, songPath: v.file })} />
                           </div>
                         )}
