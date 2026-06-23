@@ -51,8 +51,8 @@ class YouTubeService {
         },
         status: { 
           privacyStatus: 'public', 
-          selfDeclaredMadeForKids: false,
-          madeForKids: false
+          selfDeclaredMadeForKids: false
+          
         },
         contentDetails: { 
           enableAutoStart: true, 
