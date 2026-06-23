@@ -224,6 +224,32 @@ useEffect(() => { fetchChannelMetrics(); const t = setInterval(fetchChannelMetri
     } finally { setLoading(false); }
   };
 
+  const startAllChannels = async () => {
+    const inactiveChannels = channels.filter(ch => !ch.activeStreams?.length && !!ch.google_refresh_token);
+    if (inactiveChannels.length === 0) return alert('Semua channel sudah live atau belum ada token.');
+    setLoading(true);
+    try {
+      await Promise.all(inactiveChannels.map(ch => {
+        const config = getConfig(ch.channel_id);
+        const payloadFolder = config.folders.length > 0 ? config.folders.join(',') : 'Semua';
+        return fetch('/api/streams/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            channelId: ch.channel_id,
+            durationSecs: config.duration * 3600,
+            folder: payloadFolder,
+            auto: config.auto,
+            mode: config.mode || 'encode',
+            deleteAfterStream: !!config.deleteAfterStream
+          })
+        });
+      }));
+      await fetchChannels();
+      await fetchSchedulesAndLogs();
+    } finally { setLoading(false); }
+  };
+
   const stopStream = async (streamId: string) => { setLoading(true); try { await fetch('/api/streams/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ streamId }) }); await fetchChannels(); } finally { setLoading(false); } };
   const addChannel = async () => { if (!newChannelName.trim() || !newRefreshToken.trim()) return; setLoading(true); try { const res = await fetch('/api/channels', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newChannelName.trim(), refresh_token: newRefreshToken.trim() }) }); if (!res.ok) { const err = await res.json(); alert('Gagal: ' + err.error); } else { setNewChannelName(''); setNewRefreshToken(''); setShowAddForm(false); await fetchChannels(); } } finally { setLoading(false); } };
   const updateRefreshToken = async (channelId: string) => { if (!editTokenValue.trim()) return; try { const res = await fetch(`/api/channels/${channelId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: editTokenValue.trim() }) }); if (!res.ok) { const err = await res.json(); alert('Gagal: ' + err.error); } else { setEditingTokenFor(null); setEditTokenValue(''); await fetchChannels(); } } catch (err) {} };
@@ -281,6 +307,9 @@ useEffect(() => { fetchChannelMetrics(); const t = setInterval(fetchChannelMetri
           </div>
           <div className="flex items-center gap-3">
             <LAClock />
+            <button onClick={startAllChannels} disabled={loading} className="bg-emerald-500 text-black px-4 py-2 rounded-full text-xs font-semibold shadow-lg hover:scale-95 transition-transform duration-300 flex items-center gap-1.5 disabled:opacity-50">
+              ▶ Start Semua
+            </button>
             <button onClick={() => setShowAddForm(!showAddForm)} className="bg-white text-black px-4 py-2 rounded-full text-xs font-semibold shadow-lg hover:scale-95 transition-transform duration-300 flex items-center gap-1.5">
               <Icon.Plus /> Channel
             </button>
@@ -344,7 +373,7 @@ useEffect(() => { fetchChannelMetrics(); const t = setInterval(fetchChannelMetri
         <div className="space-y-4 relative z-[10]">
           {channels.map(ch => {
             const config = getConfig(ch.channel_id);
-            const schedForm = scheduleForm[ch.channel_id] || { datetime: getUTCDatetimeLocal(), repeat: 'none' };
+            const schedForm = scheduleForm[ch.channel_id] || { datetime: getLADatetimeLocal(), repeat: 'none' };
             const isShowingConfig = showConfigFor === ch.channel_id;
             const isShowingSchedule = showScheduleFor === ch.channel_id;
             const hasToken = !!ch.google_refresh_token;
@@ -383,11 +412,9 @@ useEffect(() => { fetchChannelMetrics(); const t = setInterval(fetchChannelMetri
                     )}
                     
                     <div className="flex items-center gap-1.5 bg-black/20 p-1 rounded-full border border-white/5">
-                       {!isActiveOrStuck && (
-                         <button onClick={() => { if (loading) return; startStream(ch.channel_id); }} disabled={loading || !hasToken} className="bg-white text-black px-4 py-1.5 rounded-full text-[11px] font-bold hover:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1">
-                           <Icon.Play /> Start
-                         </button>
-                       )}
+                       <button onClick={() => { if (loading) return; startStream(ch.channel_id); }} disabled={loading || !hasToken} className="bg-white text-black px-4 py-1.5 rounded-full text-[11px] font-bold hover:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1">
+                         <Icon.Play /> Start
+                       </button>
                        <button onClick={() => setShowConfigFor(isShowingConfig ? null : ch.channel_id)} className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all flex items-center gap-1 ${isShowingConfig ? 'bg-white/20 text-white' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}>
                          <Icon.Settings /> Conf
                        </button>

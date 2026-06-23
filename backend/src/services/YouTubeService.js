@@ -18,7 +18,7 @@ class YouTubeService {
         clientId = credentials[key].client_id;
         clientSecret = credentials[key].client_secret;
         if (credentials[key].redirect_uris && credentials[key].redirect_uris.length > 0) {
-            redirectUri = credentials[key].redirect_uris[0];
+          redirectUri = credentials[key].redirect_uris[0];
         }
       } catch(e) {}
     }
@@ -28,8 +28,18 @@ class YouTubeService {
   }
 
   async createBroadcast({ refreshToken, title, description, thumbnailPath }) {
-    this.oauth2Client.setCredentials({ refresh_token: refreshToken });
+    this.oauth2Client.setCredentials({ 
+      refresh_token: refreshToken,
+      scope: [
+        'https://www.googleapis.com/auth/youtube',
+        'https://www.googleapis.com/auth/youtube.force-ssl',
+        'https://www.googleapis.com/auth/youtubepartner'
+      ].join(' ')
+    });
+
     console.log('🎬 [YouTube] Creating Live Broadcast...');
+    console.log('📝 [YouTube] Title:', title);
+    console.log('📝 [YouTube] Description:', description ? description.substring(0, 80) + '...' : 'none');
     
     const broadcastRes = await this.youtube.liveBroadcasts.insert({
       part: 'snippet,status,contentDetails',
@@ -39,11 +49,21 @@ class YouTubeService {
           description: description || 'Automated Lofi Jazz Stream',
           scheduledStartTime: new Date().toISOString(),
         },
-        status: { privacyStatus: 'public', selfDeclaredMadeForKids: false },
-        contentDetails: { enableAutoStart: true, enableAutoStop: false, latencyPreference: 'normal' },
+        status: { 
+          privacyStatus: 'public', 
+          selfDeclaredMadeForKids: false,
+          madeForKids: false
+        },
+        contentDetails: { 
+          enableAutoStart: true, 
+          enableAutoStop: false, 
+          latencyPreference: 'normal',
+          enableMonitorStream: false
+        },
       },
     });
     const broadcastId = broadcastRes.data.id;
+    console.log('✅ [YouTube] Broadcast created:', broadcastId);
 
     console.log('📡 [YouTube] Creating Live Stream (RTMP)...');
     const streamRes = await this.youtube.liveStreams.insert({
@@ -51,7 +71,6 @@ class YouTubeService {
       requestBody: {
         snippet: { title: `Stream Engine for ${title || broadcastId}` },
         cdn: { frameRate: '30fps', ingestionType: 'rtmp', resolution: '1080p' },
-        // KUNCI UTAMA: Agar StreamKey tidak hangus saat putus koneksi sementara
         contentDetails: { isReusable: true } 
       },
     });
@@ -60,15 +79,56 @@ class YouTubeService {
     const streamKey = streamRes.data.cdn.ingestionInfo.streamName;
 
     console.log('🔗 [YouTube] Binding Broadcast to Stream...');
-    await this.youtube.liveBroadcasts.bind({ part: 'id,contentDetails', id: broadcastId, streamId: streamId });
+    await this.youtube.liveBroadcasts.bind({ 
+      part: 'id,contentDetails', 
+      id: broadcastId, 
+      streamId: streamId 
+    });
+
+    // Enable Monetization via status update
+    try {
+      await this.youtube.videos.update({
+        part: 'status',
+        requestBody: {
+          id: broadcastId,
+          status: {
+            privacyStatus: 'public',
+            selfDeclaredMadeForKids: false,
+            embeddable: true,
+            license: 'youtube',
+            publicStatsViewable: true
+          }
+        }
+      });
+
+      // Try monetization via youtubepartner scope
+      const youtube2 = google.youtube({ version: 'v3', auth: this.oauth2Client });
+      await youtube2.videos.update({
+        part: 'monetizationDetails',
+        requestBody: {
+          id: broadcastId,
+          monetizationDetails: {
+            access: { allowed: true }
+          }
+        }
+      });
+      console.log('💰 [YouTube] Monetization enabled:', broadcastId);
+    } catch (err) {
+      console.warn('⚠️ [YouTube] Monetization gagal (pastikan channel eligible YPP):', err.message);
+    }
 
     if (thumbnailPath && fs.existsSync(thumbnailPath)) {
       try {
-        await this.youtube.thumbnails.set({ videoId: broadcastId, media: { body: fs.createReadStream(thumbnailPath) } });
-      } catch (err) {}
+        await this.youtube.thumbnails.set({ 
+          videoId: broadcastId, 
+          media: { body: fs.createReadStream(thumbnailPath) } 
+        });
+        console.log('🖼️ [YouTube] Thumbnail set:', path.basename(thumbnailPath));
+      } catch (err) {
+        console.warn('⚠️ [YouTube] Thumbnail gagal:', err.message);
+      }
     }
 
-    console.log('✅ [YouTube] Broadcast created.');
     return { broadcastId, streamId, rtmpUrl: `${rtmpUrl}/${streamKey}` };
   }
 
@@ -85,32 +145,44 @@ class YouTubeService {
 
     if (broadcastStatus === 'ready') {
       try {
-        await this.youtube.liveBroadcasts.transition({ part: 'snippet,status', id: broadcastId, broadcastStatus: 'testing' });
+        await this.youtube.liveBroadcasts.transition({ 
+          part: 'snippet,status', 
+          id: broadcastId, 
+          broadcastStatus: 'testing' 
+        });
         await new Promise(r => setTimeout(r, 5000));
       } catch (e) {}
     }
 
     try {
-      await this.youtube.liveBroadcasts.transition({ part: 'snippet,status', id: broadcastId, broadcastStatus: 'live' });
+      await this.youtube.liveBroadcasts.transition({ 
+        part: 'snippet,status', 
+        id: broadcastId, 
+        broadcastStatus: 'live' 
+      });
       console.log('🎉 [YouTube] Broadcast is now LIVE!');
-    } catch (e) {}
+    } catch (e) {
+      console.warn('⚠️ [YouTube] Transition to live gagal:', e.message);
+    }
   }  
 
   async endBroadcast({ refreshToken, broadcastId, deleteAfterStream = true }) {
     try {
       this.oauth2Client.setCredentials({ refresh_token: refreshToken });
-      await this.youtube.liveBroadcasts.transition({ part: 'snippet,status', id: broadcastId, broadcastStatus: 'complete' });
+      await this.youtube.liveBroadcasts.transition({ 
+        part: 'snippet,status', 
+        id: broadcastId, 
+        broadcastStatus: 'complete' 
+      });
       console.log(`✅ [YouTube] Siaran ${broadcastId} telah dihentikan.`);
       
-      // Jeda 3 detik membiarkan server YouTube memproses transisi ke VOD
       await new Promise(r => setTimeout(r, 3000));
       
       if (deleteAfterStream) {
         try {
           await this.youtube.videos.delete({ id: broadcastId });
-          console.log(`🗑️ [YouTube] VOD ${broadcastId} dihapus permanen (deleteAfterStream=ON).`);
+          console.log(`🗑️ [YouTube] VOD ${broadcastId} dihapus permanen.`);
         } catch (delErr) {
-          console.log(`⚠️ [YouTube] Gagal hapus permanen, ubah ke Unlisted...`);
           try {
             await this.youtube.videos.update({
               part: "status",
@@ -120,9 +192,11 @@ class YouTubeService {
           } catch (updErr) {}
         }
       } else {
-        console.log(`💾 [YouTube] VOD ${broadcastId} disimpan sebagai publik (deleteAfterStream=OFF).`);
+        console.log(`💾 [YouTube] VOD ${broadcastId} disimpan sebagai publik.`);
       }
-    } catch (err) {}
+    } catch (err) {
+      console.warn('⚠️ [YouTube] endBroadcast error:', err.message);
+    }
   }
 
   async _waitForStreamActive(streamId, timeoutMs = 180000, intervalMs = 5000) {
@@ -136,25 +210,26 @@ class YouTubeService {
   }
 
   async getLiveViewerCount({ refreshToken, videoId }) {
-  if (!videoId) return { concurrentViewers: null, totalViews: null };
-  this.oauth2Client.setCredentials({ refresh_token: refreshToken });
-  try {
-    const res = await this.youtube.videos.list({
-      part: 'liveStreamingDetails,statistics',
-      id: videoId,
-    });
-    const item = res.data.items?.[0];
-    if (!item) return { concurrentViewers: null, totalViews: null };
-    return {
-      concurrentViewers: item.liveStreamingDetails?.concurrentViewers
-        ? Number(item.liveStreamingDetails.concurrentViewers) : null,
-      totalViews: item.statistics?.viewCount
-        ? Number(item.statistics.viewCount) : null,
-    };
-  } catch (err) {
-    console.error('[YouTube] getLiveViewerCount error:', err.message);
-    return { concurrentViewers: null, totalViews: null };
+    if (!videoId) return { concurrentViewers: null, totalViews: null };
+    this.oauth2Client.setCredentials({ refresh_token: refreshToken });
+    try {
+      const res = await this.youtube.videos.list({
+        part: 'liveStreamingDetails,statistics',
+        id: videoId,
+      });
+      const item = res.data.items?.[0];
+      if (!item) return { concurrentViewers: null, totalViews: null };
+      return {
+        concurrentViewers: item.liveStreamingDetails?.concurrentViewers
+          ? Number(item.liveStreamingDetails.concurrentViewers) : null,
+        totalViews: item.statistics?.viewCount
+          ? Number(item.statistics.viewCount) : null,
+      };
+    } catch (err) {
+      console.error('[YouTube] getLiveViewerCount error:', err.message);
+      return { concurrentViewers: null, totalViews: null };
+    }
   }
 }
-}
+
 module.exports = YouTubeService;
