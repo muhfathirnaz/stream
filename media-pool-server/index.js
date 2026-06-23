@@ -214,7 +214,43 @@ app.get('/categories', (req, res) => {
   res.json(result);
 });
 
+app.patch('/files/:type/:category/:filename', (req, res) => {
+  const { type, category, filename } = req.params;
+  const { newName } = req.body;
+  if (!newName || filename.includes('..') || category.includes('..') || !['music','video','video-ready'].includes(type))
+    return res.status(400).json({ error: 'Invalid' });
+  const oldPath = path.join(MEDIA_BASE_DIR, type, category, filename);
+  const newPath = path.join(MEDIA_BASE_DIR, type, category, newName.replace(/[^a-zA-Z0-9._\- ]/g, '_'));
+  if (!fs.existsSync(oldPath)) return res.status(404).json({ error: 'File tidak ditemukan' });
+  fs.renameSync(oldPath, newPath);
+  res.json({ success: true, newName: path.basename(newPath) });
+});
+
+app.patch('/categories/:type/:name', (req, res) => {
+  const { type, name } = req.params;
+  const { newName } = req.body;
+  if (!newName || name.includes('..') || !['music','video','video-ready'].includes(type))
+    return res.status(400).json({ error: 'Invalid' });
+  const oldPath = path.join(MEDIA_BASE_DIR, type, name);
+  const safeName = newName.trim().replace(/[^a-zA-Z0-9_\- ]/g, '');
+  const newPath = path.join(MEDIA_BASE_DIR, type, safeName);
+  if (!fs.existsSync(oldPath)) return res.status(404).json({ error: 'Kategori tidak ditemukan' });
+  if (fs.existsSync(newPath)) return res.status(409).json({ error: 'Nama sudah ada' });
+  fs.renameSync(oldPath, newPath);
+  res.json({ success: true, newName: safeName });
+});
+
 // ── POST /sync ────────────────────────────────────────────────────────────────
+
+app.post('/files/move', (req, res) => {
+  const { type, oldCategory, newCategory, filename } = req.body;
+  const oldPath = require('path').join(process.env.MEDIA_BASE_DIR || '/opt/media', type, oldCategory, filename);
+  const newDir = require('path').join(process.env.MEDIA_BASE_DIR || '/opt/media', type, newCategory);
+  const newPath = require('path').join(newDir, filename);
+  require('fs').mkdirSync(newDir, { recursive: true });
+  require('fs').renameSync(oldPath, newPath);
+  res.json({ success: true });
+});
 app.post('/sync', (_req, res) => {
   if (!RCLONE_ENABLED) return res.json({ success: true, skipped: true, reason: 'RCLONE_ENABLED=false' });
   exec(`rclone sync "${MEDIA_BASE_DIR}" "${RCLONE_REMOTE}" 2>&1`, { timeout: 300000 }, (err, stdout) => {

@@ -26,16 +26,48 @@ const Icon = {
 };
 
 const formatElapsed = (secs: number) => { const h = Math.floor(secs / 3600); const m = Math.floor((secs % 3600) / 60); const s = secs % 60; return `${h}h ${m}m ${s}s`; };
-const formatScheduleTime = (iso: string) => { const d = new Date(iso); const pad = (n: number) => String(n).padStart(2, '0'); return `${pad(d.getUTCDate())}/${pad(d.getUTCMonth()+1)} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`; };
-const getUTCDatetimeLocal = () => { const now = new Date(); now.setMinutes(now.getMinutes() + 5); const pad = (n: number) => String(n).padStart(2, '0'); return `${now.getUTCFullYear()}-${pad(now.getUTCMonth()+1)}-${pad(now.getUTCDate())}T${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}`; };
+
+const LA_TZ = 'America/Los_Angeles';
+
+const getLAOffsetMinutes = (date: Date) => {
+  const utc = new Date(date.toLocaleString('en-US', { timeZone: 'UTC' }));
+  const la = new Date(date.toLocaleString('en-US', { timeZone: LA_TZ }));
+  return Math.round((la.getTime() - utc.getTime()) / 60000);
+};
+
+const formatScheduleTime = (iso: string) => {
+  const d = new Date(iso);
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: LA_TZ, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(d);
+  const get = (t: string) => parts.find(p => p.type === t)?.value || '';
+  return `${get('day')}/${get('month')} ${get('hour')}:${get('minute')} PT`;
+};
+
+const getLADatetimeLocal = () => {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() + 5);
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: LA_TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(now);
+  const get = (t: string) => parts.find(p => p.type === t)?.value || '';
+  return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
+};
+
+const laLocalToUTCISO = (localStr: string) => {
+  const naiveUTC = new Date(localStr + ':00Z');
+  const offsetMin = getLAOffsetMinutes(naiveUTC);
+  return new Date(naiveUTC.getTime() - offsetMin * 60000).toISOString();
+};
+
 const getCountdown = (iso: string) => { const diff = new Date(iso).getTime() - Date.now(); if (diff <= 0) return 'Sesaat lagi'; const h = Math.floor(diff / 3600000); const m = Math.floor((diff % 3600000) / 60000); return h > 0 ? `${h}j ${m}m` : `${m}m`; };
 
 const defaultConfig = (): StreamConfig => ({ folders: [], videoPath: null, videoReadyPath: null, songPath: null, thumbnailPath: null, titleId: null, descriptionId: null, auto: true, duration: 4, deleteAfterStream: false });
 
-function UTCClock() {
+function LAClock() {
   const [time, setTime] = useState(''); const [date, setDate] = useState('');
   useEffect(() => {
-    const update = () => { const now = new Date(); setTime(now.toUTCString().slice(17, 25)); setDate(now.toUTCString().slice(0, 16)); };
+    const update = () => {
+      const now = new Date();
+      setTime(now.toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }));
+      setDate(now.toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles', weekday: 'short', month: 'short', day: 'numeric' }) + ' PT');
+    };
     update(); const t = setInterval(update, 1000); return () => clearInterval(t);
   }, []);
   return (
@@ -98,11 +130,20 @@ const [channelMetrics, setChannelMetrics] = useState<{ [channelId: string]: { la
       if (chRes.ok) {
         const chData = await chRes.json();
         const activeStreams: StreamStatusRaw[] = stRes.ok ? await stRes.json() : [];
-        const merged = chData.map((ch: Channel) => ({
-          ...ch,
-          stream_status: activeStreams.some(s => s.channelId === ch.channel_id) ? 'live' : 'stopped',
-          activeStreams: activeStreams.filter(s => s.channelId === ch.channel_id).map(s => ({ streamId: s.streamId, elapsedSeconds: s.elapsedSeconds, mode: s.mode, videoFilename: s.videoFilename, songInfo: s.songInfo, thumbnailPath: s.thumbnailPath, title: s.title })),
-        }));
+        const merged = chData.map((ch: Channel) => {
+          const chStreams = activeStreams.filter(s => s.channelId === ch.channel_id);
+          let status: 'live' | 'stopped' | 'orphaned' | 'reconnecting' = 'stopped';
+          if (chStreams.length > 0) {
+            if (chStreams.some(s => s.streamId.startsWith('orphaned-'))) status = 'orphaned';
+            else if (chStreams.some(s => s.streamId.startsWith('reconnecting-'))) status = 'reconnecting';
+            else status = 'live';
+          }
+          return {
+            ...ch,
+            stream_status: status,
+            activeStreams: chStreams.map(s => ({ streamId: s.streamId, elapsedSeconds: s.elapsedSeconds, mode: s.mode, videoFilename: s.videoFilename, songInfo: s.songInfo, thumbnailPath: s.thumbnailPath, title: s.title })),
+          };
+        });
         setChannels(merged);
       }
     } catch (err) {}
@@ -159,7 +200,7 @@ useEffect(() => { fetchChannelMetrics(); const t = setInterval(fetchChannelMetri
   const updateConfig = (channelId: string, patch: Partial<StreamConfig>) => { setStreamConfigs(prev => ({ ...prev, [channelId]: { ...getConfig(channelId), ...patch } })); };
 
   const initScheduleForm = (channelId: string) => {
-    setScheduleForm(prev => ({ ...prev, [channelId]: { datetime: getUTCDatetimeLocal(), repeat: 'none' } }));
+    setScheduleForm(prev => ({ ...prev, [channelId]: { datetime: getLADatetimeLocal(), repeat: 'none' } }));
     setShowScheduleFor(channelId);
   };
 
@@ -191,7 +232,7 @@ useEffect(() => { fetchChannelMetrics(); const t = setInterval(fetchChannelMetri
   const scheduleStream = async (channelId: string) => {
     const form = scheduleForm[channelId];
     if (!form?.datetime) return alert('Pilih tanggal & jam dulu!');
-    const scheduledAt = new Date(form.datetime + ':00Z').toISOString();
+    const scheduledAt = laLocalToUTCISO(form.datetime);
     if (new Date(scheduledAt) <= new Date()) return alert('Waktu sudah lewat!');
     const config = getConfig(channelId);
     setLoading(true);
@@ -239,7 +280,7 @@ useEffect(() => { fetchChannelMetrics(); const t = setInterval(fetchChannelMetri
             <p className="text-white/50 text-[11px] font-medium uppercase tracking-widest">Broadcast Engine</p>
           </div>
           <div className="flex items-center gap-3">
-            <UTCClock />
+            <LAClock />
             <button onClick={() => setShowAddForm(!showAddForm)} className="bg-white text-black px-4 py-2 rounded-full text-xs font-semibold shadow-lg hover:scale-95 transition-transform duration-300 flex items-center gap-1.5">
               <Icon.Plus /> Channel
             </button>
@@ -308,6 +349,9 @@ useEffect(() => { fetchChannelMetrics(); const t = setInterval(fetchChannelMetri
             const isShowingSchedule = showScheduleFor === ch.channel_id;
             const hasToken = !!ch.google_refresh_token;
             const isLive = ch.stream_status === 'live';
+            const isOrphaned = ch.stream_status === 'orphaned';
+            const isReconnecting = ch.stream_status === 'reconnecting';
+            const isActiveOrStuck = isLive || isOrphaned || isReconnecting;
 
             return (
               <div key={ch.channel_id} className={`glass-card rounded-[24px] p-5 relative transition-all duration-700 ${isLive ? 'border-emerald-500/30 shadow-[0_0_20px_rgba(52,211,153,0.08)]' : ''}`}>
@@ -329,6 +373,8 @@ useEffect(() => { fetchChannelMetrics(); const t = setInterval(fetchChannelMetri
 
                   <div className="flex items-center gap-2 relative z-[30]">
                     {isLive && <div className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold tracking-widest uppercase animate-pulse flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> LIVE</div>}
+                    {isOrphaned && <div className="px-3 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] font-bold tracking-widest uppercase flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-red-400" /> ORPHANED — Stop Dulu</div>}
+                    {isReconnecting && <div className="px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-bold tracking-widest uppercase animate-pulse flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400" /> RECONNECTING</div>}
                     {channelMetrics[ch.channel_id]?.latest && (
                     <div className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-mono text-white/50">
                         ~${Number(channelMetrics[ch.channel_id].latest.estimated_revenue_usd || 0).toFixed(2)}/hari
@@ -337,7 +383,7 @@ useEffect(() => { fetchChannelMetrics(); const t = setInterval(fetchChannelMetri
                     )}
                     
                     <div className="flex items-center gap-1.5 bg-black/20 p-1 rounded-full border border-white/5">
-                       {!isLive && (
+                       {!isActiveOrStuck && (
                          <button onClick={() => { if (loading) return; startStream(ch.channel_id); }} disabled={loading || !hasToken} className="bg-white text-black px-4 py-1.5 rounded-full text-[11px] font-bold hover:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1">
                            <Icon.Play /> Start
                          </button>
@@ -345,7 +391,7 @@ useEffect(() => { fetchChannelMetrics(); const t = setInterval(fetchChannelMetri
                        <button onClick={() => setShowConfigFor(isShowingConfig ? null : ch.channel_id)} className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all flex items-center gap-1 ${isShowingConfig ? 'bg-white/20 text-white' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}>
                          <Icon.Settings /> Conf
                        </button>
-                       {!isLive && (
+                       {!isActiveOrStuck && (
                          <button onClick={() => isShowingSchedule ? setShowScheduleFor(null) : initScheduleForm(ch.channel_id)} disabled={!hasToken} className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all flex items-center gap-1 ${isShowingSchedule ? 'bg-amber-400/20 text-amber-400' : 'text-amber-400/70 hover:bg-amber-400/10 hover:text-amber-400 disabled:opacity-30'}`}>
                            <Icon.Clock /> Sched
                          </button>
@@ -461,8 +507,8 @@ useEffect(() => { fetchChannelMetrics(); const t = setInterval(fetchChannelMetri
                     <div className="mt-4 flex items-center gap-2">
                        <span className="text-[10px] text-white/40">Durasi (Jam):</span>
                        <div className="flex flex-wrap gap-1">
-                        {[1,2,3,4].map(h => (
-                          <button key={h} onClick={() => updateConfig(ch.channel_id, { duration: h })} className={`w-8 h-6 rounded-md text-[10px] font-bold transition-all ${config.duration === h ? 'bg-white text-black' : 'glass-input text-white/60 hover:bg-white/10'}`}>{h}</button>
+                        {[1,2,3,4,6,8,10,12].map(h => (
+                          <button key={h} onClick={() => updateConfig(ch.channel_id, { duration: h })} className={`w-9 h-6 rounded-md text-[10px] font-bold transition-all ${config.duration === h ? 'bg-white text-black' : 'glass-input text-white/60 hover:bg-white/10'}`}>{h}</button>
                         ))}
                       </div>
                     </div>
@@ -477,11 +523,11 @@ useEffect(() => { fetchChannelMetrics(); const t = setInterval(fetchChannelMetri
                   </div>
                 )}
 
-                {isShowingSchedule && !isLive && (
+                {isShowingSchedule && !isActiveOrStuck && (
                   <div className="glass-card-strong rounded-[20px] p-4 mb-2 border border-amber-500/20 mt-4 relative z-[40] animate-in slide-in-from-top-2">
                     <div className="flex flex-col sm:flex-row gap-4">
                       <div className="flex-1">
-                         <label className="text-[10px] text-white/40 mb-1 block">Waktu (UTC)</label>
+                         <label className="text-[10px] text-white/40 mb-1 block">Waktu (LA / Pacific Time)</label>
                          <input type="datetime-local" value={schedForm.datetime} onChange={e => setScheduleForm(prev => ({ ...prev, [ch.channel_id]: { ...schedForm, datetime: e.target.value } }))} className="w-full glass-input rounded-lg px-3 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-amber-400/50" />
                       </div>
                       <div className="w-full sm:w-40">

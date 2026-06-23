@@ -55,6 +55,10 @@ const streamService = new LocalStreamService(wsService, songCoord);
 
 const scheduler = new SchedulerService(db, streamService, wsService);
 
+setTimeout(() => {
+  streamService.reconcileOrphans(db).catch((e) => console.error('[Reconcile] Gagal jalan:', e.message));
+}, 8000);
+
 app.use(helmet());
 app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:3000' }));
 app.use(express.json());

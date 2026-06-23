@@ -60,6 +60,30 @@ class LocalStreamService {
     try { fs.writeFileSync(this.STATE_FILE, JSON.stringify(this.channelYoutubeData)); } catch(e) {}
   }
 
+  async reconcileOrphans(db) {
+    const ids = Object.keys(this.channelYoutubeData);
+    for (const channelId of ids) {
+      const ytData = this.channelYoutubeData[channelId];
+      if (!ytData || this.isRunning(channelId)) continue;
+      console.log(`[Reconcile] Channel ${channelId} orphan terdeteksi setelah backend restart.`);
+      try {
+        if (Date.now() < ytData.targetEndTime) {
+          await db.query('INSERT INTO system_logs (channel_id, message) VALUES ($1, $2)', [channelId, '[RECONCILE] Backend restart terdeteksi. Mencoba resume engine otomatis...']);
+          const remainingSecs = Math.floor((ytData.targetEndTime - Date.now()) / 1000);
+          await this.start(channelId, db, { durationSecs: remainingSecs, folder: 'Semua', auto: true }, true);
+        } else {
+          await this.youtubeService.endBroadcast({ refreshToken: ytData.refreshToken, broadcastId: ytData.broadcastId, deleteAfterStream: false });
+          delete this.channelYoutubeData[channelId];
+          this.saveYtState();
+          await db.query('INSERT INTO system_logs (channel_id, message) VALUES ($1, $2)', [channelId, '[RECONCILE] Sesi sudah lewat batas waktu. Broadcast YouTube ditutup otomatis (orphan dibersihkan).']);
+        }
+      } catch (e) {
+        console.error('[Reconcile] Error:', e.message);
+        try { await db.query('INSERT INTO system_logs (channel_id, message) VALUES ($1, $2)', [channelId, `[RECONCILE] Gagal reconcile: ${e.message}`]); } catch(_) {}
+      }
+    }
+  }
+
   getUsedAssets() {
     const titles = []; const descs = []; const thumbs = []; const videos = [];
     for (const id in this.activeAssets) {
