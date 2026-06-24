@@ -1,11 +1,9 @@
-
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
 
-// --- INTERFACES ---
 interface StreamStatusRaw { streamId: string; channelId: string; pid: number; elapsedSeconds: number; mode?: string; videoFilename?: string; songInfo?: string; thumbnailPath?: string; title?: string; }
-interface Channel { id: number; channel_id: string; name: string; google_refresh_token?: string; stream_status?: string; activeStreams: { streamId: string; elapsedSeconds: number; mode?: string; videoFilename?: string; songInfo?: string; thumbnailPath?: string; title?: string }[]; }
+interface Channel { id: number; channel_id: string; name: string; google_refresh_token?: string; stream_key?: string; stream_status?: string; activeStreams: { streamId: string; elapsedSeconds: number; mode?: string; videoFilename?: string; songInfo?: string; thumbnailPath?: string; title?: string }[]; }
 interface Schedule { id: number; channel_id: string; channel_name: string; scheduled_at: string; duration_secs: number; title: string; status: string; repeat_type?: string; }
 interface Folder { name: string; count: number; }
 interface Asset { id: number; type: string; value: string; label: string; in_use?: boolean; }
@@ -13,7 +11,6 @@ interface MediaFile { filename: string; path: string; category?: string; }
 interface SystemLog { id: number; channel_id: string; message: string; created_at: string; }
 interface StreamConfig { folders: string[]; videoPath: string | null; videoReadyPath: string | null; songPath: string | null; thumbnailPath: string | null; titleId: number | null; descriptionId: number | null; auto: boolean; duration: number; mode?: string; vrFolder?: string; vrPath?: string | null; vidFolder?: string; vidPath?: string | null; songFolder?: string; thumbFolder?: string; thumbPath?: string | null; titleFolder?: string; descFolder?: string; descId?: number | null; deleteAfterStream?: boolean; [key: string]: any; }
 
-// --- ICONS ---
 const Icon = {
   TV: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="20" height="20"><rect x="2" y="7" width="20" height="15" rx="4" ry="4"/><polyline points="17 2 12 7 7 2"/></svg>,
   Play: () => <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M5 3l14 9-14 9V3z"/></svg>,
@@ -26,57 +23,20 @@ const Icon = {
 };
 
 const formatElapsed = (secs: number) => { const h = Math.floor(secs / 3600); const m = Math.floor((secs % 3600) / 60); const s = secs % 60; return `${h}h ${m}m ${s}s`; };
-
 const LA_TZ = 'America/Los_Angeles';
 
-const getLAOffsetMinutes = (date: Date) => {
-  const utc = new Date(date.toLocaleString('en-US', { timeZone: 'UTC' }));
-  const la = new Date(date.toLocaleString('en-US', { timeZone: LA_TZ }));
-  return Math.round((la.getTime() - utc.getTime()) / 60000);
-};
-
-const formatScheduleTime = (iso: string) => {
-  const d = new Date(iso);
-  const parts = new Intl.DateTimeFormat('en-US', { timeZone: LA_TZ, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(d);
-  const get = (t: string) => parts.find(p => p.type === t)?.value || '';
-  return `${get('day')}/${get('month')} ${get('hour')}:${get('minute')} PT`;
-};
-
-const getLADatetimeLocal = () => {
-  const now = new Date();
-  now.setMinutes(now.getMinutes() + 5);
-  const parts = new Intl.DateTimeFormat('en-US', { timeZone: LA_TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(now);
-  const get = (t: string) => parts.find(p => p.type === t)?.value || '';
-  return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
-};
-
-const laLocalToUTCISO = (localStr: string) => {
-  const naiveUTC = new Date(localStr + ':00Z');
-  const offsetMin = getLAOffsetMinutes(naiveUTC);
-  return new Date(naiveUTC.getTime() - offsetMin * 60000).toISOString();
-};
-
+const getLAOffsetMinutes = (date: Date) => { const utc = new Date(date.toLocaleString('en-US', { timeZone: 'UTC' })); const la = new Date(date.toLocaleString('en-US', { timeZone: LA_TZ })); return Math.round((la.getTime() - utc.getTime()) / 60000); };
+const formatScheduleTime = (iso: string) => { const d = new Date(iso); const parts = new Intl.DateTimeFormat('en-US', { timeZone: LA_TZ, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(d); const get = (t: string) => parts.find(p => p.type === t)?.value || ''; return `${get('day')}/${get('month')} ${get('hour')}:${get('minute')} PT`; };
+const getLADatetimeLocal = () => { const now = new Date(); now.setMinutes(now.getMinutes() + 5); const parts = new Intl.DateTimeFormat('en-US', { timeZone: LA_TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(now); const get = (t: string) => parts.find(p => p.type === t)?.value || ''; return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`; };
+const laLocalToUTCISO = (localStr: string) => { const naiveUTC = new Date(localStr + ':00Z'); const offsetMin = getLAOffsetMinutes(naiveUTC); return new Date(naiveUTC.getTime() - offsetMin * 60000).toISOString(); };
 const getCountdown = (iso: string) => { const diff = new Date(iso).getTime() - Date.now(); if (diff <= 0) return 'Sesaat lagi'; const h = Math.floor(diff / 3600000); const m = Math.floor((diff % 3600000) / 60000); return h > 0 ? `${h}j ${m}m` : `${m}m`; };
 
 const defaultConfig = (): StreamConfig => ({ folders: [], videoPath: null, videoReadyPath: null, songPath: null, thumbnailPath: null, titleId: null, descriptionId: null, auto: true, duration: 4, deleteAfterStream: false });
 
 function LAClock() {
   const [time, setTime] = useState(''); const [date, setDate] = useState('');
-  useEffect(() => {
-    const update = () => {
-      const now = new Date();
-      setTime(now.toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }));
-      setDate(now.toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles', weekday: 'short', month: 'short', day: 'numeric' }) + ' PT');
-    };
-    update(); const t = setInterval(update, 1000); return () => clearInterval(t);
-  }, []);
-  return (
-    <div className="glass-card-strong rounded-full pl-2 pr-4 py-1.5 flex items-center gap-2">
-      <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
-      <span className="text-xs font-semibold tracking-wider text-white">{time}</span>
-      <span className="text-[10px] text-white/50 hidden sm:inline-block">{date}</span>
-    </div>
-  );
+  useEffect(() => { const update = () => { const now = new Date(); setTime(now.toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })); setDate(now.toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles', weekday: 'short', month: 'short', day: 'numeric' }) + ' PT'); }; update(); const t = setInterval(update, 1000); return () => clearInterval(t); }, []);
+  return ( <div className="glass-card-strong rounded-full pl-2 pr-4 py-1.5 flex items-center gap-2"> <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" /> <span className="text-xs font-semibold tracking-wider text-white">{time}</span> <span className="text-[10px] text-white/50 hidden sm:inline-block">{date}</span> </div> );
 }
 
 function CategoryFileSelect({ label, type, folders, items, folderVal, fileVal, onChange, isText = false }: any) {
@@ -101,7 +61,7 @@ function CategoryFileSelect({ label, type, folders, items, folderVal, fileVal, o
 export default function StreamsPage() {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [liveStats, setLiveStats] = useState<{ [channelId: string]: { concurrentViewers: number | null; totalViews: number | null } }>({});
-const [channelMetrics, setChannelMetrics] = useState<{ [channelId: string]: { latest: any; revenue30d: number } }>({});
+  const [channelMetrics, setChannelMetrics] = useState<{ [channelId: string]: { latest: any; revenue30d: number } }>({});
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
@@ -111,8 +71,10 @@ const [channelMetrics, setChannelMetrics] = useState<{ [channelId: string]: { la
   const [songs, setSongs] = useState<MediaFile[]>([]);
   const [titles, setTitles] = useState<Asset[]>([]);
   const [descriptions, setDescriptions] = useState<Asset[]>([]);
+  
   const [newChannelName, setNewChannelName] = useState('');
   const [newRefreshToken, setNewRefreshToken] = useState('');
+  const [newStreamKey, setNewStreamKey] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [loading, setLoading] = useState(false);
   
@@ -120,8 +82,10 @@ const [channelMetrics, setChannelMetrics] = useState<{ [channelId: string]: { la
   const [showScheduleFor, setShowScheduleFor] = useState<string | null>(null);
   const [showConfigFor, setShowConfigFor] = useState<string | null>(null);
   const [streamConfigs, setStreamConfigs] = useState<{ [channelId: string]: StreamConfig }>({});
+  
   const [editingTokenFor, setEditingTokenFor] = useState<string | null>(null);
   const [editTokenValue, setEditTokenValue] = useState('');
+  const [editStreamKeyValue, setEditStreamKeyValue] = useState('');
   const [countdown, setCountdown] = useState<{ [key: number]: string }>({});
 
   const fetchChannels = useCallback(async () => {
@@ -138,71 +102,29 @@ const [channelMetrics, setChannelMetrics] = useState<{ [channelId: string]: { la
             else if (chStreams.some(s => s.streamId.startsWith('reconnecting-'))) status = 'reconnecting';
             else status = 'live';
           }
-          return {
-            ...ch,
-            stream_status: status,
-            activeStreams: chStreams.map(s => ({ streamId: s.streamId, elapsedSeconds: s.elapsedSeconds, mode: s.mode, videoFilename: s.videoFilename, songInfo: s.songInfo, thumbnailPath: s.thumbnailPath, title: s.title })),
-          };
+          return { ...ch, stream_status: status, activeStreams: chStreams.map(s => ({ streamId: s.streamId, elapsedSeconds: s.elapsedSeconds, mode: s.mode, videoFilename: s.videoFilename, songInfo: s.songInfo, thumbnailPath: s.thumbnailPath, title: s.title })) };
         });
         setChannels(merged);
       }
     } catch (err) {}
   }, []);
 
-  const fetchSchedulesAndLogs = useCallback(async () => { 
-    try { 
-      const [resS, resL] = await Promise.all([fetch('/api/schedules'), fetch('/api/streams/logs')]);
-      if (resS.ok) setSchedules(await resS.json()); 
-      if (resL.ok) setSystemLogs(await resL.json());
-    } catch (err) {} 
-  }, []);
-
-  const fetchAssets = useCallback(async () => {
-    try {
-      const [fRes, thRes, tiRes, dRes, mfRes, vrRes] = await Promise.all([
-        fetch('/api/assets/folders'), fetch('/api/thumbnails'), fetch('/api/assets/titles'), fetch('/api/assets/descriptions'), fetch('/api/assets/mediaFiles'), fetch('/api/assets/videoReadyFiles')
-      ]);
-      if (fRes.ok) { const d = await fRes.json(); setFolders(d.folders || []); }
-      if (thRes.ok) { const d = await thRes.json(); setThumbnails((d.files || []).map((f: any) => ({ ...f, path: f.path || f.filename }))); }
-      if (tiRes.ok) setTitles(await tiRes.json());
-      if (dRes.ok) setDescriptions(await dRes.json());
-      if (mfRes.ok) { const d = await mfRes.json(); setVideos(d.videos || []); setSongs(d.songs || []); }
-      if (vrRes.ok) { const d = await vrRes.json(); setVideoReadyFiles(d.files || []); }
-    } catch (err) {}
-  }, []);
+  const fetchSchedulesAndLogs = useCallback(async () => { try { const [resS, resL] = await Promise.all([fetch('/api/schedules'), fetch('/api/streams/logs')]); if (resS.ok) setSchedules(await resS.json()); if (resL.ok) setSystemLogs(await resL.json()); } catch (err) {} }, []);
+  const fetchAssets = useCallback(async () => { try { const [fRes, thRes, tiRes, dRes, mfRes, vrRes] = await Promise.all([ fetch('/api/assets/folders'), fetch('/api/thumbnails'), fetch('/api/assets/titles'), fetch('/api/assets/descriptions'), fetch('/api/assets/mediaFiles'), fetch('/api/assets/videoReadyFiles') ]); if (fRes.ok) { const d = await fRes.json(); setFolders(d.folders || []); } if (thRes.ok) { const d = await thRes.json(); setThumbnails((d.files || []).map((f: any) => ({ ...f, path: f.path || f.filename }))); } if (tiRes.ok) setTitles(await tiRes.json()); if (dRes.ok) setDescriptions(await dRes.json()); if (mfRes.ok) { const d = await mfRes.json(); setVideos(d.videos || []); setSongs(d.songs || []); } if (vrRes.ok) { const d = await vrRes.json(); setVideoReadyFiles(d.files || []); } } catch (err) {} }, []);
 
   useEffect(() => { fetchChannels(); fetchSchedulesAndLogs(); fetchAssets(); const interval = setInterval(() => { fetchChannels(); fetchSchedulesAndLogs(); }, 10000); return () => clearInterval(interval); }, [fetchChannels, fetchSchedulesAndLogs, fetchAssets]);
   useEffect(() => { const update = () => { const counts: { [key: number]: string } = {}; schedules.filter(s => s.status === 'pending').forEach(s => { counts[s.id] = getCountdown(s.scheduled_at); }); setCountdown(counts); }; update(); const t = setInterval(update, 30000); return () => clearInterval(t); }, [schedules]);
 
-  const fetchLiveStats = useCallback(async () => {
-  const liveChannels = channels.filter(c => c.stream_status === 'live');
-  if (!liveChannels.length) return;
-  const results = await Promise.all(liveChannels.map(async ch => {
-    try { const res = await fetch(`/api/streams/live-stats/${ch.channel_id}`); if (res.ok) return [ch.channel_id, await res.json()] as const; } catch {}
-    return [ch.channel_id, null] as const;
-  }));
-  setLiveStats(prev => { const next = { ...prev }; results.forEach(([id, data]) => { if (data) next[id] = data; }); return next; });
-}, [channels]);
+  const fetchLiveStats = useCallback(async () => { const liveChannels = channels.filter(c => c.stream_status === 'live'); if (!liveChannels.length) return; const results = await Promise.all(liveChannels.map(async ch => { try { const res = await fetch(`/api/streams/live-stats/${ch.channel_id}`); if (res.ok) return [ch.channel_id, await res.json()] as const; } catch {} return [ch.channel_id, null] as const; })); setLiveStats(prev => { const next = { ...prev }; results.forEach(([id, data]) => { if (data) next[id] = data; }); return next; }); }, [channels]);
+  useEffect(() => { fetchLiveStats(); const t = setInterval(fetchLiveStats, 20000); return () => clearInterval(t); }, [fetchLiveStats]);
 
-useEffect(() => { fetchLiveStats(); const t = setInterval(fetchLiveStats, 20000); return () => clearInterval(t); }, [fetchLiveStats]);
-
-const fetchChannelMetrics = useCallback(async () => {
-  if (!channels.length) return;
-  const results = await Promise.all(channels.map(async ch => {
-    try { const res = await fetch(`/api/metrics/channel/${ch.channel_id}`); if (res.ok) return [ch.channel_id, await res.json()] as const; } catch {}
-    return [ch.channel_id, null] as const;
-  }));
-  setChannelMetrics(prev => { const next = { ...prev }; results.forEach(([id, data]) => { if (data) next[id] = data; }); return next; });
-}, [channels]);
-
-useEffect(() => { fetchChannelMetrics(); const t = setInterval(fetchChannelMetrics, 300000); return () => clearInterval(t); }, [fetchChannelMetrics]); // refresh tiap 5 menit, datanya gak real-time
+  const fetchChannelMetrics = useCallback(async () => { if (!channels.length) return; const results = await Promise.all(channels.map(async ch => { try { const res = await fetch(`/api/metrics/channel/${ch.channel_id}`); if (res.ok) return [ch.channel_id, await res.json()] as const; } catch {} return [ch.channel_id, null] as const; })); setChannelMetrics(prev => { const next = { ...prev }; results.forEach(([id, data]) => { if (data) next[id] = data; }); return next; }); }, [channels]);
+  useEffect(() => { fetchChannelMetrics(); const t = setInterval(fetchChannelMetrics, 300000); return () => clearInterval(t); }, [fetchChannelMetrics]);
+  
   const getConfig = (channelId: string): StreamConfig => streamConfigs[channelId] || defaultConfig();
   const updateConfig = (channelId: string, patch: Partial<StreamConfig>) => { setStreamConfigs(prev => ({ ...prev, [channelId]: { ...getConfig(channelId), ...patch } })); };
 
-  const initScheduleForm = (channelId: string) => {
-    setScheduleForm(prev => ({ ...prev, [channelId]: { datetime: getLADatetimeLocal(), repeat: 'none' } }));
-    setShowScheduleFor(channelId);
-  };
+  const initScheduleForm = (channelId: string) => { setScheduleForm(prev => ({ ...prev, [channelId]: { datetime: getLADatetimeLocal(), repeat: 'none' } })); setShowScheduleFor(channelId); };
 
   const startStream = async (channelId: string) => {
     const config = getConfig(channelId);
@@ -210,14 +132,7 @@ useEffect(() => { fetchChannelMetrics(); const t = setInterval(fetchChannelMetri
     try {
       const payloadFolder = config.folders.length > 0 ? config.folders.join(',') : 'Semua';
       const body: Record<string, unknown> = { channelId, durationSecs: config.duration * 3600, folder: payloadFolder, auto: config.auto, mode: config.mode || 'encode', deleteAfterStream: !!config.deleteAfterStream };
-      if (!config.auto) {
-          body.videoReadyPath = config.vrPath;
-          body.videoPath = config.vidPath;
-          body.songPath = config.songPath;
-          body.thumbnailPath = config.thumbPath;
-          body.titleId = config.titleId;
-          body.descriptionId = config.descId;
-      }
+      if (!config.auto) { body.videoReadyPath = config.vrPath; body.videoPath = config.vidPath; body.songPath = config.songPath; body.thumbnailPath = config.thumbPath; body.titleId = config.titleId; body.descriptionId = config.descId; }
       const res = await fetch('/api/streams/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!res.ok) { const err = await res.json(); alert('Gagal start: ' + err.error); }
       await fetchChannels(); await fetchSchedulesAndLogs();
@@ -225,34 +140,43 @@ useEffect(() => { fetchChannelMetrics(); const t = setInterval(fetchChannelMetri
   };
 
   const startAllChannels = async () => {
-    const inactiveChannels = channels.filter(ch => !ch.activeStreams?.length && !!ch.google_refresh_token);
-    if (inactiveChannels.length === 0) return alert('Semua channel sudah live atau belum ada token.');
+    const inactiveChannels = channels.filter(ch => !ch.activeStreams?.length && (!!ch.google_refresh_token || !!ch.stream_key));
+    if (inactiveChannels.length === 0) return alert('Semua channel sudah live atau belum ada kredensial.');
     setLoading(true);
     try {
       await Promise.all(inactiveChannels.map(ch => {
-        const config = getConfig(ch.channel_id);
-        const payloadFolder = config.folders.length > 0 ? config.folders.join(',') : 'Semua';
-        return fetch('/api/streams/start', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            channelId: ch.channel_id,
-            durationSecs: config.duration * 3600,
-            folder: payloadFolder,
-            auto: config.auto,
-            mode: config.mode || 'encode',
-            deleteAfterStream: !!config.deleteAfterStream
-          })
-        });
+        const config = getConfig(ch.channel_id); const payloadFolder = config.folders.length > 0 ? config.folders.join(',') : 'Semua';
+        return fetch('/api/streams/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channelId: ch.channel_id, durationSecs: config.duration * 3600, folder: payloadFolder, auto: config.auto, mode: config.mode || 'encode', deleteAfterStream: !!config.deleteAfterStream }) });
       }));
-      await fetchChannels();
-      await fetchSchedulesAndLogs();
+      await fetchChannels(); await fetchSchedulesAndLogs();
     } finally { setLoading(false); }
   };
 
   const stopStream = async (streamId: string) => { setLoading(true); try { await fetch('/api/streams/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ streamId }) }); await fetchChannels(); } finally { setLoading(false); } };
-  const addChannel = async () => { if (!newChannelName.trim() || !newRefreshToken.trim()) return; setLoading(true); try { const res = await fetch('/api/channels', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newChannelName.trim(), refresh_token: newRefreshToken.trim() }) }); if (!res.ok) { const err = await res.json(); alert('Gagal: ' + err.error); } else { setNewChannelName(''); setNewRefreshToken(''); setShowAddForm(false); await fetchChannels(); } } finally { setLoading(false); } };
-  const updateRefreshToken = async (channelId: string) => { if (!editTokenValue.trim()) return; try { const res = await fetch(`/api/channels/${channelId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: editTokenValue.trim() }) }); if (!res.ok) { const err = await res.json(); alert('Gagal: ' + err.error); } else { setEditingTokenFor(null); setEditTokenValue(''); await fetchChannels(); } } catch (err) {} };
+  
+  const addChannel = async () => { 
+    if (!newChannelName.trim()) return; 
+    setLoading(true); 
+    try { 
+      const res = await fetch('/api/channels', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newChannelName.trim(), refresh_token: newRefreshToken.trim() || undefined, stream_key: newStreamKey.trim() || undefined }) }); 
+      if (!res.ok) { const err = await res.json(); alert('Gagal: ' + err.error); } else { setNewChannelName(''); setNewRefreshToken(''); setNewStreamKey(''); setShowAddForm(false); await fetchChannels(); } 
+    } finally { setLoading(false); } 
+  };
+  
+  // FUNGSI UPDATE YANG SUDAH DIPERBAIKI: Langsung kirim berapapun isinya, meski kosong
+  const updateCredentials = async (channelId: string) => { 
+    setLoading(true);
+    try { 
+      await fetch(`/api/channels/${channelId}`, { 
+        method: 'PATCH', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ refresh_token: editTokenValue, stream_key: editStreamKeyValue }) 
+      });
+      setEditingTokenFor(null); 
+      await fetchChannels(); 
+    } catch (err) {} finally { setLoading(false); }
+  };
+  
   const deleteChannel = async (channelId: string) => { if (!confirm(`Hapus channel ${channelId}?`)) return; await fetch(`/api/channels/${channelId}`, { method: 'DELETE' }); await fetchChannels(); };
   
   const scheduleStream = async (channelId: string) => {
@@ -260,19 +184,11 @@ useEffect(() => { fetchChannelMetrics(); const t = setInterval(fetchChannelMetri
     if (!form?.datetime) return alert('Pilih tanggal & jam dulu!');
     const scheduledAt = laLocalToUTCISO(form.datetime);
     if (new Date(scheduledAt) <= new Date()) return alert('Waktu sudah lewat!');
-    const config = getConfig(channelId);
-    setLoading(true);
+    const config = getConfig(channelId); setLoading(true);
     try {
       const payloadFolder = config.folders.length > 0 ? config.folders.join(',') : 'Semua';
       const body: Record<string, unknown> = { channelId, scheduledAt, durationSecs: config.duration * 3600, folder: payloadFolder, auto: config.auto, mode: config.mode || 'encode', repeatType: form.repeat || 'none', title: 'Lofi Broadcast', deleteAfterStream: !!config.deleteAfterStream };
-      if (!config.auto) {
-          body.videoReadyPath = config.vrPath;
-          body.videoPath = config.vidPath;
-          body.songPath = config.songPath;
-          body.thumbnailPath = config.thumbPath;
-          body.titleId = config.titleId;
-          body.descriptionId = config.descId;
-      }
+      if (!config.auto) { body.videoReadyPath = config.vrPath; body.videoPath = config.vidPath; body.songPath = config.songPath; body.thumbnailPath = config.thumbPath; body.titleId = config.titleId; body.descriptionId = config.descId; }
       const res = await fetch('/api/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!res.ok) { const err = await res.json(); alert('Gagal schedule: ' + err.error); } else { setShowScheduleFor(null); await fetchSchedulesAndLogs(); }
     } finally { setLoading(false); }
@@ -319,13 +235,14 @@ useEffect(() => { fetchChannelMetrics(); const t = setInterval(fetchChannelMetri
         {showAddForm && (
           <div className="glass-card-strong rounded-2xl p-5 mb-6 animate-in fade-in slide-in-from-top-4 duration-500 relative z-[90]">
             <h3 className="text-sm font-semibold mb-3 text-white">Tambah Channel</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <input type="text" placeholder="Nama Channel" value={newChannelName} onChange={e => setNewChannelName(e.target.value)} className="glass-input rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all" />
-              <input type="password" placeholder="Google Refresh Token" value={newRefreshToken} onChange={e => setNewRefreshToken(e.target.value)} className="glass-input rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all" />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <input type="text" placeholder="Nama Channel *" value={newChannelName} onChange={e => setNewChannelName(e.target.value)} className="glass-input rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all" />
+              <input type="text" placeholder="Google Refresh Token" value={newRefreshToken} onChange={e => setNewRefreshToken(e.target.value)} className="glass-input rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all" />
+              <input type="text" placeholder="Stream Key (Bila manual)" value={newStreamKey} onChange={e => setNewStreamKey(e.target.value)} className="glass-input rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all" />
             </div>
             <div className="flex gap-2 mt-4 justify-end">
               <button onClick={() => setShowAddForm(false)} className="px-4 py-2 rounded-full text-[11px] font-medium text-white/60 hover:text-white transition-colors">Batal</button>
-              <button onClick={addChannel} disabled={loading || !newChannelName.trim() || !newRefreshToken.trim()} className="bg-white text-black px-5 py-2 rounded-full text-[11px] font-semibold disabled:opacity-50 hover:scale-95 transition-transform duration-300">Simpan</button>
+              <button onClick={addChannel} disabled={loading || !newChannelName.trim()} className="bg-white text-black px-5 py-2 rounded-full text-[11px] font-semibold disabled:opacity-50 hover:scale-95 transition-transform duration-300">Simpan</button>
             </div>
           </div>
         )}
@@ -377,6 +294,7 @@ useEffect(() => { fetchChannelMetrics(); const t = setInterval(fetchChannelMetri
             const isShowingConfig = showConfigFor === ch.channel_id;
             const isShowingSchedule = showScheduleFor === ch.channel_id;
             const hasToken = !!ch.google_refresh_token;
+            const hasStreamKey = !!ch.stream_key;
             const isLive = ch.stream_status === 'live';
             const isOrphaned = ch.stream_status === 'orphaned';
             const isReconnecting = ch.stream_status === 'reconnecting';
@@ -395,7 +313,8 @@ useEffect(() => { fetchChannelMetrics(); const t = setInterval(fetchChannelMetri
                       <h2 className="text-sm font-bold text-white tracking-tight">{ch.name}</h2>
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <span className="text-[10px] font-mono text-white/40">{ch.channel_id.slice(0, 15)}...</span>
-                        {hasToken ? <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_5px_#34d399]"/> : <span className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_5px_#ef4444]"/>}
+                        {hasToken ? <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[8px] font-bold uppercase border border-emerald-500/20">Token OK</span> : <span className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 text-[8px] font-bold uppercase border border-red-500/20">No Token</span>}
+                        {hasStreamKey ? <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 text-[8px] font-bold uppercase border border-blue-500/20">Key OK</span> : <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 text-[8px] font-bold uppercase border border-amber-500/20">No Key</span>}
                       </div>
                     </div>
                   </div>
@@ -412,14 +331,21 @@ useEffect(() => { fetchChannelMetrics(); const t = setInterval(fetchChannelMetri
                     )}
                     
                     <div className="flex items-center gap-1.5 bg-black/20 p-1 rounded-full border border-white/5">
-                       <button onClick={() => { if (loading) return; startStream(ch.channel_id); }} disabled={loading || !hasToken} className="bg-white text-black px-4 py-1.5 rounded-full text-[11px] font-bold hover:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1">
+                       <button onClick={() => { if (loading) return; startStream(ch.channel_id); }} disabled={loading || (!hasToken && !hasStreamKey)} className="bg-white text-black px-4 py-1.5 rounded-full text-[11px] font-bold hover:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1">
                          <Icon.Play /> Start
                        </button>
                        <button onClick={() => setShowConfigFor(isShowingConfig ? null : ch.channel_id)} className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all flex items-center gap-1 ${isShowingConfig ? 'bg-white/20 text-white' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}>
                          <Icon.Settings /> Conf
                        </button>
+                       <button onClick={() => { 
+                         setEditingTokenFor(editingTokenFor === ch.channel_id ? null : ch.channel_id); 
+                         setEditTokenValue(ch.google_refresh_token || ''); 
+                         setEditStreamKeyValue(ch.stream_key || ''); 
+                       }} className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all flex items-center gap-1 ${editingTokenFor === ch.channel_id ? 'bg-amber-400/20 text-amber-400' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}>
+                         🔑 Keys
+                       </button>
                        {!isActiveOrStuck && (
-                         <button onClick={() => isShowingSchedule ? setShowScheduleFor(null) : initScheduleForm(ch.channel_id)} disabled={!hasToken} className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all flex items-center gap-1 ${isShowingSchedule ? 'bg-amber-400/20 text-amber-400' : 'text-amber-400/70 hover:bg-amber-400/10 hover:text-amber-400 disabled:opacity-30'}`}>
+                         <button onClick={() => isShowingSchedule ? setShowScheduleFor(null) : initScheduleForm(ch.channel_id)} disabled={!hasToken && !hasStreamKey} className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all flex items-center gap-1 ${isShowingSchedule ? 'bg-amber-400/20 text-amber-400' : 'text-amber-400/70 hover:bg-amber-400/10 hover:text-amber-400 disabled:opacity-30'}`}>
                            <Icon.Clock /> Sched
                          </button>
                        )}
@@ -429,17 +355,17 @@ useEffect(() => { fetchChannelMetrics(); const t = setInterval(fetchChannelMetri
                   </div>
                 </div>
 
-                {!hasToken && (
-                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 mb-4 flex items-center justify-between text-xs relative z-[20]">
-                    <span className="font-medium text-amber-400">Butuh Otorisasi YouTube.</span>
-                    <button onClick={() => { setEditingTokenFor(ch.channel_id); setEditTokenValue(''); }} className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 px-3 py-1.5 rounded-full font-bold transition-colors">Setup</button>
-                  </div>
-                )}
                 {editingTokenFor === ch.channel_id && (
-                  <div className="glass-card-strong rounded-xl p-3 mb-4 flex items-center gap-2 animate-in fade-in zoom-in-95 relative z-[20]">
-                    <input type="password" value={editTokenValue} onChange={e => setEditTokenValue(e.target.value)} placeholder="Paste token..." className="flex-1 glass-input rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-white/30" />
-                    <button onClick={() => updateRefreshToken(ch.channel_id)} disabled={!editTokenValue.trim()} className="bg-white text-black px-4 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50">Save</button>
-                    <button onClick={() => setEditingTokenFor(null)} className="text-white/50 px-2 text-xs hover:text-white">Batal</button>
+                  <div className="glass-card-strong rounded-xl p-3 mb-4 flex flex-col gap-2 animate-in fade-in zoom-in-95 relative z-[20]">
+                    <div className="text-[10px] text-white/50 font-bold uppercase tracking-widest mb-1">Copy / Update Kredensial Channel</div>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input type="text" value={editTokenValue} onChange={e => setEditTokenValue(e.target.value)} placeholder="Refresh Token..." className="w-full flex-1 glass-input rounded-lg px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-white/30" />
+                      <input type="text" value={editStreamKeyValue} onChange={e => setEditStreamKeyValue(e.target.value)} placeholder="Stream Key..." className="w-full flex-1 glass-input rounded-lg px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-white/30" />
+                      <div className="flex gap-2 w-full sm:w-auto">
+                        <button onClick={() => updateCredentials(ch.channel_id)} disabled={loading} className="flex-1 sm:flex-none bg-white text-black px-4 py-2 rounded-lg text-xs font-semibold disabled:opacity-50 hover:scale-95 transition-transform">Save</button>
+                        <button onClick={() => setEditingTokenFor(null)} className="flex-1 sm:flex-none text-white/50 px-2 text-xs hover:text-white">Tutup</button>
+                      </div>
+                    </div>
                   </div>
                 )}
 

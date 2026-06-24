@@ -161,3 +161,13 @@ router.get('/live-stats/:channelId', async (req, res) => {
 });
 
 module.exports = router;
+
+// ── GET /api/streams/logs ───────────────────────────────────
+router.get('/logs', async (req, res) => {
+  try {
+    const { rows } = await req.db.query('SELECT * FROM system_logs ORDER BY created_at DESC LIMIT 50');
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});

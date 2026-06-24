@@ -43,11 +43,9 @@ class SchedulerService {
         ? (priorityFiles.length > 0 ? priorityFiles : allFiles)
         : allFiles;
 
-      // Filter yang sudah dipakai stream aktif atau di-book schedule lain
       const available = pool.filter(f => !excludeVideos.includes(f));
       if (available.length > 0) return available[Math.floor(Math.random() * available.length)];
 
-      // Fallback kalau semua sudah terpakai
       console.log('[Scheduler] Semua video sudah terpakai, fallback ke pool penuh');
       return pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)] : null;
     } catch (e) {
@@ -78,7 +76,6 @@ class SchedulerService {
     this._runningScheduleIds.add(schedule.id);
 
     try {
-      // Row lock — cegah double fire dari proses lain
       const { rows: fresh } = await this.db.query(
         "SELECT status FROM schedules WHERE id = $1 FOR UPDATE SKIP LOCKED",
         [schedule.id]
@@ -88,7 +85,6 @@ class SchedulerService {
         return;
       }
 
-      // Mark running sebelum eksekusi apapun
       await this.db.query(
         "UPDATE schedules SET status = 'running' WHERE id = $1",
         [schedule.id]
@@ -101,13 +97,15 @@ class SchedulerService {
         return;
       }
 
+      // ─── BACA DARI JSONB OPTIONS ───
+      const options = schedule.options || {};
       let finalTitle          = schedule.title;
       let finalDesc           = '';
-      let finalThumb          = schedule.auto ? null : (schedule.thumbnail_path || null);
-      let finalVideoReadyPath = schedule.auto ? null : (schedule.video_ready_path || null);
+      let finalThumb          = schedule.auto ? null : (options.thumbnailPath || null);
+      let finalVideoReadyPath = schedule.auto ? null : (options.videoReadyPath || null);
+      let finalMode           = options.mode || 'encode';
 
       if (schedule.auto) {
-        // Gabung asset dari stream aktif + booking schedule lain yang parallel
         const usedByStreams = this.streamService.getUsedAssets();
         const booked        = assetBooking.getBookedAssets();
 
@@ -116,25 +114,16 @@ class SchedulerService {
         const usedThumbs = [...usedByStreams.thumbs, ...booked.thumbs];
         const usedVideos = [...(usedByStreams.videos || []), ...booked.videos];
 
-        // ── Title ──
-        const tRes = await this.db.query(
-          "SELECT value FROM broadcast_assets WHERE type = 'title'"
-        );
+        const tRes = await this.db.query("SELECT value FROM broadcast_assets WHERE type = 'title'");
         const availTitles = tRes.rows.filter(r => !usedTitles.includes(r.value));
         const poolTitles  = availTitles.length > 0 ? availTitles : tRes.rows;
-        if (poolTitles.length > 0)
-          finalTitle = poolTitles[Math.floor(Math.random() * poolTitles.length)].value;
+        if (poolTitles.length > 0) finalTitle = poolTitles[Math.floor(Math.random() * poolTitles.length)].value;
 
-        // ── Description ──
-        const dRes = await this.db.query(
-          "SELECT value FROM broadcast_assets WHERE type = 'description'"
-        );
+        const dRes = await this.db.query("SELECT value FROM broadcast_assets WHERE type = 'description'");
         const availDescs = dRes.rows.filter(r => !usedDescs.includes(r.value));
         const poolDescs  = availDescs.length > 0 ? availDescs : dRes.rows;
-        if (poolDescs.length > 0)
-          finalDesc = poolDescs[Math.floor(Math.random() * poolDescs.length)].value;
+        if (poolDescs.length > 0) finalDesc = poolDescs[Math.floor(Math.random() * poolDescs.length)].value;
 
-        // ── Thumbnail ──
         const THUMB_DIR = '/opt/thumbnails';
         try {
           if (fs.existsSync(THUMB_DIR)) {
@@ -143,9 +132,7 @@ class SchedulerService {
             for (const item of items) {
               const itemPath = path.join(THUMB_DIR, item);
               if (fs.statSync(itemPath).isDirectory()) {
-                const subFiles = fs.readdirSync(itemPath)
-                  .filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f))
-                  .map(f => path.join(itemPath, f));
+                const subFiles = fs.readdirSync(itemPath).filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f)).map(f => path.join(itemPath, f));
                 allFiles.push(...subFiles);
                 if (schedule.folder && item === schedule.folder) priorityFiles.push(...subFiles);
               } else if (/\.(jpg|jpeg|png|webp)$/i.test(item)) {
@@ -157,15 +144,13 @@ class SchedulerService {
             const availAll  = allFiles.filter(f => !usedThumbs.includes(f));
             const poolAll   = availAll.length > 0 ? availAll : allFiles;
             const pool      = priorityFiles.length > 0 ? poolPrio : poolAll;
-            if (pool.length > 0)
-              finalThumb = pool[Math.floor(Math.random() * pool.length)];
+            if (pool.length > 0) finalThumb = pool[Math.floor(Math.random() * pool.length)];
           }
         } catch (e) {
           console.error('[Scheduler] Thumbnail pick error:', e.message);
         }
 
-        // ── Video Jadi (mode copy) ──
-        if (schedule.mode === 'copy') {
+        if (finalMode === 'copy') {
           finalVideoReadyPath = this.pickRandomVideoReady(schedule.folder, usedVideos);
           if (!finalVideoReadyPath) {
             console.error(`[Scheduler] Tidak ada video jadi untuk schedule ${schedule.id}`);
@@ -176,7 +161,6 @@ class SchedulerService {
         }
       }
 
-      // Book semua asset SEBELUM start — biar schedule parallel tau asset ini sudah dipakai
       assetBooking.book(schedule.id, {
         title: finalTitle,
         desc:  finalDesc,
@@ -195,27 +179,21 @@ class SchedulerService {
           songPath:        schedule.auto ? null : schedule.song_path,
           videoReadyPath:  finalVideoReadyPath,
           auto:            schedule.auto,
+          mode:            finalMode,
         });
 
-        await this.db.query(
-          "UPDATE schedules SET status = 'done' WHERE id = $1",
-          [schedule.id]
-        );
+        await this.db.query("UPDATE schedules SET status = 'done' WHERE id = $1", [schedule.id]);
         console.log(`[Scheduler] ✓ Schedule ${schedule.id} channel ${schedule.channel_id} berhasil.`);
         await this.handleRepeat(schedule);
 
       } finally {
-        // Release booking — stream sudah aktif dan register di streamService.activeAssets
         assetBooking.release(schedule.id);
       }
 
     } catch (err) {
       console.error(`[Scheduler] Error schedule ${schedule.id}:`, err.message);
       assetBooking.release(schedule.id);
-      await this.db.query(
-        "UPDATE schedules SET status = 'failed' WHERE id = $1",
-        [schedule.id]
-      ).catch(() => {});
+      await this.db.query("UPDATE schedules SET status = 'failed' WHERE id = $1", [schedule.id]).catch(() => {});
       await this.handleRepeat(schedule);
     } finally {
       this._runningScheduleIds.delete(schedule.id);
@@ -236,16 +214,16 @@ class SchedulerService {
     }
 
     try {
+      // ─── INSERT MENGGUNAKAN KOLOM OPTIONS BUKAN KOLOM LAMA ───
       await this.db.query(
         `INSERT INTO schedules
            (channel_id, scheduled_at, duration_secs, title, folder, auto, status,
-            repeat_type, video_path, song_path, video_ready_path, thumbnail_path, mode)
-         VALUES ($1,$2,$3,$4,$5,$6,'pending',$7,$8,$9,$10,$11,$12)`,
+            repeat_type, video_path, song_path, options)
+         VALUES ($1,$2,$3,$4,$5,$6,'pending',$7,$8,$9,$10)`,
         [
           schedule.channel_id, nextDate, schedule.duration_secs, schedule.title,
           schedule.folder, schedule.auto, schedule.repeat_type,
-          schedule.video_path, schedule.song_path,
-          schedule.video_ready_path, schedule.thumbnail_path, schedule.mode,
+          schedule.video_path, schedule.song_path, schedule.options || '{}'
         ]
       );
       console.log(`[Scheduler] Repeat dibuat untuk ${schedule.channel_id} at ${nextDate}`);

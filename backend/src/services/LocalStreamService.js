@@ -18,7 +18,6 @@ class LocalStreamService {
     this.crashCounts = {};
     this.deleteAfterStreamMap = {};
     this.savedConfigs = {};
-    // KEY BERUBAH: streamId -> ytData (bukan channelId)
     this.streamYoutubeData = {};
     this.reconnectingMap = {};
 
@@ -57,14 +56,12 @@ class LocalStreamService {
     try { fs.writeFileSync(this.STATE_FILE, JSON.stringify(this.streamYoutubeData)); } catch(e) {}
   }
 
-  // Helper: ambil semua ytData untuk channel tertentu
   getChannelYtData(channelId) {
     return Object.entries(this.streamYoutubeData)
       .filter(([, data]) => data && data.channelId === channelId)
       .map(([streamId, data]) => ({ streamId, ...data }));
   }
 
-  // Untuk backward compat - ambil ytData pertama yang masih valid untuk channel
   getActiveYtData(channelId) {
     const entries = this.getChannelYtData(channelId);
     return entries.find(e => Date.now() < e.targetEndTime) || null;
@@ -77,7 +74,6 @@ class LocalStreamService {
       if (!ytData) continue;
       const channelId = ytData.channelId;
       
-      // Cek apakah streamId ini masih ada di processes
       if (this.processes[streamId]) continue;
       
       console.log(`[Reconcile] Stream ${streamId} channel ${channelId} orphan terdeteksi.`);
@@ -92,11 +88,13 @@ class LocalStreamService {
             auto: true 
           }, true, streamId);
         } else {
-          await this.youtubeService.endBroadcast({ 
-            refreshToken: ytData.refreshToken, 
-            broadcastId: ytData.broadcastId, 
-            deleteAfterStream: false 
-          });
+          if (!ytData.broadcastId.startsWith('manual_')) {
+            await this.youtubeService.endBroadcast({ 
+              refreshToken: ytData.refreshToken, 
+              broadcastId: ytData.broadcastId, 
+              deleteAfterStream: false 
+            });
+          }
           delete this.streamYoutubeData[streamId];
           this.saveYtState();
           await db.query('INSERT INTO system_logs (channel_id, message) VALUES ($1, $2)', 
@@ -104,8 +102,6 @@ class LocalStreamService {
         }
       } catch (e) {
         console.error('[Reconcile] Error:', e.message);
-        try { await db.query('INSERT INTO system_logs (channel_id, message) VALUES ($1, $2)', 
-          [channelId, `[RECONCILE] Gagal: ${e.message}`]); } catch(_) {}
       }
     }
   }
@@ -198,9 +194,7 @@ class LocalStreamService {
     if (!isRestart) this.crashCounts[channelId] = 0;
     delete this.reconnectingMap[channelId];
 
-    // Generate streamId baru SELALU (kecuali saat reconcile)
     const streamId = existingStreamId || randomUUID();
-    
     this.savedConfigs[streamId] = { channelId, dbClient, options };
     this.deleteAfterStreamMap[streamId] = !!(options && options.deleteAfterStream);
 
@@ -210,18 +204,22 @@ class LocalStreamService {
         folder, videoPath, songPath, videoReadyPath, deleteAfterStream = false 
       } = options;
 
+      // ─── BYPASS LOGIC: CEK STREAM KEY ATAU TOKEN ───
       const { rows } = await dbClient.query(
-        'SELECT google_refresh_token FROM channels WHERE channel_id = $1', [channelId]
+        'SELECT google_refresh_token, stream_key FROM channels WHERE channel_id = $1', [channelId]
       );
       const refreshToken = rows[0]?.google_refresh_token;
-      if (!refreshToken) throw new Error(`Token Google tidak ditemukan`);
+      const streamKey = rows[0]?.stream_key;
+
+      if (!refreshToken && !streamKey) {
+        throw new Error(`Kredensial Kosong. Isi Stream Key atau Google Token untuk memulai.`);
+      }
 
       let rtmpUrl, broadcastId, youtubeStreamId, targetEndTime, originalStartTime;
       
       let actualThumb = this._resolvePath('/opt/media/thumbnails', thumbnailPath, /\.(jpg|jpeg|png|webp)$/i);
       let actualVideoReadyPath = this._resolvePath('/opt/media/video-ready', videoReadyPath, /\.(mp4|mkv|mov|avi|flv)$/i);
 
-      // Cek apakah ada ytData tersimpan untuk streamId ini (saat reconcile/restart)
       const savedYt = this.streamYoutubeData[streamId];
       if (savedYt && savedYt.rtmpUrl && Date.now() < savedYt.targetEndTime) {
         rtmpUrl = savedYt.rtmpUrl;
@@ -229,42 +227,49 @@ class LocalStreamService {
         youtubeStreamId = savedYt.youtubeStreamId;
         targetEndTime = savedYt.targetEndTime;
         originalStartTime = savedYt.originalStartTime;
-        console.log(`[Stream] Reusing existing broadcast untuk streamId ${streamId}`);
+        console.log(`[Stream] Reusing broadcast untuk streamId ${streamId}`);
       } else {
-        // SELALU buat broadcast BARU untuk setiap start baru
         if (actualThumb === 'RANDOM_THUMBNAIL') {
           const files = this._getFilesRecursive('/opt/media/thumbnails', /\.(jpg|jpeg|png|webp)$/i);
           actualThumb = files.length > 0 ? files[Math.floor(Math.random() * files.length)] : null;
         }
         
-        const ytRes = await this.youtubeService.createBroadcast({ 
-          refreshToken, title, description, thumbnailPath: actualThumb 
-        });
-        rtmpUrl = ytRes.rtmpUrl;
-        broadcastId = ytRes.broadcastId;
-        youtubeStreamId = ytRes.streamId;
+        // JIKA ADA STREAM KEY, SELALU GUNAKAN MANUAL MODE (BYPASS API YOUTUBE)
+        if (streamKey) {
+          rtmpUrl = `rtmp://a.rtmp.youtube.com/live2/${streamKey}`;
+          broadcastId = `manual_${streamId}`;
+          youtubeStreamId = `manual_${streamId}`;
+          console.log(`[Stream] BYPASS API: Menggunakan Manual Stream Key untuk ${channelId}`);
+        } else {
+          // JIKA TIDAK ADA STREAM KEY TAPI ADA TOKEN, GUNAKAN YOUTUBE API
+          const ytRes = await this.youtubeService.createBroadcast({ 
+            refreshToken, title, description, thumbnailPath: actualThumb 
+          });
+          rtmpUrl = ytRes.rtmpUrl;
+          broadcastId = ytRes.broadcastId;
+          youtubeStreamId = ytRes.streamId;
+          console.log(`[Stream] API SUCCESS: Broadcast BARU dibuat ${broadcastId}`);
+        }
         
         targetEndTime = Date.now() + (durationSecs * 1000);
         originalStartTime = new Date();
         
-        // Simpan dengan key streamId (BUKAN channelId)
         this.streamYoutubeData[streamId] = { 
           channelId, rtmpUrl, broadcastId, youtubeStreamId, 
           refreshToken, targetEndTime, originalStartTime 
         };
         this.saveYtState();
-        console.log(`[Stream] Broadcast BARU dibuat: ${broadcastId} untuk stream ${streamId}`);
       }
 
       const remainingSecs = Math.floor((targetEndTime - Date.now()) / 1000);
       if (remainingSecs <= 0) {
         const ytData = this.streamYoutubeData[streamId];
         if (ytData) {
-          await this.youtubeService.endBroadcast({ 
-            refreshToken: ytData.refreshToken, 
-            broadcastId: ytData.broadcastId, 
-            deleteAfterStream: !!this.deleteAfterStreamMap[streamId] 
-          });
+          if (!ytData.broadcastId.startsWith('manual_')) {
+            await this.youtubeService.endBroadcast({ 
+              refreshToken: ytData.refreshToken, broadcastId: ytData.broadcastId, deleteAfterStream: !!this.deleteAfterStreamMap[streamId] 
+            });
+          }
           delete this.streamYoutubeData[streamId];
           this.saveYtState();
         }
@@ -343,29 +348,21 @@ class LocalStreamService {
       setTimeout(() => {
         const ytData = this.streamYoutubeData[streamId];
         if (!ytData) return;
-        this.youtubeService.goLive({ 
-          refreshToken, 
-          broadcastId: ytData.broadcastId, 
-          streamId: ytData.youtubeStreamId 
-        })
-          .then(() => this.wsService.broadcast('stream:live', { 
-            channelId, streamId, ts: new Date().toISOString() 
-          }))
-          .catch(async err => { 
-            try { await dbClient.query(
-              'INSERT INTO system_logs (channel_id, message) VALUES ($1, $2)', 
-              [channelId, `YouTube API: ${err.message}`]
-            ); } catch(e) {} 
-          });
+        
+        // BYPASS GO-LIVE JIKA MENGGUNAKAN MANUAL STREAM KEY
+        if (ytData.broadcastId.startsWith('manual_')) {
+           this.wsService.broadcast('stream:live', { channelId, streamId, ts: new Date().toISOString() });
+        } else {
+           this.youtubeService.goLive({ refreshToken, broadcastId: ytData.broadcastId, streamId: ytData.youtubeStreamId })
+             .then(() => this.wsService.broadcast('stream:live', { channelId, streamId, ts: new Date().toISOString() }))
+             .catch(async err => { try { await dbClient.query('INSERT INTO system_logs (channel_id, message) VALUES ($1, $2)', [channelId, `YouTube API: ${err.message}`]); } catch(e) {} });
+        }
       }, 5000);
 
       let ffmpegLogs = [];
       ffmpeg.stderr.on('data', (data) => {
         const text = data.toString().trim();
-        if (text) { 
-          ffmpegLogs.push(text); 
-          if (ffmpegLogs.length > 8) ffmpegLogs.shift(); 
-        }
+        if (text) { ffmpegLogs.push(text); if (ffmpegLogs.length > 8) ffmpegLogs.shift(); }
         this.wsService.broadcastLog(channelId, text);
       });
 
@@ -387,90 +384,56 @@ class LocalStreamService {
           const fullLogText = ffmpegLogs.join(' ').toLowerCase();
           let diagCategory = 'UNKNOWN_CRASH';
 
-          if (code === 137 || code === 152 || fullLogText.includes('killed') || fullLogText.includes('out of memory')) {
-            diagCategory = 'OOM_KILLED';
-          } else if (code === 146 || fullLogText.includes('broken pipe') || fullLogText.includes('connection reset')) {
-            diagCategory = 'RTMP_DROPPED';
-          } else if (fullLogText.includes('input/output error')) {
-            diagCategory = 'IO_ERROR';
-          }
+          if (code === 137 || code === 152 || fullLogText.includes('killed') || fullLogText.includes('out of memory')) { diagCategory = 'OOM_KILLED'; } 
+          else if (code === 146 || fullLogText.includes('broken pipe') || fullLogText.includes('connection reset')) { diagCategory = 'RTMP_DROPPED'; } 
+          else if (fullLogText.includes('input/output error')) { diagCategory = 'IO_ERROR'; }
 
           const cleanErrorText = ffmpegLogs.join(' | ').replace(/\n/g, ' ').substring(0, 140);
           const diagnosticMessage = `[${diagCategory}] (Exit Code: ${code}) -> ${cleanErrorText}`;
           
-          try { await dbClient.query(
-            'INSERT INTO system_logs (channel_id, message) VALUES ($1, $2)', 
-            [channelId, diagnosticMessage]
-          ); } catch(e) {}
+          try { await dbClient.query('INSERT INTO system_logs (channel_id, message) VALUES ($1, $2)', [channelId, diagnosticMessage]); } catch(e) {}
 
           if (diagCategory !== 'OOM_KILLED') {
             this.reconnectingMap[channelId] = streamId;
             this.executeAutoRestart(streamId, channelId);
           } else {
-            this.wsService.broadcast('stream:stopped', { 
-              channelId, streamId, exitCode: code, ts: new Date().toISOString() 
-            });
+            this.wsService.broadcast('stream:stopped', { channelId, streamId, exitCode: code, ts: new Date().toISOString() });
           }
         } else {
           delete this.reconnectingMap[channelId];
           
-          // End broadcast YouTube untuk streamId ini
           const ytData = this.streamYoutubeData[streamId];
           if (ytData) {
-            await this.youtubeService.endBroadcast({ 
-              refreshToken: ytData.refreshToken, 
-              broadcastId: ytData.broadcastId, 
-              deleteAfterStream: !!this.deleteAfterStreamMap[streamId] 
-            });
+            if (!ytData.broadcastId.startsWith('manual_')) {
+              await this.youtubeService.endBroadcast({ refreshToken: ytData.refreshToken, broadcastId: ytData.broadcastId, deleteAfterStream: !!this.deleteAfterStreamMap[streamId] });
+            }
             delete this.streamYoutubeData[streamId];
             this.saveYtState();
           }
           delete this.deleteAfterStreamMap[streamId];
 
-          // Hapus file video jika deleteAfterStream
           if (assetInfo && assetInfo.deleteAfterStream && assetInfo.finalVideoPath) {
-            try {
-              if (fs.existsSync(assetInfo.finalVideoPath)) {
-                fs.unlinkSync(assetInfo.finalVideoPath);
-                console.log(`[DELETE-AFTER-STREAM] Dihapus: ${assetInfo.finalVideoPath}`);
-              }
-            } catch(delErr) {
-              console.error('[DELETE-AFTER-STREAM] Gagal hapus:', delErr.message);
-            }
+            try { if (fs.existsSync(assetInfo.finalVideoPath)) { fs.unlinkSync(assetInfo.finalVideoPath); } } catch(delErr) {}
           }
 
-          this.wsService.broadcast('stream:stopped', { 
-            channelId, streamId, exitCode: code, ts: new Date().toISOString() 
-          });
+          this.wsService.broadcast('stream:stopped', { channelId, streamId, exitCode: code, ts: new Date().toISOString() });
         }
       });
 
       this.wsService.broadcast('stream:started', { 
-        channelId, streamId, 
-        video: finalVideoFilename, 
+        channelId, streamId, video: finalVideoFilename, 
         song: useStreamCopy ? 'Audio Asli Video' : `Playlist (${count} lagu)`, 
-        mode: useStreamCopy ? 'COPY ⚡' : 'ENCODE', 
-        ts: new Date().toISOString() 
+        mode: useStreamCopy ? 'COPY ⚡' : 'ENCODE', ts: new Date().toISOString() 
       });
 
-      return { 
-        streamId, channelId, 
-        video: finalVideoFilename, 
-        song: useStreamCopy ? 'Audio Asli Video' : `Playlist (${count} lagu, Diacak)`, 
-        mode: useStreamCopy ? 'copy' : 'encode', 
-        pid: ffmpeg.pid 
-      };
+      return { streamId, channelId, video: finalVideoFilename, mode: useStreamCopy ? 'copy' : 'encode', pid: ffmpeg.pid };
 
     } catch (error) {
-      // Cleanup ytData jika gagal saat buat baru
       if (this.streamYoutubeData[streamId] && !existingStreamId) {
         delete this.streamYoutubeData[streamId];
         this.saveYtState();
       }
-      try { await dbClient.query(
-        'INSERT INTO system_logs (channel_id, message) VALUES ($1, $2)', 
-        [channelId, `Gagal Start Engine: ${error.message}`]
-      ); } catch(e) {}
+      try { await dbClient.query('INSERT INTO system_logs (channel_id, message) VALUES ($1, $2)', [channelId, `Gagal Start Engine: ${error.message}`]); } catch(e) {}
       if (!isRestart) this.executeAutoRestart(streamId, channelId);
       throw error;
     }
@@ -485,31 +448,17 @@ class LocalStreamService {
 
     if (attempt <= 5) {
       const backoffDelay = attempt * 15000;
-      try { await config.dbClient.query(
-        'INSERT INTO system_logs (channel_id, message) VALUES ($1, $2)', 
-        [channelId, `[RESUME ACTIVE] Menyambung dalam ${backoffDelay/1000}s (${attempt}/5)`]
-      ); } catch(e) {}
-      
-      setTimeout(async () => { 
-        try { 
-          // Restart dengan streamId yang sama agar reuse broadcast YouTube
-          await this.start(channelId, config.dbClient, config.options, true, streamId); 
-        } catch (err) {} 
-      }, backoffDelay);
+      try { await config.dbClient.query('INSERT INTO system_logs (channel_id, message) VALUES ($1, $2)', [channelId, `[RESUME ACTIVE] Menyambung dalam ${backoffDelay/1000}s (${attempt}/5)`]); } catch(e) {}
+      setTimeout(async () => { try { await this.start(channelId, config.dbClient, config.options, true, streamId); } catch (err) {} }, backoffDelay);
     } else {
       delete this.reconnectingMap[channelId];
       try { 
-        await config.dbClient.query(
-          'INSERT INTO system_logs (channel_id, message) VALUES ($1, $2)', 
-          [channelId, `[CRASH TOTAL] Gagal 5 kali. Menutup broadcast.`]
-        );
+        await config.dbClient.query('INSERT INTO system_logs (channel_id, message) VALUES ($1, $2)', [channelId, `[CRASH TOTAL] Gagal 5 kali. Menutup broadcast.`]);
         const ytData = this.streamYoutubeData[streamId];
         if (ytData) {
-          await this.youtubeService.endBroadcast({ 
-            refreshToken: ytData.refreshToken, 
-            broadcastId: ytData.broadcastId, 
-            deleteAfterStream: !!this.deleteAfterStreamMap[streamId] 
-          });
+          if (!ytData.broadcastId.startsWith('manual_')) {
+             await this.youtubeService.endBroadcast({ refreshToken: ytData.refreshToken, broadcastId: ytData.broadcastId, deleteAfterStream: !!this.deleteAfterStreamMap[streamId] });
+          }
           delete this.streamYoutubeData[streamId];
           this.saveYtState();
         }
@@ -524,14 +473,11 @@ class LocalStreamService {
       const channelId = streamId.replace('reconnecting-', '').replace('orphaned-', '');
       delete this.reconnectingMap[channelId];
       
-      // Cari semua ytData untuk channel ini dan end semuanya
       const channelYtEntries = this.getChannelYtData(channelId);
       for (const entry of channelYtEntries) {
-        this.youtubeService.endBroadcast({ 
-          refreshToken: entry.refreshToken, 
-          broadcastId: entry.broadcastId, 
-          deleteAfterStream: !!this.deleteAfterStreamMap[entry.streamId] 
-        });
+        if (!entry.broadcastId.startsWith('manual_')) {
+          this.youtubeService.endBroadcast({ refreshToken: entry.refreshToken, broadcastId: entry.broadcastId, deleteAfterStream: !!this.deleteAfterStreamMap[entry.streamId] });
+        }
         delete this.streamYoutubeData[entry.streamId];
       }
       this.saveYtState();
@@ -572,21 +518,14 @@ class LocalStreamService {
         thumbnailPath: assets.thumbnailPath || null,
         mode: isCopyMode ? 'copy' : 'encode',
         videoFilename: assets.finalVideoPath ? path.basename(assets.finalVideoPath) : null,
-        songInfo: isCopyMode ? 'Audio Asli Video' : (assets.playlistPath ? 'Playlist Lagu (Diacak)' : null),
+        songInfo: isCopyMode ? 'Audio Asli Video' : (assets.playlistPath ? 'Playlist Lagu' : null),
       };
     });
     
     const reconnecting = Object.keys(this.reconnectingMap).map(cId => {
-      // Cari ytData untuk channel ini
       const ytEntries = this.getChannelYtData(cId);
       const startedAt = ytEntries[0]?.originalStartTime || new Date();
-      return { 
-        streamId: 'reconnecting-' + cId, 
-        channelId: cId, 
-        pid: 0, 
-        startedAt, 
-        elapsedSeconds: Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000) 
-      };
+      return { streamId: 'reconnecting-' + cId, channelId: cId, pid: 0, startedAt, elapsedSeconds: Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000) };
     });
 
     const activeChannels = new Set(Object.values(this.channelMap));
@@ -595,31 +534,20 @@ class LocalStreamService {
     const orphaned = Object.entries(this.streamYoutubeData)
       .filter(([streamId, data]) => {
         if (!data) return false;
-        const channelId = data.channelId;
-        return !this.processes[streamId] && !reconnectingChannels.has(channelId);
+        return !this.processes[streamId] && !reconnectingChannels.has(data.channelId);
       })
       .map(([streamId, data]) => {
         const startedAt = data.originalStartTime || new Date();
-        return { 
-          streamId: 'orphaned-' + data.channelId, 
-          channelId: data.channelId, 
-          pid: 0, 
-          startedAt, 
-          elapsedSeconds: Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000) 
-        };
+        return { streamId: 'orphaned-' + data.channelId, channelId: data.channelId, pid: 0, startedAt, elapsedSeconds: Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000) };
       });
     
     return [...active, ...reconnecting, ...orphaned];
   }
 
-  // Getter untuk backward compat dengan SchedulerService
   get channelYoutubeData() {
-    // Return proxy yang map channelId ke ytData pertama yang valid
     const result = {};
     for (const [streamId, data] of Object.entries(this.streamYoutubeData)) {
-      if (data && !result[data.channelId]) {
-        result[data.channelId] = { ...data, _streamId: streamId };
-      }
+      if (data && !result[data.channelId]) { result[data.channelId] = { ...data, _streamId: streamId }; }
     }
     return result;
   }
