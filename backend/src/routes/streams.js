@@ -46,7 +46,7 @@ function pickRandomVideoReady(folder) {
 }
 
 router.post('/start', async (req, res) => {
-  const { channelId, durationSecs, title, description, thumbnailPath, folder, auto, videoPath, songPath, videoReadyPath, mode, deleteAfterStream } = req.body;
+  const { channelId, durationSecs, title, description, thumbnailPath, folder, auto, videoPath, songPath, videoReadyPath, mode, deleteAfterStream, deleteVpsAfterStream } = req.body;
   if (!channelId) return res.status(400).json({ error: 'channelId required' });
 
   try {
@@ -107,7 +107,7 @@ router.post('/start', async (req, res) => {
     }
 
     const result = await req.streamService.start(channelId, req.db, {
-      durationSecs: durationSecs || 21600, title: finalTitle, description: finalDesc, thumbnailPath: finalThumb, deleteAfterStream: !!deleteAfterStream,
+      durationSecs: durationSecs || 21600, title: finalTitle, description: finalDesc, thumbnailPath: finalThumb, deleteAfterStream: !!deleteAfterStream, deleteVpsAfterStream: !!deleteVpsAfterStream,
       folder: folder || 'Semua', videoPath: auto ? null : videoPath, songPath: auto ? null : songPath, videoReadyPath: finalVideoReadyPath
     });
 

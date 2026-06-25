@@ -9,7 +9,7 @@ interface Folder { name: string; count: number; }
 interface Asset { id: number; type: string; value: string; label: string; in_use?: boolean; }
 interface MediaFile { filename: string; path: string; category?: string; }
 interface SystemLog { id: number; channel_id: string; message: string; created_at: string; }
-interface StreamConfig { folders: string[]; videoPath: string | null; videoReadyPath: string | null; songPath: string | null; thumbnailPath: string | null; titleId: number | null; descriptionId: number | null; auto: boolean; duration: number; mode?: string; vrFolder?: string; vrPath?: string | null; vidFolder?: string; vidPath?: string | null; songFolder?: string; thumbFolder?: string; thumbPath?: string | null; titleFolder?: string; descFolder?: string; descId?: number | null; deleteAfterStream?: boolean; [key: string]: any; }
+interface StreamConfig { folders: string[]; videoPath: string | null; videoReadyPath: string | null; songPath: string | null; thumbnailPath: string | null; titleId: number | null; descriptionId: number | null; auto: boolean; duration: number; mode?: string; vrFolder?: string; vrPath?: string | null; vidFolder?: string; vidPath?: string | null; songFolder?: string; thumbFolder?: string; thumbPath?: string | null; titleFolder?: string; descFolder?: string; descId?: number | null; deleteAfterStream?: boolean; deleteVpsAfterStream?: boolean; [key: string]: any; }
 
 const Icon = {
   TV: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="20" height="20"><rect x="2" y="7" width="20" height="15" rx="4" ry="4"/><polyline points="17 2 12 7 7 2"/></svg>,
@@ -31,7 +31,7 @@ const getLADatetimeLocal = () => { const now = new Date(); now.setMinutes(now.ge
 const laLocalToUTCISO = (localStr: string) => { const naiveUTC = new Date(localStr + ':00Z'); const offsetMin = getLAOffsetMinutes(naiveUTC); return new Date(naiveUTC.getTime() - offsetMin * 60000).toISOString(); };
 const getCountdown = (iso: string) => { const diff = new Date(iso).getTime() - Date.now(); if (diff <= 0) return 'Sesaat lagi'; const h = Math.floor(diff / 3600000); const m = Math.floor((diff % 3600000) / 60000); return h > 0 ? `${h}j ${m}m` : `${m}m`; };
 
-const defaultConfig = (): StreamConfig => ({ folders: [], videoPath: null, videoReadyPath: null, songPath: null, thumbnailPath: null, titleId: null, descriptionId: null, auto: true, duration: 4, deleteAfterStream: false });
+const defaultConfig = (): StreamConfig => ({ folders: [], videoPath: null, videoReadyPath: null, songPath: null, thumbnailPath: null, titleId: null, descriptionId: null, auto: true, duration: 4, deleteAfterStream: false, deleteVpsAfterStream: true });
 
 function LAClock() {
   const [time, setTime] = useState(''); const [date, setDate] = useState('');
@@ -131,7 +131,7 @@ export default function StreamsPage() {
     setLoading(true);
     try {
       const payloadFolder = config.folders.length > 0 ? config.folders.join(',') : 'Semua';
-      const body: Record<string, unknown> = { channelId, durationSecs: config.duration * 3600, folder: payloadFolder, auto: config.auto, mode: config.mode || 'encode', deleteAfterStream: !!config.deleteAfterStream };
+      const body: Record<string, unknown> = { channelId, durationSecs: config.duration * 3600, folder: payloadFolder, auto: config.auto, mode: config.mode || 'encode', deleteAfterStream: !!config.deleteAfterStream, deleteVpsAfterStream: !!config.deleteVpsAfterStream };
       if (!config.auto) { body.videoReadyPath = config.vrPath; body.videoPath = config.vidPath; body.songPath = config.songPath; body.thumbnailPath = config.thumbPath; body.titleId = config.titleId; body.descriptionId = config.descId; }
       const res = await fetch('/api/streams/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!res.ok) { const err = await res.json(); alert('Gagal start: ' + err.error); }
@@ -146,7 +146,7 @@ export default function StreamsPage() {
     try {
       await Promise.all(inactiveChannels.map(ch => {
         const config = getConfig(ch.channel_id); const payloadFolder = config.folders.length > 0 ? config.folders.join(',') : 'Semua';
-        return fetch('/api/streams/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channelId: ch.channel_id, durationSecs: config.duration * 3600, folder: payloadFolder, auto: config.auto, mode: config.mode || 'encode', deleteAfterStream: !!config.deleteAfterStream }) });
+        return fetch('/api/streams/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channelId: ch.channel_id, durationSecs: config.duration * 3600, folder: payloadFolder, auto: config.auto, mode: config.mode || 'encode', deleteAfterStream: !!config.deleteAfterStream, deleteVpsAfterStream: !!config.deleteVpsAfterStream }) });
       }));
       await fetchChannels(); await fetchSchedulesAndLogs();
     } finally { setLoading(false); }
@@ -187,7 +187,7 @@ export default function StreamsPage() {
     const config = getConfig(channelId); setLoading(true);
     try {
       const payloadFolder = config.folders.length > 0 ? config.folders.join(',') : 'Semua';
-      const body: Record<string, unknown> = { channelId, scheduledAt, durationSecs: config.duration * 3600, folder: payloadFolder, auto: config.auto, mode: config.mode || 'encode', repeatType: form.repeat || 'none', title: 'Lofi Broadcast', deleteAfterStream: !!config.deleteAfterStream };
+      const body: Record<string, unknown> = { channelId, scheduledAt, durationSecs: config.duration * 3600, folder: payloadFolder, auto: config.auto, mode: config.mode || 'encode', repeatType: form.repeat || 'none', title: 'Lofi Broadcast', deleteAfterStream: !!config.deleteAfterStream, deleteVpsAfterStream: !!config.deleteVpsAfterStream };
       if (!config.auto) { body.videoReadyPath = config.vrPath; body.videoPath = config.vidPath; body.songPath = config.songPath; body.thumbnailPath = config.thumbPath; body.titleId = config.titleId; body.descriptionId = config.descId; }
       const res = await fetch('/api/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!res.ok) { const err = await res.json(); alert('Gagal schedule: ' + err.error); } else { setShowScheduleFor(null); await fetchSchedulesAndLogs(); }
@@ -471,6 +471,14 @@ export default function StreamsPage() {
                       </button>
                       <span className={`text-[10px] font-semibold ${config.deleteAfterStream ? 'text-red-400' : 'text-white/40'}`}>
                         {config.deleteAfterStream ? '🗑 Hapus video setelah streaming selesai' : 'Simpan video setelah streaming'}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2 px-1">
+                      <button onClick={() => updateConfig(ch.channel_id, { deleteVpsAfterStream: !config.deleteVpsAfterStream })} className={`relative w-9 h-5 rounded-full transition-all duration-300 flex-shrink-0 ${config.deleteVpsAfterStream ? 'bg-red-500' : 'bg-white/10'}`}>
+                        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all duration-300 ${config.deleteVpsAfterStream ? 'left-[18px]' : 'left-0.5'}`} />
+                      </button>
+                      <span className={`text-[10px] font-semibold ${config.deleteVpsAfterStream ? 'text-red-400' : 'text-white/40'}`}>
+                        {config.deleteVpsAfterStream ? '🗑 Hapus file VPS juga (Video Jadi)' : '💾 File VPS tetap disimpan (terpisah dari VOD YouTube)'}
                       </span>
                     </div>
                   </div>

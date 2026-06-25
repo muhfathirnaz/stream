@@ -201,7 +201,8 @@ class LocalStreamService {
     try {
       const { 
         durationSecs = 21600, title, description, thumbnailPath, 
-        folder, videoPath, songPath, videoReadyPath, deleteAfterStream = false 
+        folder, videoPath, songPath, videoReadyPath, deleteAfterStream = false,
+        deleteVpsAfterStream = false
       } = options;
 
       // ─── BYPASS LOGIC: CEK STREAM KEY ATAU TOKEN ───
@@ -335,6 +336,7 @@ class LocalStreamService {
         playlistPath, 
         videoReadyPath: useStreamCopy ? finalVideoPath : null, 
         deleteAfterStream: !!deleteAfterStream, 
+        deleteVpsAfterStream: !!deleteVpsAfterStream, 
         finalVideoPath, 
         mode: useStreamCopy ? 'copy' : 'encode', 
         videoFilename: finalVideoFilename, 
@@ -412,7 +414,7 @@ class LocalStreamService {
           }
           delete this.deleteAfterStreamMap[streamId];
 
-          if (assetInfo && assetInfo.deleteAfterStream && assetInfo.finalVideoPath) {
+          if (assetInfo && assetInfo.deleteVpsAfterStream && assetInfo.finalVideoPath) {
             try { if (fs.existsSync(assetInfo.finalVideoPath)) { fs.unlinkSync(assetInfo.finalVideoPath); } } catch(delErr) {}
           }
 

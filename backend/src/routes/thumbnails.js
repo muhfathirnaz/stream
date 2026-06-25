@@ -18,6 +18,7 @@ const router = require('express').Router();
 const { exec } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const sharp = require('sharp');
 
 const THUMBNAILS_DIR = process.env.THUMBNAILS_DIR || '/opt/thumbnails';
 const DRIVE_FOLDER = process.env.DRIVE_THUMBNAILS_FOLDER || 'thumbnails';
@@ -106,15 +107,26 @@ router.post('/upload', async (req, res) => {
 
       try {
         if (!fs.existsSync(THUMBNAILS_DIR)) fs.mkdirSync(THUMBNAILS_DIR, { recursive: true });
-        const ext = path.extname(originalName) || '.jpg';
-        const safeName = path.basename(originalName, ext).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40);
+        const originalExt = path.extname(originalName) || '.jpg';
+        const ext = '.jpg'; // selalu .jpg karena dikompres ke JPEG via sharp
+        const safeName = path.basename(originalName, originalExt).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40);
         const finalName = `${safeName}_${Date.now()}${ext}`;
         const safeCategory = category.trim().replace(/[^a-zA-Z0-9_\- ]/g, '');
         const targetDir = safeCategory ? path.join(THUMBNAILS_DIR, safeCategory) : THUMBNAILS_DIR;
         fs.mkdirSync(targetDir, { recursive: true });
         const destPath = path.join(targetDir, finalName);
-        fs.writeFileSync(destPath, fileBuffer);
-        console.log(`[thumbnails] Saved: ${destPath}`);
+
+        try {
+          await sharp(fileBuffer)
+            .resize({ width: 1920, height: 1920, fit: 'inside', withoutEnlargement: true })
+            .jpeg({ quality: 80, mozjpeg: true })
+            .toFile(destPath);
+        } catch (compErr) {
+          console.error('[thumbnails] Compress gagal, simpan file asli:', compErr.message);
+          fs.writeFileSync(destPath, fileBuffer);
+        }
+
+        console.log(`[thumbnails] Saved (compressed): ${destPath}`);
         triggerRcloneSync().catch(console.error);
         req.wsService?.broadcast('thumbnails:updated', { filename: finalName, ts: new Date().toISOString() });
         res.json({ success: true, filename: finalName, path: destPath, sizeBytes: fileBuffer.length });
@@ -190,6 +202,29 @@ router.post('/categories', (req, res) => {
   const dir = path.join(THUMBNAILS_DIR, safe);
   fs.mkdirSync(dir, { recursive: true });
   res.json({ success: true, name: safe });
+});
+
+// ─── PATCH /api/thumbnails/categories/:name ───────────────────────────────────
+router.patch('/categories/:name', (req, res) => {
+  const { name } = req.params;
+  const { newName } = req.body;
+  if (name.includes('..') || name.includes('/')) return res.status(400).json({ error: 'Invalid name' });
+  if (!newName || !newName.trim()) return res.status(400).json({ error: 'newName wajib diisi' });
+  const safeNewName = newName.trim().replace(/[^a-zA-Z0-9_\- ]/g, '');
+  if (!safeNewName) return res.status(400).json({ error: 'newName tidak valid' });
+
+  const oldDir = path.join(THUMBNAILS_DIR, name);
+  const newDir = path.join(THUMBNAILS_DIR, safeNewName);
+
+  if (!fs.existsSync(oldDir)) return res.status(404).json({ error: 'Kategori tidak ditemukan' });
+  if (fs.existsSync(newDir)) return res.status(409).json({ error: 'Nama kategori sudah dipakai' });
+
+  try {
+    fs.renameSync(oldDir, newDir);
+    res.json({ success: true, oldName: name, newName: safeNewName });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ─── DELETE /api/thumbnails/categories/:name ──────────────────────────────────
