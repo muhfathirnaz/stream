@@ -10,6 +10,7 @@ const navItems = [
   { label: 'Media Pool',   icon: '🎵', href: '/media-pool' },
   { label: 'Generator',    icon: '✨', href: '/generator' },
   { label: 'OAuth Tool',   icon: '🔑', href: '/oauth-helper' },
+  { label: 'Render Karaoke', icon: '🎤', href: '/render' },
 ];
 
 export default function Sidebar() {

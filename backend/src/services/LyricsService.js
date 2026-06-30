@@ -1,0 +1,266 @@
+/**
+ * LyricsService
+ * - Transkrip otomatis pakai whisper.cpp (CPU, word-level timestamps)
+ * - Generate file .ass karaoke (highlight kata per kata, ala video karaoke)
+ */
+
+const { execFile } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+
+const WHISPER_BIN = process.env.WHISPER_BIN || '/home/ubuntu/whisper.cpp/build/bin/whisper-cli';
+const WHISPER_MODEL = process.env.WHISPER_MODEL || '/home/ubuntu/whisper.cpp/models/ggml-base.bin';
+const LYRICS_DIR = process.env.LYRICS_DIR || '/opt/media/lyrics';
+const TMP_DIR = '/tmp/lyrics-work';
+
+if (!fs.existsSync(LYRICS_DIR)) fs.mkdirSync(LYRICS_DIR, { recursive: true });
+if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true });
+
+function run(cmd, args, opts = {}) {
+  return new Promise((resolve, reject) => {
+    execFile(cmd, args, { maxBuffer: 1024 * 1024 * 64, ...opts }, (err, stdout, stderr) => {
+      if (err) return reject(new Error(`${err.message}\n${stderr || ''}`));
+      resolve({ stdout, stderr });
+    });
+  });
+}
+
+class LyricsService {
+  constructor(db, wsService) {
+    this.db = db;
+    this.wsService = wsService;
+  }
+
+  _hashPath(songPath) {
+    return crypto.createHash('md5').update(songPath).digest('hex').slice(0, 16);
+  }
+
+  /** Cek apakah lagu sudah punya lyric siap pakai di DB */
+  async getLyricForSong(songPath) {
+    const { rows } = await this.db.query('SELECT * FROM lyrics WHERE song_path = $1', [songPath]);
+    return rows[0] || null;
+  }
+
+  async listAllLyrics() {
+    const { rows } = await this.db.query('SELECT id, song_path, song_filename, status, source, created_at FROM lyrics ORDER BY created_at DESC');
+    return rows;
+  }
+
+  /** Convert lagu apapun formatnya ke WAV 16kHz mono (syarat whisper.cpp) */
+  async _toWav16k(songPath, jobId) {
+    const outWav = path.join(TMP_DIR, `${jobId}_${this._hashPath(songPath)}.wav`);
+    await run('ffmpeg', ['-y', '-i', songPath, '-ar', '16000', '-ac', '1', '-c:a', 'pcm_s16le', outWav]);
+    return outWav;
+  }
+
+  /** Jalankan whisper.cpp, hasilkan JSON kata-per-kata (timestamp tiap kata) */
+  async _transcribeWords(wavPath, jobId, language = 'auto') {
+    const outBase = path.join(TMP_DIR, `${jobId}_out`);
+    await run(WHISPER_BIN, [
+      '-m', WHISPER_MODEL,
+      '-f', wavPath,
+      '-ml', '1',          // 1 kata per segmen -> hasil JSON jadi per-kata
+      '-oj',                // output JSON
+      '-of', outBase,
+      '-l', language,
+      '-np', '-nt',
+      '-t', '4',             // 4 core sesuai VPS
+    ], { timeout: 30 * 60 * 1000 }); // max 30 menit per lagu, jaga-jaga lagu panjang
+
+    const jsonPath = `${outBase}.json`;
+    const raw = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
+    const segs = raw.transcription || [];
+
+    const words = segs
+      .map(s => ({
+        word: (s.text || '').trim(),
+        start: this._tsToSeconds(s.offsets ? s.offsets.from : s.timestamps.from),
+        end: this._tsToSeconds(s.offsets ? s.offsets.to : s.timestamps.to),
+      }))
+      .filter(w => w.word.length > 0);
+
+    try { fs.unlinkSync(jsonPath); } catch (e) {}
+    return words;
+  }
+
+  // offsets.from/to dari whisper.cpp dalam milidetik kalau pakai "offsets", atau string "HH:MM:SS,mmm" kalau "timestamps"
+  _tsToSeconds(val) {
+    if (typeof val === 'number') return val / 1000;
+    const m = String(val).match(/(\d+):(\d+):(\d+)[.,](\d+)/);
+    if (!m) return 0;
+    const [, h, mi, s, ms] = m;
+    return (+h) * 3600 + (+mi) * 60 + (+s) + (+ms) / 1000;
+  }
+
+  /** Bangun file .ass karaoke dari daftar kata (highlight kata aktif) */
+  _buildAss(words, assPath) {
+    const header = `[Script Info]
+ScriptType: v4.00+
+PlayResX: 1280
+PlayResY: 720
+WrapStyle: 0
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Karaoke,Arial,52,&H0000FFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,3,1,2,40,40,60,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+`;
+
+    // Kelompokkan kata jadi baris (line) — baris baru tiap ~6 kata atau jika jeda > 1.2 detik
+    const lines = [];
+    let cur = [];
+    for (let i = 0; i < words.length; i++) {
+      cur.push(words[i]);
+      const next = words[i + 1];
+      const gap = next ? next.start - words[i].end : 999;
+      if (cur.length >= 6 || gap > 1.2 || !next) {
+        lines.push(cur);
+        cur = [];
+      }
+    }
+
+    const fmtT = (sec) => {
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = sec % 60;
+      return `${h}:${String(m).padStart(2, '0')}:${s.toFixed(2).padStart(5, '0')}`;
+    };
+
+    const events = lines.map(line => {
+      const lineStart = line[0].start;
+      const lineEnd = line[line.length - 1].end;
+      // \k butuh durasi tiap kata dalam centiseconds (1/100 detik)
+      const karaokeText = line.map(w => {
+        const durCs = Math.max(1, Math.round((w.end - w.start) * 100));
+        return `{\\k${durCs}}${w.word} `;
+      }).join('');
+      return `Dialogue: 0,${fmtT(lineStart)},${fmtT(lineEnd)},Karaoke,,0,0,0,,${karaokeText.trim()}`;
+    }).join('\n');
+
+    fs.writeFileSync(assPath, header + events + '\n');
+  }
+
+  /**
+   * Proses lengkap: transkrip (kalau belum ada) -> simpan ke DB -> return path .ass
+   * Broadcast progress via WS supaya dashboard bisa nampilin status real-time
+   */
+  async ensureLyrics(songPath, channelIdForLog = null) {
+    const existing = await this.getLyricForSong(songPath);
+    if (existing && existing.status === 'done' && existing.ass_path && fs.existsSync(existing.ass_path)) {
+      return existing;
+    }
+
+    const filename = path.basename(songPath);
+    const jobId = this._hashPath(songPath) + '_' + Date.now();
+
+    await this.db.query(
+      `INSERT INTO lyrics (song_path, song_filename, status, source)
+       VALUES ($1, $2, 'processing', 'auto')
+       ON CONFLICT (song_path) DO UPDATE SET status = 'processing', error_message = NULL, updated_at = NOW()`,
+      [songPath, filename]
+    );
+    this.wsService?.broadcast('lyrics:progress', { songPath, filename, status: 'transcribing' });
+
+    try {
+      const wav = await this._toWav16k(songPath, jobId);
+      const words = await this._transcribeWords(wav, jobId);
+      try { fs.unlinkSync(wav); } catch (e) {}
+
+      if (words.length === 0) throw new Error('Whisper tidak mendeteksi kata apapun (mungkin instrumental).');
+
+      const assPath = path.join(LYRICS_DIR, `${this._hashPath(songPath)}.ass`);
+      this._buildAss(words, assPath);
+
+      await this.db.query(
+        `UPDATE lyrics SET ass_path = $1, words_json = $2, status = 'done', updated_at = NOW() WHERE song_path = $3`,
+        [assPath, JSON.stringify(words), songPath]
+      );
+      this.wsService?.broadcast('lyrics:progress', { songPath, filename, status: 'done', assPath });
+
+      return await this.getLyricForSong(songPath);
+    } catch (err) {
+      await this.db.query(
+        `UPDATE lyrics SET status = 'failed', error_message = $1, updated_at = NOW() WHERE song_path = $2`,
+        [err.message, songPath]
+      );
+      this.wsService?.broadcast('lyrics:progress', { songPath, filename, status: 'failed', error: err.message });
+      throw err;
+    }
+  }
+
+  /** Hapus lyric (kalau user mau transkrip ulang manual) */
+  async deleteLyric(songPath) {
+    const existing = await this.getLyricForSong(songPath);
+    if (existing && existing.ass_path && fs.existsSync(existing.ass_path)) {
+      try { fs.unlinkSync(existing.ass_path); } catch (e) {}
+    }
+    await this.db.query('DELETE FROM lyrics WHERE song_path = $1', [songPath]);
+  }
+
+  /** Upload manual .srt/.vtt/.lrc/.ass -> convert jadi .ass karaoke kalau perlu */
+  async saveManualLyric(songPath, uploadedFilePath, originalExt) {
+    const filename = path.basename(songPath);
+    const assPath = path.join(LYRICS_DIR, `${this._hashPath(songPath)}.ass`);
+
+    if (originalExt === '.ass') {
+      fs.copyFileSync(uploadedFilePath, assPath);
+    } else {
+      // .srt / .vtt / .lrc -> parse jadi words kasar (per baris, tanpa highlight per-kata)
+      const words = this._parsePlainSubtitle(uploadedFilePath, originalExt);
+      this._buildAss(words, assPath);
+    }
+
+    await this.db.query(
+      `INSERT INTO lyrics (song_path, song_filename, ass_path, status, source)
+       VALUES ($1, $2, $3, 'done', 'manual')
+       ON CONFLICT (song_path) DO UPDATE SET ass_path = $3, status = 'done', source = 'manual', updated_at = NOW()`,
+      [songPath, filename, assPath]
+    );
+    return assPath;
+  }
+
+  _parsePlainSubtitle(filePath, ext) {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    const words = [];
+    if (ext === '.srt' || ext === '.vtt') {
+      const blocks = content.split(/\r?\n\r?\n/);
+      for (const block of blocks) {
+        const timeMatch = block.match(/(\d+):(\d+):(\d+)[.,](\d+)\s*--?>\s*(\d+):(\d+):(\d+)[.,](\d+)/);
+        if (!timeMatch) continue;
+        const [, h1, m1, s1, ms1, h2, m2, s2, ms2] = timeMatch.map(Number);
+        const start = h1 * 3600 + m1 * 60 + s1 + ms1 / 1000;
+        const end = h2 * 3600 + m2 * 60 + s2 + ms2 / 1000;
+        const textLines = block.split(/\r?\n/).slice(2).join(' ').trim();
+        if (textLines) {
+          const ws = textLines.split(/\s+/);
+          const per = (end - start) / ws.length;
+          ws.forEach((w, i) => words.push({ word: w, start: start + i * per, end: start + (i + 1) * per }));
+        }
+      }
+    } else if (ext === '.lrc') {
+      const lines = content.split(/\r?\n/);
+      const parsed = [];
+      for (const line of lines) {
+        const m = line.match(/\[(\d+):(\d+)\.(\d+)\](.*)/);
+        if (m) {
+          const [, mm, ss, cs, text] = m;
+          parsed.push({ time: (+mm) * 60 + (+ss) + (+cs) / 100, text: text.trim() });
+        }
+      }
+      for (let i = 0; i < parsed.length; i++) {
+        const start = parsed[i].time;
+        const end = parsed[i + 1] ? parsed[i + 1].time : start + 3;
+        const ws = parsed[i].text.split(/\s+/).filter(Boolean);
+        if (!ws.length) continue;
+        const per = (end - start) / ws.length;
+        ws.forEach((w, j) => words.push({ word: w, start: start + j * per, end: start + (j + 1) * per }));
+      }
+    }
+    return words;
+  }
+}
+
+module.exports = LyricsService;

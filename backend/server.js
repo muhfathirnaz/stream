@@ -22,6 +22,9 @@ const thumbnailsRouter = require('./src/routes/thumbnails');
 const generatorRoutes = require('./src/routes/generator');
 const assetsRouter = require('./src/routes/assets');
 const generatorRouter = require('./src/routes/generator');
+const renderRouter = require('./src/routes/render');
+const LyricsService = require('./src/services/LyricsService');
+const RenderQueueService = require('./src/services/RenderQueueService');
 
 const app = express();
 const server = http.createServer(app);
@@ -55,6 +58,9 @@ const streamService = new LocalStreamService(wsService, songCoord);
 
 const scheduler = new SchedulerService(db, streamService, wsService);
 
+const lyricsService = new LyricsService(db, wsService);
+const renderQueue = new RenderQueueService(db, wsService, lyricsService);
+
 setTimeout(() => {
   streamService.reconcileOrphans(db).catch((e) => console.error('[Reconcile] Gagal jalan:', e.message));
 }, 8000);
@@ -69,6 +75,8 @@ app.use((req, _res, next) => {
   req.wsService = wsService;
   req.streamService = streamService;
   req.songCoord = songCoord;
+  req.lyricsService = lyricsService;
+  req.renderQueue = renderQueue;
   next();
 });
 
@@ -82,6 +90,7 @@ app.use('/api/generator', generatorRoutes);
 app.use('/api/thumbnails', thumbnailsRouter);
 app.use('/api/assets', assetsRouter);
 app.use('/api/generator', generatorRouter);
+app.use('/api/render', renderRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', ts: new Date().toISOString() });

@@ -46,12 +46,26 @@ function pickRandomVideoReady(folder) {
 }
 
 router.post('/start', async (req, res) => {
-  const { channelId, durationSecs, title, description, thumbnailPath, folder, auto, videoPath, songPath, videoReadyPath, mode, deleteAfterStream, deleteVpsAfterStream } = req.body;
+  // 1. TAMBAHKAN titleId dan descriptionId di baris ini
+  const { channelId, durationSecs, title, description, titleId, descriptionId, thumbnailPath, folder, auto, videoPath, songPath, videoReadyPath, mode, deleteAfterStream, deleteVpsAfterStream } = req.body;
   if (!channelId) return res.status(400).json({ error: 'channelId required' });
 
   try {
     let finalTitle = title; 
     let finalDesc = description; 
+
+    // 2. TAMBAHKAN LOGIC LOOKUP ID INI: Ambil teks asli dari database jika titleId / descriptionId dikirim
+    if (!auto) {
+      if (titleId) {
+        const resTitle = await req.db.query("SELECT value FROM broadcast_assets WHERE id = $1", [titleId]);
+        if (resTitle.rows.length > 0) finalTitle = resTitle.rows[0].value;
+      }
+      if (descriptionId) {
+        const resDesc = await req.db.query("SELECT value FROM broadcast_assets WHERE id = $1", [descriptionId]);
+        if (resDesc.rows.length > 0) finalDesc = resDesc.rows[0].value;
+      }
+    }
+
     let finalThumb = resolveThumbPath(thumbnailPath);
     let finalVideoReadyPath = videoReadyPath || null;
     
@@ -59,6 +73,7 @@ router.post('/start', async (req, res) => {
 
     // JIKA AUTO ON ATAU JIKA FIELD SENGAJA DIBIARKAN KOSONG ("acak otomatis" di mode manual)
     if (auto || !finalTitle) {
+// ... (lanjutkan sisa kode di bawahnya jangan ada yang diubah)
       const tRes = await req.db.query("SELECT value FROM broadcast_assets WHERE type = 'title'");
       const availTitles = tRes.rows.filter(r => !used.titles.includes(r.value));
       const poolTitles = availTitles.length > 0 ? availTitles : tRes.rows;
