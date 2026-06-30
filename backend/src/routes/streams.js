@@ -186,3 +186,13 @@ router.get('/logs', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// DELETE /api/streams/logs
+router.delete('/logs', async (req, res) => {
+  try {
+    await req.db.query('DELETE FROM system_logs');
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});

@@ -11,6 +11,7 @@ const navItems = [
   { label: 'Generator',    icon: '✨', href: '/generator' },
   { label: 'OAuth Tool',   icon: '🔑', href: '/oauth-helper' },
   { label: 'Render Karaoke', icon: '🎤', href: '/render' },
+  { label: 'YT Upload', icon: '📺', href: '/youtube-upload' },
 ];
 
 export default function Sidebar() {

@@ -23,8 +23,10 @@ const generatorRoutes = require('./src/routes/generator');
 const assetsRouter = require('./src/routes/assets');
 const generatorRouter = require('./src/routes/generator');
 const renderRouter = require('./src/routes/render');
+const youtubeUploadRouter = require('./src/routes/youtube-upload');
 const LyricsService = require('./src/services/LyricsService');
 const RenderQueueService = require('./src/services/RenderQueueService');
+const YoutubeUploadService = require('./src/services/YoutubeUploadService');
 
 const app = express();
 const server = http.createServer(app);
@@ -60,6 +62,7 @@ const scheduler = new SchedulerService(db, streamService, wsService);
 
 const lyricsService = new LyricsService(db, wsService);
 const renderQueue = new RenderQueueService(db, wsService, lyricsService);
+const youtubeUploadService = new YoutubeUploadService(db, wsService);
 
 setTimeout(() => {
   streamService.reconcileOrphans(db).catch((e) => console.error('[Reconcile] Gagal jalan:', e.message));
@@ -77,6 +80,7 @@ app.use((req, _res, next) => {
   req.songCoord = songCoord;
   req.lyricsService = lyricsService;
   req.renderQueue = renderQueue;
+  req.youtubeUploadService = youtubeUploadService;
   next();
 });
 
@@ -91,6 +95,7 @@ app.use('/api/thumbnails', thumbnailsRouter);
 app.use('/api/assets', assetsRouter);
 app.use('/api/generator', generatorRouter);
 app.use('/api/render', renderRouter);
+app.use('/api/youtube-upload', youtubeUploadRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', ts: new Date().toISOString() });
