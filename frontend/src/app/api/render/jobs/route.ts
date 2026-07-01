@@ -16,3 +16,9 @@ export async function POST(req: NextRequest) {
   const data = await res.json();
   return NextResponse.json(data, { status: res.status });
 }
+
+export async function DELETE() {
+  const res = await fetch(`${BACKEND_URL}/api/render/jobs`, { method: 'DELETE', headers });
+  const data = await res.json();
+  return NextResponse.json(data, { status: res.status });
+}

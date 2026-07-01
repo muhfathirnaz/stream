@@ -10,6 +10,7 @@ const fs = require('fs');
 const path = require('path');
 
 const VIDEO_READY_DIR = process.env.VIDEO_READY_DIR || '/opt/media/video-ready';
+const THUMBNAILS_DIR = process.env.THUMBNAILS_DIR || '/opt/thumbnails';
 
 function listVideoFiles() {
   const results = [];
@@ -32,6 +33,29 @@ function listVideoFiles() {
     }
   }
   return results;
+}
+
+// Cari path absolut thumbnail berdasarkan filename + category (mendukung file di root atau subfolder)
+function resolveThumbnailPath(filename, category) {
+  if (!filename) return null;
+  const safeFilename = path.basename(filename);
+  if (category && category.trim()) {
+    const safeCat = category.trim().replace(/[^a-zA-Z0-9_\- ]/g, '');
+    const candidate = path.join(THUMBNAILS_DIR, safeCat, safeFilename);
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  const rootCandidate = path.join(THUMBNAILS_DIR, safeFilename);
+  if (fs.existsSync(rootCandidate)) return rootCandidate;
+  // fallback: cari di semua subfolder
+  if (fs.existsSync(THUMBNAILS_DIR)) {
+    const dirs = fs.readdirSync(THUMBNAILS_DIR, { withFileTypes: true })
+      .filter(i => i.isDirectory()).map(i => i.name);
+    for (const dir of dirs) {
+      const candidate = path.join(THUMBNAILS_DIR, dir, safeFilename);
+      if (fs.existsSync(candidate)) return candidate;
+    }
+  }
+  return null;
 }
 
 // GET /api/youtube-upload/video-files
@@ -66,18 +90,28 @@ router.post('/jobs', async (req, res) => {
     privacyStatus,
     scheduledAt,
     deleteAfterUpload,
+    thumbnailFilename,
+    thumbnailCategory,
   } = req.body;
 
   if (!channelId) return res.status(400).json({ error: 'channelId wajib diisi' });
   if (!videoPath) return res.status(400).json({ error: 'videoPath wajib diisi' });
   if (!title || !title.trim()) return res.status(400).json({ error: 'title wajib diisi' });
 
+  let thumbnailPath = null;
+  if (thumbnailFilename) {
+    thumbnailPath = resolveThumbnailPath(thumbnailFilename, thumbnailCategory);
+    if (!thumbnailPath) {
+      return res.status(400).json({ error: `Thumbnail "${thumbnailFilename}" tidak ditemukan` });
+    }
+  }
+
   try {
     const { rows } = await req.db.query(
       `INSERT INTO youtube_upload_jobs
          (channel_id, video_path, title, description, tags, privacy_status,
-          scheduled_at, delete_after_upload, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending')
+          scheduled_at, delete_after_upload, thumbnail_path, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending')
        RETURNING *`,
       [
         channelId,
@@ -88,6 +122,7 @@ router.post('/jobs', async (req, res) => {
         privacyStatus || 'public',
         scheduledAt ? new Date(scheduledAt) : new Date(),
         !!deleteAfterUpload,
+        thumbnailPath,
       ]
     );
     res.json({ success: true, job: rows[0] });

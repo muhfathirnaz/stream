@@ -131,7 +131,8 @@ export default function StreamsPage() {
     setLoading(true);
     try {
       const payloadFolder = config.folders.length > 0 ? config.folders.join(',') : 'Semua';
-      const body: Record<string, unknown> = { channelId, durationSecs: config.duration * 3600, folder: payloadFolder, auto: config.auto, mode: config.mode || 'encode', deleteAfterStream: !!config.deleteAfterStream, deleteVpsAfterStream: !!config.deleteVpsAfterStream };
+      const durationSecs = config.duration === 0 ? 999 * 3600 : config.duration * 3600;
+      const body: Record<string, unknown> = { channelId, durationSecs, folder: payloadFolder, auto: config.auto, mode: config.mode || 'encode', deleteAfterStream: !!config.deleteAfterStream, deleteVpsAfterStream: !!config.deleteVpsAfterStream };
       if (!config.auto) { body.videoReadyPath = config.vrPath; body.videoPath = config.vidPath; body.songPath = config.songPath; body.thumbnailPath = config.thumbPath; body.titleId = config.titleId; body.descriptionId = config.descId; }
       const res = await fetch('/api/streams/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!res.ok) { const err = await res.json(); alert('Gagal start: ' + err.error); }
@@ -146,7 +147,8 @@ export default function StreamsPage() {
     try {
       await Promise.all(inactiveChannels.map(ch => {
         const config = getConfig(ch.channel_id); const payloadFolder = config.folders.length > 0 ? config.folders.join(',') : 'Semua';
-        return fetch('/api/streams/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channelId: ch.channel_id, durationSecs: config.duration * 3600, folder: payloadFolder, auto: config.auto, mode: config.mode || 'encode', deleteAfterStream: !!config.deleteAfterStream, deleteVpsAfterStream: !!config.deleteVpsAfterStream }) });
+        const durSecs = config.duration === 0 ? 999 * 3600 : config.duration * 3600;
+        return fetch('/api/streams/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channelId: ch.channel_id, durationSecs: durSecs, folder: payloadFolder, auto: config.auto, mode: config.mode || 'encode', deleteAfterStream: !!config.deleteAfterStream, deleteVpsAfterStream: !!config.deleteVpsAfterStream }) });
       }));
       await fetchChannels(); await fetchSchedulesAndLogs();
     } finally { setLoading(false); }
@@ -187,7 +189,8 @@ export default function StreamsPage() {
     const config = getConfig(channelId); setLoading(true);
     try {
       const payloadFolder = config.folders.length > 0 ? config.folders.join(',') : 'Semua';
-      const body: Record<string, unknown> = { channelId, scheduledAt, durationSecs: config.duration * 3600, folder: payloadFolder, auto: config.auto, mode: config.mode || 'encode', repeatType: form.repeat || 'none', title: 'Lofi Broadcast', deleteAfterStream: !!config.deleteAfterStream, deleteVpsAfterStream: !!config.deleteVpsAfterStream };
+      const schedDurSecs = config.duration === 0 ? 999 * 3600 : config.duration * 3600;
+      const body: Record<string, unknown> = { channelId, scheduledAt, durationSecs: schedDurSecs, folder: payloadFolder, auto: config.auto, mode: config.mode || 'encode', repeatType: form.repeat || 'none', title: 'Lofi Broadcast', deleteAfterStream: !!config.deleteAfterStream, deleteVpsAfterStream: !!config.deleteVpsAfterStream };
       if (!config.auto) { body.videoReadyPath = config.vrPath; body.videoPath = config.vidPath; body.songPath = config.songPath; body.thumbnailPath = config.thumbPath; body.titleId = config.titleId; body.descriptionId = config.descId; }
       const res = await fetch('/api/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!res.ok) { const err = await res.json(); alert('Gagal schedule: ' + err.error); } else { setShowScheduleFor(null); await fetchSchedulesAndLogs(); }
@@ -457,13 +460,15 @@ export default function StreamsPage() {
                       </div>
                     )}
                     
-                    <div className="mt-4 flex items-center gap-2">
+                    <div className="mt-4 flex items-center gap-2 flex-wrap">
                        <span className="text-[10px] text-white/40">Durasi (Jam):</span>
                        <div className="flex flex-wrap gap-1">
                         {[1,2,3,4,6,8,10,12].map(h => (
                           <button key={h} onClick={() => updateConfig(ch.channel_id, { duration: h })} className={`w-9 h-6 rounded-md text-[10px] font-bold transition-all ${config.duration === h ? 'bg-white text-black' : 'glass-input text-white/60 hover:bg-white/10'}`}>{h}</button>
                         ))}
+                        <button onClick={() => updateConfig(ch.channel_id, { duration: 0 })} className={`px-3 h-6 rounded-md text-[10px] font-bold transition-all ${config.duration === 0 ? 'bg-amber-400 text-black' : 'glass-input text-amber-400/60 hover:bg-amber-400/10 hover:text-amber-400'}`}>∞ Manual</button>
                       </div>
+                      {config.duration === 0 && <span className="text-[9px] text-amber-400/70 bg-amber-400/5 border border-amber-400/20 px-2 py-0.5 rounded-full">Stream sampai distop manual · maks ~41 hari</span>}
                     </div>
                     <div className="mt-3 flex items-center gap-2 px-1">
                       <button onClick={() => updateConfig(ch.channel_id, { deleteAfterStream: !config.deleteAfterStream })} className={`relative w-9 h-5 rounded-full transition-all duration-300 flex-shrink-0 ${config.deleteAfterStream ? 'bg-red-500' : 'bg-white/10'}`}>
@@ -478,7 +483,7 @@ export default function StreamsPage() {
                         <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all duration-300 ${config.deleteVpsAfterStream ? 'left-[18px]' : 'left-0.5'}`} />
                       </button>
                       <span className={`text-[10px] font-semibold ${config.deleteVpsAfterStream ? 'text-red-400' : 'text-white/40'}`}>
-                        {config.deleteVpsAfterStream ? '🗑 Hapus file VPS juga (Video Jadi)' : '💾 File VPS tetap disimpan (terpisah dari VOD YouTube)'}
+                        {config.deleteVpsAfterStream ? '🗑 Hapus semua aset (video, audio manual, thumbnail, judul & deskripsi)' : '💾 Semua aset tetap disimpan untuk dipakai ulang'}
                       </span>
                     </div>
                   </div>
@@ -500,7 +505,7 @@ export default function StreamsPage() {
                       <div className="flex items-end gap-2">
                          <button onClick={() => setShowScheduleFor(null)} className="px-4 py-2 rounded-lg text-xs font-semibold text-white/50 hover:bg-white/10 hover:text-white transition-colors">Batal</button>
                          <button onClick={() => scheduleStream(ch.channel_id)} disabled={loading} className="w-full sm:w-auto bg-amber-400 text-black px-4 py-2 rounded-lg text-xs font-bold hover:scale-95 transition-transform whitespace-nowrap">
-                           Konfirmasi ({config.duration} Jam)
+                           Konfirmasi ({config.duration === 0 ? '∞ Manual' : `${config.duration} Jam`})
                          </button>
                       </div>
                     </div>

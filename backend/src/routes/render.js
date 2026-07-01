@@ -15,6 +15,18 @@ const router = require('express').Router();
 const fs = require('fs');
 const path = require('path');
 const Busboy = require('busboy');
+const { execSync } = require('child_process');
+
+function getDuration(filePath) {
+  try {
+    const out = execSync(
+      `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`,
+      { timeout: 5000 }
+    ).toString().trim();
+    const secs = parseFloat(out);
+    return isNaN(secs) ? null : secs;
+  } catch { return null; }
+}
 
 const MUSIC_DIR = '/opt/media/music';
 const VIDEO_DIR = '/opt/media/video';
@@ -45,7 +57,8 @@ function listFilesRecursive(baseDir, extRegex) {
 router.get('/songs', (req, res) => {
   try {
     const songs = listFilesRecursive(MUSIC_DIR, /\.(mp3|wav|flac|ogg|m4a|aac)$/i);
-    res.json({ songs });
+    const songsWithDur = songs.map(s => ({ ...s, duration: getDuration(s.path) }));
+    res.json({ songs: songsWithDur });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -145,6 +158,14 @@ router.get('/jobs', async (req, res) => {
   try {
     const jobs = await req.renderQueue.listJobs();
     res.json({ jobs });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/render/jobs — hapus semua jobs (kecuali yang sedang running)
+router.delete('/jobs', async (req, res) => {
+  try {
+    await req.db.query("DELETE FROM render_jobs WHERE status NOT IN ('running', 'queued')");
+    res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

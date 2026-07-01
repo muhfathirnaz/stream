@@ -130,9 +130,11 @@ class LocalStreamService {
     const playlistPath = `/tmp/playlist_${streamId}.txt`;
     let files = [];
     let actualSongPath = this._resolvePath('/opt/media/music', songPath, /\.(mp3|wav|flac|ogg|m4a|aac)$/i);
+    let singleSongMode = false;
     
     if (actualSongPath && fs.existsSync(actualSongPath)) {
       files.push(actualSongPath);
+      singleSongMode = true;
     } else {
       const MUSIC_DIR = '/opt/media/music';
       let selectedFolders = [];
@@ -166,7 +168,13 @@ class LocalStreamService {
     }
     const content = contentFiles.map(f => `file '${f.replace(/'/g, "'\\''")}'`).join('\n');
     fs.writeFileSync(playlistPath, content);
-    return { playlistPath, firstSong: path.basename(safeFiles[0]), count: safeFiles.length };
+    return {
+      playlistPath,
+      firstSong: path.basename(safeFiles[0]),
+      count: safeFiles.length,
+      // Cuma dianggap "single song" kalau memang 1 file spesifik dipilih manual (bukan playlist library)
+      singleSongPath: (singleSongMode && safeFiles.length === 1) ? safeFiles[0] : null,
+    };
   }
 
   async fetchNextVideo(channelId, folder, exactPath) {
@@ -295,13 +303,13 @@ class LocalStreamService {
         finalVideoFilename = video.filename;
       }
 
-      let playlistPath = ''; let count = 0; let ffmpegArgs = [];
+      let playlistPath = ''; let count = 0; let ffmpegArgs = []; let singleSongFilePath = null;
 
       if (useStreamCopy) {
         await new Promise(resolve => setTimeout(resolve, 8000));
         ffmpegArgs = [
           '-y', '-fflags', '+genpts', '-re', '-stream_loop', '-1', '-i', finalVideoPath, 
-          '-t', String(remainingSecs),
+          ...(remainingSecs < 3596000 ? ['-t', String(remainingSecs)] : []),
           '-c:v', 'copy', '-c:a', 'copy', 
           '-flvflags', 'no_duration_filesize', 
           '-rw_timeout', '10000000', '-f', 'flv', rtmpUrl,
@@ -310,11 +318,12 @@ class LocalStreamService {
         const playlistData = this.buildPlaylist(folder, songPath, streamId);
         playlistPath = playlistData.playlistPath;
         count = playlistData.count;
+        singleSongFilePath = playlistData.singleSongPath;
         await new Promise(resolve => setTimeout(resolve, 8000));
         ffmpegArgs = [
           '-y', '-fflags', '+genpts', '-re', '-stream_loop', '-1', '-i', finalVideoPath, 
           '-fflags', '+genpts', '-re', '-f', 'concat', '-safe', '0', '-i', playlistPath, 
-          '-t', String(remainingSecs),
+          ...(remainingSecs < 3596000 ? ['-t', String(remainingSecs)] : []),
           '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'zerolatency', 
           '-b:v', '1500k', '-maxrate', '1800k', '-bufsize', '3000k',
           '-vf', 'scale=1280:720,format=yuv420p', '-r', '24', '-g', '48',
@@ -335,6 +344,8 @@ class LocalStreamService {
         thumbnailPath: actualThumb, 
         playlistPath, 
         videoReadyPath: useStreamCopy ? finalVideoPath : null, 
+        // Audio cuma dihapus kalau ini lagu manual single-file, BUKAN playlist/library acak
+        songFilePath: useStreamCopy ? null : singleSongFilePath,
         deleteAfterStream: !!deleteAfterStream, 
         deleteVpsAfterStream: !!deleteVpsAfterStream, 
         finalVideoPath, 
@@ -414,8 +425,31 @@ class LocalStreamService {
           }
           delete this.deleteAfterStreamMap[streamId];
 
-          if (assetInfo && assetInfo.deleteVpsAfterStream && assetInfo.finalVideoPath) {
-            try { if (fs.existsSync(assetInfo.finalVideoPath)) { fs.unlinkSync(assetInfo.finalVideoPath); } } catch(delErr) {}
+          // ─── HAPUS SEMUA: VIDEO + AUDIO + THUMBNAIL + METADATA (JUDUL/DESKRIPSI) ───
+          if (assetInfo && assetInfo.deleteVpsAfterStream) {
+            // Video
+            if (assetInfo.finalVideoPath) {
+              try { if (fs.existsSync(assetInfo.finalVideoPath)) fs.unlinkSync(assetInfo.finalVideoPath); } catch(delErr) {}
+            }
+            // Audio (cuma kalau lagu manual single-file, bukan playlist acak dari library)
+            if (assetInfo.songFilePath) {
+              try { if (fs.existsSync(assetInfo.songFilePath)) fs.unlinkSync(assetInfo.songFilePath); } catch(delErr) {}
+            }
+            // Thumbnail
+            if (assetInfo.thumbnailPath) {
+              try { if (fs.existsSync(assetInfo.thumbnailPath)) fs.unlinkSync(assetInfo.thumbnailPath); } catch(delErr) {}
+            }
+            // Metadata (judul & deskripsi) dari database supaya gak kepakai ulang
+            try {
+              if (assetInfo.title) {
+                await dbClient.query("DELETE FROM broadcast_assets WHERE type = 'title' AND value = $1", [assetInfo.title]);
+              }
+              if (assetInfo.description) {
+                await dbClient.query("DELETE FROM broadcast_assets WHERE type = 'description' AND value = $1", [assetInfo.description]);
+              }
+            } catch (metaErr) {
+              console.error('[Cleanup] Gagal hapus metadata judul/deskripsi:', metaErr.message);
+            }
           }
 
           this.wsService.broadcast('stream:stopped', { channelId, streamId, exitCode: code, ts: new Date().toISOString() });

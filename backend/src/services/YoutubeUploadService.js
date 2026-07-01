@@ -1,6 +1,6 @@
 /**
  * YoutubeUploadService
- * Upload video reguler ke YouTube (bukan live), dengan support schedule.
+ * Upload video reguler ke YouTube (bukan live), dengan support schedule + thumbnail.
  */
 
 const { google } = require('googleapis');
@@ -18,7 +18,6 @@ class YoutubeUploadService {
 
   start() {
     if (this._timer) return;
-    // Cek tiap menit
     this._timer = setInterval(() => this.checkJobs(), 60000);
     setTimeout(() => this.checkJobs(), 8000);
   }
@@ -45,7 +44,6 @@ class YoutubeUploadService {
   async _runJob(job) {
     this._runningIds.add(job.id);
     try {
-      // Mark running
       await this.db.query(
         "UPDATE youtube_upload_jobs SET status = 'uploading', started_at = NOW() WHERE id = $1",
         [job.id]
@@ -54,7 +52,6 @@ class YoutubeUploadService {
         jobId: job.id, status: 'uploading', progress: 0
       });
 
-      // Ambil refresh_token dari channel
       const { rows: chRows } = await this.db.query(
         'SELECT google_refresh_token FROM channels WHERE channel_id = $1',
         [job.channel_id]
@@ -66,7 +63,6 @@ class YoutubeUploadService {
         throw new Error(`File tidak ditemukan: ${job.video_path}`);
       }
 
-      // Setup OAuth
       const credPath = path.resolve(__dirname, '../../credentials.json');
       let clientId = process.env.GOOGLE_CLIENT_ID;
       let clientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -90,7 +86,6 @@ class YoutubeUploadService {
       const totalBytes = stat.size;
       let uploadedBytes = 0;
 
-      // Parse tags
       const tagsArr = job.tags
         ? job.tags.split(',').map((t) => t.trim()).filter(Boolean)
         : [];
@@ -105,7 +100,7 @@ class YoutubeUploadService {
               title: job.title,
               description: job.description || '',
               tags: tagsArr,
-              categoryId: '10', // Music
+              categoryId: '10',
             },
             status: {
               privacyStatus: job.privacy_status || 'public',
@@ -136,7 +131,24 @@ class YoutubeUploadService {
       const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
       console.log(`[YTUpload] ✅ Upload selesai: ${videoUrl}`);
 
-      // Mark done
+      // ── Set thumbnail kalau ada ──
+      if (job.thumbnail_path && fs.existsSync(job.thumbnail_path)) {
+        try {
+          const thumbStat = fs.statSync(job.thumbnail_path);
+          if (thumbStat.size > 2 * 1024 * 1024) {
+            console.warn(`[YTUpload] ⚠️ Thumbnail ${job.thumbnail_path} > 2MB (${(thumbStat.size/1024/1024).toFixed(2)}MB), skip set thumbnail`);
+          } else {
+            await youtube.thumbnails.set({
+              videoId,
+              media: { body: fs.createReadStream(job.thumbnail_path) },
+            });
+            console.log(`[YTUpload] 🖼️ Thumbnail diset: ${path.basename(job.thumbnail_path)}`);
+          }
+        } catch (thumbErr) {
+          console.warn('[YTUpload] ⚠️ Gagal set thumbnail:', thumbErr.message);
+        }
+      }
+
       await this.db.query(
         `UPDATE youtube_upload_jobs
          SET status = 'done', finished_at = NOW(),
@@ -149,7 +161,6 @@ class YoutubeUploadService {
         jobId: job.id, status: 'done', progress: 100, videoUrl
       });
 
-      // Hapus file VPS jika diminta
       if (job.delete_after_upload && fs.existsSync(job.video_path)) {
         fs.unlinkSync(job.video_path);
         console.log(`[YTUpload] 🗑 File dihapus: ${job.video_path}`);

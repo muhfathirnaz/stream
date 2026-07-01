@@ -11,6 +11,7 @@ interface UploadJob {
   status: string; youtube_url?: string; error_message?: string;
   started_at?: string; finished_at?: string; created_at: string;
 }
+interface ThumbnailFile { filename: string; sizeBytes: number; createdAt: string; category?: string; }
 
 const fmtSize = (b: number) => b < 1048576 ? `${(b/1024).toFixed(1)} KB` : b < 1073741824 ? `${(b/1048576).toFixed(1)} MB` : `${(b/1073741824).toFixed(2)} GB`;
 const LA_TZ = 'America/Los_Angeles';
@@ -55,18 +56,28 @@ export default function YoutubeUploadPage() {
   const [submitting, setSubmitting] = useState(false);
   const [filterCat, setFilterCat] = useState('__all__');
 
+  // Thumbnail
+  const [thumbnails, setThumbnails] = useState<ThumbnailFile[]>([]);
+  const [thumbMode, setThumbMode] = useState<'pool' | 'upload'>('pool');
+  const [thumbFilterCat, setThumbFilterCat] = useState('__all__');
+  const [selectedThumb, setSelectedThumb] = useState<{ filename: string; category: string } | null>(null);
+  const [thumbUploading, setThumbUploading] = useState(false);
+  const [thumbUploadError, setThumbUploadError] = useState('');
+
   const wsRef = useRef<WebSocket | null>(null);
 
   const fetchAll = useCallback(async () => {
     try {
-      const [chRes, vfRes, jRes] = await Promise.all([
+      const [chRes, vfRes, jRes, thRes] = await Promise.all([
         fetch('/api/channels'),
         fetch('/api/youtube-upload/video-files'),
         fetch('/api/youtube-upload/jobs'),
+        fetch('/api/thumbnails'),
       ]);
       if (chRes.ok) { const d = await chRes.json(); setChannels(d.filter((c: Channel) => !!c.google_refresh_token)); }
       if (vfRes.ok) { const d = await vfRes.json(); setVideoFiles(d.files || []); }
       if (jRes.ok) { const d = await jRes.json(); setJobs(d.jobs || []); }
+      if (thRes.ok) { const d = await thRes.json(); setThumbnails(d.files || []); }
     } catch {}
   }, []);
 
@@ -98,8 +109,28 @@ export default function YoutubeUploadPage() {
     return () => { clearTimeout(timer); ws?.close(); };
   }, [fetchAll]);
 
-  const categories = [...new Set(videoFiles.map(f => f.category))];
+  const categories = Array.from(new Set(videoFiles.map(f => f.category)));
   const visibleFiles = videoFiles.filter(f => filterCat === '__all__' || f.category === filterCat);
+
+  const thumbCategories = Array.from(new Set(thumbnails.map(t => t.category || 'Uncategorized')));
+  const visibleThumbs = thumbnails.filter(t => thumbFilterCat === '__all__' || (t.category || 'Uncategorized') === thumbFilterCat);
+
+  const uploadCustomThumb = async (file: File) => {
+    if (!file.type.startsWith('image/')) { setThumbUploadError('Hanya file gambar (JPG/PNG/WebP)'); return; }
+    if (file.size > 5 * 1024 * 1024) { setThumbUploadError('Maksimum 5MB'); return; }
+    setThumbUploading(true); setThumbUploadError('');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/thumbnails/upload', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) { setThumbUploadError(data.error || 'Upload gagal'); return; }
+      setSelectedThumb({ filename: data.filename, category: '' });
+      await fetchAll();
+    } catch {
+      setThumbUploadError('Terjadi kesalahan saat upload');
+    } finally { setThumbUploading(false); }
+  };
 
   const submit = async () => {
     if (!channelId) return alert('Pilih channel dulu!');
@@ -108,6 +139,10 @@ export default function YoutubeUploadPage() {
     setSubmitting(true);
     try {
       const body: any = { channelId, videoPath, title, description, tags, privacyStatus: privacy, deleteAfterUpload: deleteAfter };
+      if (selectedThumb) {
+        body.thumbnailFilename = selectedThumb.filename;
+        body.thumbnailCategory = selectedThumb.category;
+      }
       if (scheduleMode === 'schedule') {
         body.scheduledAt = laLocalToUTCISO(scheduledAt);
         if (new Date(body.scheduledAt) <= new Date()) return alert('Waktu schedule sudah lewat!');
@@ -118,7 +153,7 @@ export default function YoutubeUploadPage() {
       });
       const data = await res.json();
       if (!res.ok) return alert('Gagal: ' + data.error);
-      setTitle(''); setDescription(''); setTags(''); setVideoPath('');
+      setTitle(''); setDescription(''); setTags(''); setVideoPath(''); setSelectedThumb(null);
       await fetchAll();
     } finally { setSubmitting(false); }
   };
@@ -207,6 +242,55 @@ export default function YoutubeUploadPage() {
                 <div>
                   <label className="text-[10px] text-white/40 mb-1 block">Waktu (LA / Pacific Time)</label>
                   <input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} className="w-full glass-input rounded-lg px-3 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-amber-400/40" />
+                </div>
+              )}
+            </div>
+
+            <div className="glass-card rounded-[24px] p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="text-[10px] font-bold text-white/50 uppercase tracking-widest">4. Thumbnail (Opsional)</div>
+                <div className="bg-black/30 p-1 rounded-full flex gap-1 border border-white/5">
+                  <button onClick={() => setThumbMode('pool')} className={`px-3 py-1.5 rounded-full text-[10px] font-bold transition-all ${thumbMode==='pool'?'bg-white text-black':'text-white/50 hover:text-white'}`}>Media Pool</button>
+                  <button onClick={() => setThumbMode('upload')} className={`px-3 py-1.5 rounded-full text-[10px] font-bold transition-all ${thumbMode==='upload'?'bg-white text-black':'text-white/50 hover:text-white'}`}>Upload Baru</button>
+                </div>
+              </div>
+
+              {selectedThumb && (
+                <div className="flex items-center gap-3 mb-3 p-2 bg-red-500/5 border border-red-500/20 rounded-xl">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={`/api/thumbnails/preview/${encodeURIComponent(selectedThumb.filename)}`} alt="thumb" className="w-16 h-9 object-cover rounded-md" />
+                  <div className="flex-1 text-[10px] text-white/60 truncate">{selectedThumb.filename}</div>
+                  <button onClick={() => setSelectedThumb(null)} className="text-[10px] font-bold text-white/40 hover:text-red-400 px-2 py-1">Hapus</button>
+                </div>
+              )}
+
+              {thumbMode === 'pool' ? (
+                <>
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    <button onClick={() => setThumbFilterCat('__all__')} className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all ${thumbFilterCat==='__all__'?'bg-white text-black':'glass-input text-white/50 hover:text-white'}`}>Semua</button>
+                    {thumbCategories.map(c => <button key={c} onClick={() => setThumbFilterCat(c)} className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all ${thumbFilterCat===c?'bg-white text-black':'glass-input text-white/50 hover:text-white'}`}>{c}</button>)}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-1">
+                    {visibleThumbs.length === 0 && <div className="col-span-3 text-center text-white/30 text-[10px] py-6">Belum ada thumbnail di Media Pool.</div>}
+                    {visibleThumbs.map(t => {
+                      const isSel = selectedThumb?.filename === t.filename;
+                      return (
+                        <div key={t.filename} onClick={() => setSelectedThumb({ filename: t.filename, category: t.category || '' })}
+                          className={`aspect-video rounded-lg overflow-hidden cursor-pointer border-2 transition-all ${isSel ? 'border-red-400' : 'border-transparent hover:border-white/20'}`}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={`/api/thumbnails/preview/${encodeURIComponent(t.filename)}`} alt={t.filename} className="w-full h-full object-cover" />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <label className="block border-2 border-dashed border-white/10 hover:bg-white/[0.02] rounded-xl p-4 text-center cursor-pointer transition-all">
+                    <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadCustomThumb(f); e.target.value=''; }} />
+                    <div className="text-[11px] text-white/60">{thumbUploading ? '⏳ Mengupload...' : 'Klik untuk pilih gambar (max 5MB)'}</div>
+                  </label>
+                  {thumbUploadError && <div className="text-[10px] text-red-400 mt-2">{thumbUploadError}</div>}
                 </div>
               )}
             </div>

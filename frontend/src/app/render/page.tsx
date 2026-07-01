@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 
-interface MediaFile { filename: string; category: string; path: string; size: number; }
+interface MediaFile { filename: string; category: string; path: string; size: number; duration?: number | null; }
 interface LyricStatus { id: number; song_path: string; song_filename: string; status: string; source: string; created_at: string; }
 interface SongConfig { path: string; filename: string; loopToFill: boolean; useLyrics: boolean; }
 interface RenderJob {
@@ -12,6 +12,15 @@ interface RenderJob {
 }
 
 const fmtSize = (b: number) => !b ? '-' : b < 1048576 ? `${(b/1024).toFixed(1)} KB` : `${(b/1048576).toFixed(1)} MB`;
+const fmtDuration = (secs: number | null | undefined) => {
+  if (!secs) return null;
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = Math.floor(secs % 60);
+  if (h > 0) return `${h}j ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+};
 
 export default function RenderKaraokePage() {
   const [songs, setSongs] = useState<MediaFile[]>([]);
@@ -123,7 +132,12 @@ export default function RenderKaraokePage() {
     } finally { setSubmitting(false); }
   };
 
-  const cancelJob = async (id: number) => { await fetch(`/api/render/jobs/${id}/cancel`, { method: 'POST' }); fetchJobs(); };
+const cancelJob = async (id: number) => { await fetch(`/api/render/jobs/${id}/cancel`, { method: 'POST' }); fetchJobs(); };
+  const clearJobs = async () => {
+    if (!confirm('Hapus semua job yang sudah selesai/gagal?')) return;
+    await fetch('/api/render/jobs', { method: 'DELETE' });
+    fetchJobs();
+  };
 
   const visibleSongs = songs.filter(s => s.filename.toLowerCase().includes(songSearch.toLowerCase()));
 
@@ -164,7 +178,9 @@ export default function RenderKaraokePage() {
                       <div className={`w-4 h-4 rounded flex-shrink-0 border ${cfg ? 'bg-fuchsia-400 border-fuchsia-400' : 'border-white/30'}`} />
                       <div className="flex-1 min-w-0">
                         <div className="text-xs font-semibold text-white truncate">{s.filename}</div>
-                        <div className="text-[10px] text-white/40">{s.category} · {fmtSize(s.size)}</div>
+                        <div className="text-[10px] text-white/40">
+                          {s.category} · {fmtSize(s.size)}{s.duration ? ` · ${fmtDuration(s.duration)}` : ''}
+                        </div>
                       </div>
                       {lyric?.status === 'done' && <span className="text-[9px] font-bold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full">Lyric ✓</span>}
                       {lyric?.status === 'processing' && <span className="text-[9px] font-bold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full animate-pulse">Transkrip...</span>}
@@ -263,9 +279,16 @@ export default function RenderKaraokePage() {
         </div>
 
         {/* JOB HISTORY */}
-        <div className="mb-4 flex items-center justify-between">
+         <div className="flex items-center justify-between mb-4 px-2">
           <span className="text-sm font-semibold text-white/60 tracking-tight">Render Jobs</span>
-          <span className="text-[10px] text-white/30">{jobs.length} total</span>
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] text-white/30">{jobs.length} total</span>
+            {jobs.some(j => j.status === 'done' || j.status === 'failed') && (
+              <button onClick={clearJobs} className="text-[10px] font-bold text-white/40 hover:text-red-400 px-3 py-1.5 rounded-lg hover:bg-red-400/10 transition-colors border border-white/10">
+                🗑 Clear Selesai/Gagal
+              </button>
+            )}
+          </div>
         </div>
         <div className="space-y-3">
           {jobs.length === 0 && <div className="glass-card rounded-[20px] p-8 text-center text-white/30 text-xs">Belum ada job render.</div>}
@@ -287,6 +310,38 @@ export default function RenderKaraokePage() {
                     {j.status === 'failed' && <span className="text-[9px] font-bold text-red-400 bg-red-400/10 px-2 py-0.5 rounded-full">GAGAL</span>}
                     {isActive && <span className="text-[9px] font-bold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full animate-pulse">{stage?.toUpperCase()}</span>}
                     {isActive && <button onClick={() => cancelJob(j.id)} className="text-[9px] font-bold text-red-400 hover:bg-red-500/10 px-2 py-0.5 rounded-full transition-colors">Batalkan</button>}
+                  </div>
+                  {isActive && j.config && (() => {
+                    const cfg = typeof j.config === 'string' ? JSON.parse(j.config) : j.config;
+                    const songs: any[] = cfg.songs || [];
+                    const totalTarget = cfg.totalDurationSecs;
+                    return (
+                      <div className="mt-3 bg-black/30 border border-white/5 rounded-xl p-3 space-y-1.5">
+                        <div className="flex items-center gap-2 text-[10px] text-white/40">
+                          <span className="font-bold text-white/60">🎬 Video:</span>
+                          <span className="font-mono truncate">{cfg.videoPath ? cfg.videoPath.split('/').pop() : '-'}</span>
+                        </div>
+                        {totalTarget && (
+                          <div className="flex items-center gap-2 text-[10px] text-white/40">
+                            <span className="font-bold text-white/60">⏱ Target:</span>
+                            <span>{Math.round(totalTarget / 60)} menit</span>
+                          </div>
+                        )}
+                        <div className="text-[10px] font-bold text-white/60 mt-1">🎵 Lagu ({songs.length}):</div>
+                        <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
+                          {songs.map((s: any, i: number) => (
+                            <div key={i} className="flex items-center gap-2 text-[10px] text-white/50">
+                              <span className="text-white/20 w-4 text-right flex-shrink-0">{i+1}.</span>
+                              <span className="truncate flex-1">{s.filename}</span>
+                              {s.loopToFill && <span className="text-cyan-400 text-[9px] flex-shrink-0">🔁</span>}
+                              {s.useLyrics && <span className="text-fuchsia-400 text-[9px] flex-shrink-0">🎤</span>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  <div className="flex items-center justify-between" style={{display:'none'}}>
                   </div>
                 </div>
                 {isActive && (
