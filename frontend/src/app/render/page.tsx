@@ -8,7 +8,7 @@ interface SongConfig { path: string; filename: string; loopToFill: boolean; useL
 interface RenderJob {
   id: number; output_name: string; output_category: string; video_path: string;
   status: string; progress: number; stage: string; output_path: string | null;
-  error_message: string | null; created_at: string; detail?: string;
+  error_message: string | null; created_at: string; detail?: string; config?: any;
 }
 
 const fmtSize = (b: number) => !b ? '-' : b < 1048576 ? `${(b/1024).toFixed(1)} KB` : `${(b/1048576).toFixed(1)} MB`;
