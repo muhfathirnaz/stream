@@ -679,6 +679,9 @@ export default function MediaPool() {
           const xhr=new XMLHttpRequest();
           xhr.upload.onprogress=e=>{setQueue(q=>q.map(i=>i.id===item.id?{...i,progress:Math.round((e.loaded/e.total)*100)}:i));};
           xhr.onload=()=>xhr.status===200?resolve():reject();
+          xhr.onerror=()=>reject(new Error("Network error saat upload — koneksi putus"));
+          xhr.ontimeout=()=>reject(new Error("Upload timeout, server tidak merespons"));
+          xhr.timeout=0;
           xhr.open("POST",`${API_BASE}/upload`);xhr.send(fd);
         });
         await fetchFiles();setQueue(q=>q.map(i=>i.id===item.id?{...i,status:"done",progress:100}:i));addToast(`Berhasil upload ${item.name}`,"success");

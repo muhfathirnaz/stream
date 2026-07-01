@@ -63,7 +63,7 @@ const fileFilter = (req, file, cb) => {
   cb(new Error(`File ${ext} tidak diizinkan untuk tipe "${type}"`));
 };
 
-const upload = multer({ storage, fileFilter, limits: { fileSize: 500 * 1024 * 1024 } });
+const upload = multer({ storage, fileFilter, limits: { fileSize: 15 * 1024 * 1024 * 1024 } });
 
 app.get('/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString(), MEDIA_BASE_DIR }));
 
