@@ -133,7 +133,7 @@ export default function StreamsPage() {
       const payloadFolder = config.folders.length > 0 ? config.folders.join(',') : 'Semua';
       const durationSecs = config.duration === 0 ? 999 * 3600 : config.duration * 3600;
       const body: Record<string, unknown> = { channelId, durationSecs, folder: payloadFolder, auto: config.auto, mode: config.mode || 'encode', deleteAfterStream: !!config.deleteAfterStream, deleteVpsAfterStream: !!config.deleteVpsAfterStream };
-      if (!config.auto) { body.videoReadyPath = config.vrPath; body.videoPath = config.vidPath; body.songPath = config.songPath; body.thumbnailPath = config.thumbPath; body.titleId = config.titleId; body.descriptionId = config.descId; }
+      if (!config.auto) { body.videoReadyPath = config.vrPath; body.videoPath = config.vidPath; body.songPath = config.songPath; body.thumbnailPath = config.thumbPath; body.titleId = config.titleId; body.descriptionId = config.descriptionId; }
       const res = await fetch('/api/streams/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!res.ok) { const err = await res.json(); alert('Gagal start: ' + err.error); }
       await fetchChannels(); await fetchSchedulesAndLogs();
@@ -191,7 +191,7 @@ export default function StreamsPage() {
       const payloadFolder = config.folders.length > 0 ? config.folders.join(',') : 'Semua';
       const schedDurSecs = config.duration === 0 ? 999 * 3600 : config.duration * 3600;
       const body: Record<string, unknown> = { channelId, scheduledAt, durationSecs: schedDurSecs, folder: payloadFolder, auto: config.auto, mode: config.mode || 'encode', repeatType: form.repeat || 'none', title: 'Lofi Broadcast', deleteAfterStream: !!config.deleteAfterStream, deleteVpsAfterStream: !!config.deleteVpsAfterStream };
-      if (!config.auto) { body.videoReadyPath = config.vrPath; body.videoPath = config.vidPath; body.songPath = config.songPath; body.thumbnailPath = config.thumbPath; body.titleId = config.titleId; body.descriptionId = config.descId; }
+      if (!config.auto) { body.videoReadyPath = config.vrPath; body.videoPath = config.vidPath; body.songPath = config.songPath; body.thumbnailPath = config.thumbPath; body.titleId = config.titleId; body.descriptionId = config.descriptionId; }
       const res = await fetch('/api/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!res.ok) { const err = await res.json(); alert('Gagal schedule: ' + err.error); } else { setShowScheduleFor(null); await fetchSchedulesAndLogs(); }
     } finally { setLoading(false); }

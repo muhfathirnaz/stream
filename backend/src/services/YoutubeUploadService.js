@@ -66,7 +66,7 @@ class YoutubeUploadService {
       const credPath = path.resolve(__dirname, '../../credentials.json');
       let clientId = process.env.GOOGLE_CLIENT_ID;
       let clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-      let redirectUri = 'https://aksarastream.ddns.net/auth/google/callback';
+      let redirectUri = process.env.FRONTEND_URL ? `${process.env.FRONTEND_URL}/auth/google/callback` : 'http://localhost:3000/auth/google/callback';
 
       if (fs.existsSync(credPath)) {
         try {

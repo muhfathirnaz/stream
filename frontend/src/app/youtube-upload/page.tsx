@@ -88,10 +88,10 @@ export default function YoutubeUploadPage() {
   }, [fetchAll]);
 
   useEffect(() => {
-    const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'wss://aksarastream.ddns.net/ws';
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001';
     let ws: WebSocket; let timer: ReturnType<typeof setTimeout>;
     function connect() {
-      ws = new WebSocket(WS_URL);
+      ws = new WebSocket(wsUrl);
       wsRef.current = ws;
       ws.onclose = () => { timer = setTimeout(connect, 5000); };
       ws.onerror = () => ws.close();

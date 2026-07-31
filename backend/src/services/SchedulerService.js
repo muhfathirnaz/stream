@@ -100,7 +100,7 @@ class SchedulerService {
       // ─── BACA DARI JSONB OPTIONS ───
       const options = schedule.options || {};
       let finalTitle          = schedule.title;
-      let finalDesc           = '';
+      let finalDesc           = options.description || '';
       let finalThumb          = schedule.auto ? null : (options.thumbnailPath || null);
       let finalVideoReadyPath = schedule.auto ? null : (options.videoReadyPath || null);
       let finalMode           = options.mode || 'encode';

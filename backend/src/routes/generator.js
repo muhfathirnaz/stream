@@ -3,7 +3,7 @@ const router = express.Router();
 
 router.post('/visual', async (req, res) => {
   try {
-    const n8nWebhookUrl = 'https://aksarastream.ddns.net/n8n/webhook/visualgenerator';
+    const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL || 'http://localhost:5678/webhook/visualgenerator';
     const response = await fetch(n8nWebhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

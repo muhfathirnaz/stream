@@ -6,7 +6,7 @@ class YouTubeService {
   constructor() {
     let clientId = process.env.GOOGLE_CLIENT_ID;
     let clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-    let redirectUri = 'https://aksarastream.ddns.net/auth/google/callback';
+    let redirectUri = process.env.FRONTEND_URL ? `${process.env.FRONTEND_URL}/auth/google/callback` : 'http://localhost:3000/auth/google/callback';
 
     const rootPath = path.resolve(__dirname, '../../');
     const credPath = path.join(rootPath, 'credentials.json');

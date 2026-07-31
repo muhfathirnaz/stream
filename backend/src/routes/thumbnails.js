@@ -141,6 +141,35 @@ router.post('/upload', async (req, res) => {
   }
 });
 
+// ─── POST /api/thumbnails/move ───────────────────────────────────────────────
+router.post('/move', (req, res) => {
+  const { filename, oldCategory, newCategory } = req.body;
+  if (!filename || filename.includes('..') || filename.includes('/')) return res.status(400).json({ error: 'Invalid filename' });
+  
+  const oldCatSafe = !oldCategory || oldCategory === 'Uncategorized' ? '' : oldCategory.replace(/[^a-zA-Z0-9_\- ]/g, '');
+  const newCatSafe = !newCategory || newCategory === 'Uncategorized' ? '' : newCategory.replace(/[^a-zA-Z0-9_\- ]/g, '');
+
+  const oldPath = path.join(THUMBNAILS_DIR, oldCatSafe, filename);
+  const newPath = path.join(THUMBNAILS_DIR, newCatSafe, filename);
+
+  if (!fs.existsSync(oldPath)) return res.status(404).json({ error: 'File tidak ditemukan di kategori asal' });
+  
+  try {
+    const newDir = path.join(THUMBNAILS_DIR, newCatSafe);
+    if (!fs.existsSync(newDir)) fs.mkdirSync(newDir, { recursive: true });
+    
+    fs.renameSync(oldPath, newPath);
+    console.log(`[thumbnails] Moved: ${filename} from ${oldCategory} to ${newCategory}`);
+    
+    triggerRcloneSync().catch(console.error);
+    req.wsService?.broadcast('thumbnails:updated', { source: 'move', ts: new Date().toISOString() });
+    
+    res.json({ success: true, moved: filename });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── POST /api/thumbnails/sync ────────────────────────────────────────────────
 router.post('/sync', async (req, res) => {
   try {

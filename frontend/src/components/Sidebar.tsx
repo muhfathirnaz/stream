@@ -1,4 +1,3 @@
-
 'use client';
 
 import { usePathname } from 'next/navigation';
@@ -12,6 +11,16 @@ const navItems = [
   { label: 'OAuth Tool',   icon: '🔑', href: '/oauth-helper' },
   { label: 'Render Karaoke', icon: '🎤', href: '/render' },
   { label: 'YT Upload', icon: '📺', href: '/youtube-upload' },
+];
+
+/**
+ * Absolute URLs + window.location.assign force a full browser navigation
+ * out of the Command Center Next.js router. Relative /recap/manga is
+ * same-origin and soft-routes inside this app → 404.
+ */
+const recapItems = [
+  { label: 'Recap Manga', icon: '📖', path: '/recap/manga' },
+  { label: 'Recap Novel', icon: '📚', path: '/recap/novel' },
 ];
 
 export default function Sidebar() {
@@ -44,6 +53,24 @@ export default function Sidebar() {
             </Link>
           );
         })}
+        <div className="sidebar-section-label" style={{ marginTop: 12 }}>Recap</div>
+        {recapItems.map((item) => (
+          <a
+            key={item.path}
+            href={`https://aksarastream.ddns.net${item.path}`}
+            className="sidebar-item"
+            // full document load — do not let Next intercept
+            target="_self"
+            rel="noopener"
+            onClick={(e) => {
+              e.preventDefault();
+              window.location.assign(`https://aksarastream.ddns.net${item.path}`);
+            }}
+          >
+            <span className="sidebar-item-icon">{item.icon}</span>
+            <span className="sidebar-item-label">{item.label}</span>
+          </a>
+        ))}
       </nav>
       <div className="sidebar-footer">
         <div className="sidebar-footer-status">

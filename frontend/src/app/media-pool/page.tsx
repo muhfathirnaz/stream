@@ -656,6 +656,23 @@ export default function MediaPool() {
 
   const fetchFiles=useCallback(async()=>{try{const r=await fetch(`${API_BASE}/files`);if(!r.ok)throw new Error();const data=await r.json();setFiles(Array.isArray(data.files)?data.files:[]);setRefreshCount(c=>c+1);}catch{}},[]);
   const fetchCategories=useCallback(async()=>{try{const r=await fetch(`${API_BASE}/categories`);if(!r.ok)throw new Error();const data=await r.json();if(Array.isArray(data.music))setMusicCats(data.music);if(Array.isArray(data.video))setVideoCats(data.video);}catch{}},[]);
+  
+  // Restore upload queue from localStorage on mount
+  useEffect(()=>{
+    try{
+      const saved=localStorage.getItem('mediapool_upload_queue');
+      if(saved){
+        const parsed=JSON.parse(saved);
+        // Show interrupted uploads - mark all as error since File objects can't persist
+        const restored=parsed.filter((item:any)=>item.status!=='done');
+        if(restored.length>0){
+          setQueue(restored.map((item:any)=>({...item,file:null,status:'error' as const})));
+          setTimeout(()=>addToast(`${restored.length} upload terputus saat refresh — hapus atau ulangi`,'info'),500);
+        }
+      }
+    }catch{}
+  },[]);
+
   useEffect(()=>{fetchFiles();fetchCategories();},[fetchFiles,fetchCategories]);
 
   const mediaType=activeTab==="thumbnails"?"music":activeTab==="video-jadi"?"video-ready":activeTab;
@@ -670,24 +687,32 @@ export default function MediaPool() {
 
   const handleUpload=async(rawFiles:File[],category:string)=>{
     const items:UploadQueueItem[]=rawFiles.map(f=>({id:`${Date.now()}-${Math.random()}`,name:f.name,file:f,status:"pending",progress:0}));
-    setQueue(q=>[...q,...items]);
+    const updateQueue=(updater:(q:UploadQueueItem[])=>UploadQueueItem[])=>{
+      setQueue(prev=>{
+        const next=updater(prev);
+        const serializable=next.map(({id,name,status,progress})=>({id,name,status,progress}));
+        localStorage.setItem('mediapool_upload_queue',JSON.stringify(serializable));
+        return next;
+      });
+    };
+    updateQueue(q=>[...q,...items]);
     for(const item of items){
       try{
-        setQueue(q=>q.map(i=>i.id===item.id?{...i,status:"uploading"}:i));
+        updateQueue(q=>q.map(i=>i.id===item.id?{...i,status:"uploading"}:i));
         const fd=new FormData();fd.append("type",mediaType);fd.append("category",category);fd.append("file",item.file);
         await new Promise<void>((resolve,reject)=>{
           const xhr=new XMLHttpRequest();
-          xhr.upload.onprogress=e=>{setQueue(q=>q.map(i=>i.id===item.id?{...i,progress:Math.round((e.loaded/e.total)*100)}:i));};
+          xhr.upload.onprogress=e=>{updateQueue(q=>q.map(i=>i.id===item.id?{...i,progress:Math.round((e.loaded/e.total)*100)}:i));};
           xhr.onload=()=>xhr.status===200?resolve():reject();
           xhr.onerror=()=>reject(new Error("Network error saat upload — koneksi putus"));
           xhr.ontimeout=()=>reject(new Error("Upload timeout, server tidak merespons"));
           xhr.timeout=0;
           xhr.open("POST",`${API_BASE}/upload`);xhr.send(fd);
         });
-        await fetchFiles();setQueue(q=>q.map(i=>i.id===item.id?{...i,status:"done",progress:100}:i));addToast(`Berhasil upload ${item.name}`,"success");
-      }catch{setQueue(q=>q.map(i=>i.id===item.id?{...i,status:"error"}:i));addToast(`Gagal upload ${item.name}`,"error");}
+        await fetchFiles();updateQueue(q=>q.map(i=>i.id===item.id?{...i,status:"done",progress:100}:i));addToast(`Berhasil upload ${item.name}`,"success");
+      }catch{updateQueue(q=>q.map(i=>i.id===item.id?{...i,status:"error"}:i));addToast(`Gagal upload ${item.name}`,"error");}
     }
-    setTimeout(()=>setQueue(q=>q.filter(i=>i.status!=="done")),5000);
+    setTimeout(()=>updateQueue(q=>q.filter(i=>i.status!=="done")),5000);
   };
 
   const handleMoveFile=async(dataString:string,targetCat:string)=>{
@@ -701,6 +726,19 @@ export default function MediaPool() {
 
   const handleRenameCategory=async(oldName:string,newName:string)=>{
     try{const res=await fetch(`${API_BASE}/categories/${mediaType}/${encodeURIComponent(oldName)}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({newName})});const d=await res.json();if(!res.ok)throw new Error(d.error);await fetchCategories();if(selCat===oldName)setSelCat(newName);addToast(`Folder direname ke "${newName}"`,'success');}catch(e){addToast(e instanceof Error?e.message:'Gagal rename','error');}
+  };
+
+  const removeQueueItem=(itemId:string)=>{
+    setQueue(prev=>{
+      const next=prev.filter(i=>i.id!==itemId);
+      if(next.length===0){
+        localStorage.removeItem('mediapool_upload_queue');
+      }else{
+        const serializable=next.map(({id,name,status,progress})=>({id,name,status,progress}));
+        localStorage.setItem('mediapool_upload_queue',JSON.stringify(serializable));
+      }
+      return next;
+    });
   };
 
   const triggerSync=async()=>{if(syncing)return;setSyncing(true);try{await fetch(`${API_BASE}/sync`,{method:"POST"});addToast("Sync GDrive berhasil","success");}catch{addToast("Sync gagal","error");}finally{setSyncing(false);}};
@@ -739,9 +777,12 @@ export default function MediaPool() {
         {queue.length>0&&(
           <div className="mb-6 space-y-2">
             {queue.map(item=>(
-              <div key={item.id} className="glass-card-strong rounded-xl p-3 flex flex-col gap-2">
-                <div className="flex justify-between items-center text-xs"><span className="text-white/80 font-medium truncate pr-4">{item.name}</span><span className={item.status==="done"?"text-emerald-400":item.status==="error"?"text-red-400":"text-white"}>{item.status==="uploading"?`${item.progress}%`:"Selesai"}</span></div>
-                <div className="h-1 bg-white/10 rounded-full overflow-hidden"><div className={`h-full rounded-full transition-all ${item.status==="done"?"bg-emerald-400":item.status==="error"?"bg-red-400":"bg-white"}`} style={{width:`${item.progress}%`}}/></div>
+              <div key={item.id} className="glass-card-strong rounded-xl p-3 flex items-center gap-3">
+                <div className="flex-1 flex flex-col gap-2">
+                  <div className="flex justify-between items-center text-xs"><span className="text-white/80 font-medium truncate pr-4">{item.name}</span><span className={item.status==="done"?"text-emerald-400":item.status==="error"?"text-red-400":"text-white"}>{item.status==="uploading"?`${item.progress}%`:item.status==="done"?"Selesai":"Terputus"}</span></div>
+                  <div className="h-1 bg-white/10 rounded-full overflow-hidden"><div className={`h-full rounded-full transition-all ${item.status==="done"?"bg-emerald-400":item.status==="error"?"bg-red-400":"bg-white"}`} style={{width:`${item.progress}%`}}/></div>
+                </div>
+                <button onClick={()=>removeQueueItem(item.id)} className="text-white/30 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-lg flex-shrink-0"><Icon.X /></button>
               </div>
             ))}
           </div>

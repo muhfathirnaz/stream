@@ -49,11 +49,11 @@ export default function DashboardPage() {
   useEffect(() => { const update = () => { const counts: { [key: number]: string } = {}; schedules.filter(s => s.status === 'pending').forEach(s => { counts[s.id] = getCountdown(s.scheduled_at); }); setCountdown(counts); }; update(); const t = setInterval(update, 30000); return () => clearInterval(t); }, [schedules]);
 
   useEffect(() => {
-    const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'wss://aksarastream.ddns.net/ws';
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001';
     let ws: WebSocket;
     let timer: ReturnType<typeof setTimeout>;
     function connect() {
-      ws = new WebSocket(WS_URL);
+      ws = new WebSocket(wsUrl);
       ws.onopen  = () => setIsConnected(true);
       ws.onclose = () => { setIsConnected(false); timer = setTimeout(connect, 5000); };
       ws.onerror = () => ws.close();

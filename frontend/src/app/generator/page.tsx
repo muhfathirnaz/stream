@@ -11,7 +11,8 @@ export default function GeneratorPage() {
   const targetFields = ['thumbnail', 'image_preview', 'video'];
 
   useEffect(() => {
-    const ws = new WebSocket('wss://aksarastream.ddns.net/ws');
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001';
+    const ws = new WebSocket(wsUrl);
     
     ws.onopen = () => console.log('WebSocket Connected');
     
@@ -35,7 +36,8 @@ export default function GeneratorPage() {
     setLoadingVisual(true);
     setResults([]);
     try {
-      const res = await fetch('https://aksarastream.ddns.net/api/generator/visual', {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+      const res = await fetch(`${apiUrl}/generator/visual`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
